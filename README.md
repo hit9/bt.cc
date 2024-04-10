@@ -1,5 +1,8 @@
 # bt
 
+![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
+![](https://img.shields.io/badge/license-BSD3-brightgreen)
+
 A simple lightweight behavior tree library.
 
 Requires at least C++20.
