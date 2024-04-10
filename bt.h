@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD. https://github.com/hit9/bt
+// License: BSD. https://github.com/hit9/bt.h
 //
 // A simple lightweight behavior tree library.
 // Requirements: at least C++20.
