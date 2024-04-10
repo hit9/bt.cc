@@ -37,6 +37,8 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
+// Version: 0.1.0
+
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
 
@@ -56,12 +58,7 @@
 
 namespace bt {
 
-enum class Status {
-  UNDEFINED = 0,
-  RUNNING = 1,
-  SUCCESS = 2,
-  FAILURE = 3,
-};
+enum class Status { UNDEFINED = 0, RUNNING = 1, SUCCESS = 2, FAILURE = 3 };
 
 // Returns char representation of given status.
 static const char statusRepr(Status s) {
