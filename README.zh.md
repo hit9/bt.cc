@@ -49,7 +49,7 @@ root.Tick(ctx);
   ```cpp
   bt::Status::RUNNING  // 执行中
   bt::Status::FAILURE  // 已失败
-  bt::Status::SUCCESS  // 已失败
+  bt::Status::SUCCESS  // 已成功
   ```
 
 * 行为树节点的分类:
@@ -162,7 +162,7 @@ root.Tick(ctx);
 
 * **Parallel**
 
-  并行节点会并行的执行所有子节点，即每次 `Tick()` 都会对所有子节点跑一次 `Tick()`，然后再统计子节点的运行结果。
+  并行节点会并行地执行所有子节点，即每次 `Tick()` 都会对所有子节点跑一次 `Tick()`，然后再综合子节点的运行结果。
   如果所有节点成功，则算作成功，否则如果至少一个子节点执行失败，则算作失败。
 
 

@@ -21,6 +21,7 @@ An coding overview of structuring a behavior tree in C++:
 
 * Horizontally from left to right represents the relationship from parent node to child node.
 * Vertically, the sibling relationship, from top to bottom, prioritizes from high to low.
+* In a depth-first way, prioritize recursively ticking all descendant nodes.
 
 ```cpp
 // Build the tree.
