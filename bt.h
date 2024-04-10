@@ -273,20 +273,27 @@ concept TCondition = std::is_base_of_v<ConditionNode, T>;
 // SequenceNode run children one by one, and succeeds only if all children
 // succeed.
 class SequenceNode : public CompositeNode {
+ protected:
+  Status update(const Context& ctx, int& start) {
+    // Tick children one by one sequentially.
+    while (start != children.size()) {
+      auto status = children[start]->Tick(ctx);
+      if (status == Status::RUNNING) return Status::RUNNING;
+      // F if any child F.
+      if (status == Status::FAILURE) return Status::FAILURE;
+      start++;
+    }
+    // S if all children S.
+    return Status::SUCCESS;
+  }
+
  public:
   SequenceNode(const std::string& name = "Sequence", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)) {}
 
   Status Update(const Context& ctx) override {
-    // Tick children one by one sequentially.
-    for (auto& c : children) {
-      auto status = c->Tick(ctx);
-      if (status == Status::RUNNING) return Status::RUNNING;
-      // F if any child F.
-      if (status == Status::FAILURE) return Status::FAILURE;
-    }
-    // S if all children S.
-    return Status::SUCCESS;
+    int start = 0;
+    return update(ctx, start);
   }
 };
 
@@ -330,6 +337,20 @@ class ParallelNode : public CompositeNode {
     if (cntFailure > 0) return Status::FAILURE;
     return Status::RUNNING;
   }
+};
+
+// StatefulSequenceNode behaves like a SequenceNode, but instead of ticking children from the first, it
+// starts from the running child instead.
+class StatefulSequenceNode : public SequenceNode {
+ private:
+  int start = 0;  // starting node index
+
+ public:
+  StatefulSequenceNode(const std::string& name = "Sequence*", PtrList<Node>&& cs = {})
+      : SequenceNode(name, std::move(cs)) {}
+  // Restarts to the first child on the next tick on termination.
+  void OnTerminate(Status status) override { start = 0; }
+  Status Update(const Context& ctx) override { return update(ctx, start); }
 };
 
 // DecoratorNode decorates a single child node.
@@ -653,6 +674,13 @@ class Builder {
   // A SequenceNode executes its children one by one sequentially,
   // it succeeds only if all children succeed.
   Builder& Sequence(PtrList<Node>&& cs = {}) { return C<SequenceNode>("Sequence", std::move(cs)); }
+
+  // Creates a stateful sequence node.
+  // It behaves like a sequence node, executes its children sequentially.
+  // What's the difference is, a StatefulSequenceNode starts from running child instead of the first.
+  Builder& StatefulSequence(PtrList<Node>&& cs = {}) {
+    return C<StatefulSequenceNode>("Sequenceful", std::move(cs));
+  }
 
   // Creates a selector node.
   // Parameter `cs` is the optional initial children for this node.
