@@ -679,7 +679,7 @@ class Builder {
   // It behaves like a sequence node, executes its children sequentially.
   // What's the difference is, a StatefulSequenceNode starts from running child instead of the first.
   Builder& StatefulSequence(PtrList<Node>&& cs = {}) {
-    return C<StatefulSequenceNode>("Sequenceful", std::move(cs));
+    return C<StatefulSequenceNode>("Sequence*", std::move(cs));
   }
 
   // Creates a selector node.
