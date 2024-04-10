@@ -3,6 +3,8 @@
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
 
+[中文说明](README.zh.md)
+
 A simple lightweight behavior tree library.
 
 Requires at least C++20.
@@ -16,6 +18,9 @@ Just copy the header file `bt.h` and include it.
 ## The Big Picture
 
 An coding overview of structuring a behavior tree in C++:
+
+* Horizontally from left to right represents the relationship from parent node to child node.
+* Vertically, the sibling relationship, from top to bottom, prioritizes from high to low.
 
 ```cpp
 // Build the tree.
@@ -109,7 +114,7 @@ root.Tick(ctx);
   ```cpp
   root
   .Sequence()
-  ._().Condition<C>() // Condition is a lead node.
+  ._().Condition<C>() // Condition is a leaf node.
   ._().Action<A>()
   ```
 
@@ -274,6 +279,21 @@ root.Tick(ctx);
   .Sequence()
   ._().Action<A>()
   ._().Subtree<A>(std::move(subtree));
+  ```
+
+* **Stateful Nodes**
+
+  The three composite nodes all support stateful ticking: `StatefulSequence`, `StatefulSelector` and `StatefulParallel`.
+
+  The word "stateful" means that skipping the children already succeeded, instead of ticking every children from start.
+
+  ```cpp
+  // For instance, the following A will be skipped by Tick() once it turns SUCCESS.
+
+  root
+  .StatefulSequence()
+  ._().Action<A>()
+  ._().Action<B>()
   ```
 
 * **Hook Methods**
