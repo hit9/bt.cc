@@ -1,4 +1,4 @@
-# bt
+# bt.h
 
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
