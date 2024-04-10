@@ -7,9 +7,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 enable_testing()
 
-include_directories(".."  ".")
+include_directories(".." ".")
 
-find_package(catch2 CONFIG REQUIRED)
+find_package(Catch2 CONFIG REQUIRED)
 
 # Targets
 file(GLOB TEST_SOURCES *_test.cc)

@@ -1,7 +1,7 @@
 defalut: build
 
 install:
-	conan install . --output-folder=build --build=missing --compiler.cppstd=20
+	conan install . --output-folder=build --build=missing -s compiler.cppstd=20
 
 cmake-build:
 	cd build && cmake .. \

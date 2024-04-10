@@ -74,6 +74,7 @@ static const char statusRepr(Status s) {
     case Status::FAILURE:
       return 'F';
   }
+  return 'U';
 }
 
 using ull = unsigned long long;
