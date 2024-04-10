@@ -3,7 +3,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/Condition/1", "[simplest condition - constructed from template]") {
+TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -41,7 +41,7 @@ TEST_CASE("Simple/Condition/1", "[simplest condition - constructed from template
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Condition/2", "[simplest condition - constructed from lambda]") {
+TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -73,7 +73,7 @@ TEST_CASE("Simple/Condition/2", "[simplest condition - constructed from lambda]"
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 }
 
-TEST_CASE("Simple/Condition/3", "[simplest condition - if]") {
+TEST_CASE("Condition/3", "[simplest condition - if]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -114,7 +114,7 @@ TEST_CASE("Simple/Condition/3", "[simplest condition - if]") {
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
 
-TEST_CASE("Simple/Condition/4", "[simplest condition - and]") {
+TEST_CASE("Condition/4", "[simplest condition - and]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -146,7 +146,7 @@ TEST_CASE("Simple/Condition/4", "[simplest condition - and]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Condition/5", "[simplest condition - or]") {
+TEST_CASE("Condition/5", "[simplest condition - or]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -184,7 +184,7 @@ TEST_CASE("Simple/Condition/5", "[simplest condition - or]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Condition/6", "[simplest condition - not]") {
+TEST_CASE("Condition/6", "[simplest condition - not]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

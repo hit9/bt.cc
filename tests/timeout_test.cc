@@ -6,7 +6,7 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Simple/Timeout/1", "[simple timeout success]") {
+TEST_CASE("Timeout/1", "[simple timeout success]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -30,7 +30,7 @@ TEST_CASE("Simple/Timeout/1", "[simple timeout success]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Timeout/2", "[simple timeout failure]") {
+TEST_CASE("Timeout/2", "[simple timeout failure]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -54,7 +54,7 @@ TEST_CASE("Simple/Timeout/2", "[simple timeout failure]") {
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
 
-TEST_CASE("Simple/Timeout/3", "[simple timeout timedout]") {
+TEST_CASE("Timeout/3", "[simple timeout timedout]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

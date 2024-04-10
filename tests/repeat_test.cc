@@ -4,7 +4,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/Repeat/1", "[simple repeat]") {
+TEST_CASE("Repeat/1", "[simple repeat]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

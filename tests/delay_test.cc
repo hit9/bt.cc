@@ -6,7 +6,7 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Simple/Delay/1", "[simple delay]") {
+TEST_CASE("Delay/1", "[simple delay]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

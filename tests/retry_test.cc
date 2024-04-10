@@ -6,7 +6,7 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Simple/Retry/1", "[simple retry success]") {
+TEST_CASE("Retry/1", "[simple retry success]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -30,7 +30,7 @@ TEST_CASE("Simple/Retry/1", "[simple retry success]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Retry/2", "[simple retry final failure]") {
+TEST_CASE("Retry/2", "[simple retry final failure]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -69,7 +69,7 @@ TEST_CASE("Simple/Retry/2", "[simple retry final failure]") {
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
 
-TEST_CASE("Simple/Retry/3", "[simple retry final success ]") {
+TEST_CASE("Retry/3", "[simple retry final success ]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -99,7 +99,7 @@ TEST_CASE("Simple/Retry/3", "[simple retry final success ]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Retry/4", "[simple retry forever ]") {
+TEST_CASE("Retry/4", "[simple retry forever ]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

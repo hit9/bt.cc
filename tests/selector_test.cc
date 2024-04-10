@@ -3,7 +3,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/Selector/1", "[first success]") {
+TEST_CASE("Selector/1", "[first success]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -51,7 +51,7 @@ TEST_CASE("Simple/Selector/1", "[first success]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Selector/2", "[first failure and second success]") {
+TEST_CASE("Selector/2", "[first failure and second success]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -100,7 +100,7 @@ TEST_CASE("Simple/Selector/2", "[first failure and second success]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Selector/3", "[all failure]") {
+TEST_CASE("Selector/3", "[all failure]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

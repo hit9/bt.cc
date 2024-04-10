@@ -3,7 +3,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/Invert/1", "[invert once]") {
+TEST_CASE("Invert/1", "[invert once]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -31,7 +31,7 @@ TEST_CASE("Simple/Invert/1", "[invert once]") {
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
 
-TEST_CASE("Simple/Invert/2", "[invert twice]") {
+TEST_CASE("Invert/2", "[invert twice]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

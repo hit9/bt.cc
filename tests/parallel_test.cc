@@ -3,7 +3,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/Parallel/1", "[all success]") {
+TEST_CASE("Parallel/1", "[all success]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -51,7 +51,7 @@ TEST_CASE("Simple/Parallel/1", "[all success]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
 
-TEST_CASE("Simple/Parallel/2", "[partial success (2nd failure)]") {
+TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -99,7 +99,7 @@ TEST_CASE("Simple/Parallel/2", "[partial success (2nd failure)]") {
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
 
-TEST_CASE("Simple/Parallel/3", "[partial success (1st failure)]") {
+TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -136,7 +136,7 @@ TEST_CASE("Simple/Parallel/3", "[partial success (1st failure)]") {
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
 
-TEST_CASE("Simple/Parallel/4", "[all failure]") {
+TEST_CASE("Parallel/4", "[all failure]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

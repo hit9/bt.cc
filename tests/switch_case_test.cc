@@ -3,7 +3,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/SwitchCase/1", "[simplest switch/case]") {
+TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

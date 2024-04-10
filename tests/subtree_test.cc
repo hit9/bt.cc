@@ -3,7 +3,7 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Simple/SubTree/1", "[subtree test]") {
+TEST_CASE("SubTree/1", "[subtree test]") {
   bt::Tree root, subtree;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
