@@ -337,6 +337,7 @@ root.Tick(ctx);
     ull seq;  // 当前全局的 tick 帧号
     std::chrono::nanoseconds delta;  // 全局的从上一次 tick 到本次 tick 的时间差
     std::any data; // 用户数据，比如可以存放一个指向黑板的指针
+  }
   ```
 
 * **黑板 ?**

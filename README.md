@@ -17,7 +17,7 @@ Just copy the header file `bt.h` and include it.
 
 ## The Big Picture
 
-An coding overview of structuring a behavior tree in C++:
+Code overview to structure a behavior tree in C++:
 
 * Horizontally from left to right represents the relationship from parent node to child node.
 * Vertically, the sibling relationship, from top to bottom, prioritizes from high to low.
@@ -68,13 +68,13 @@ root.Tick(ctx);
    |   |  | SelectorNode             Run children nodes sequentially until one SUCCESS or all FAILURE.
    |   |  | ParallelNode             Run children nodes parallelly, SUCCESS if all SUCCESS, otherwise FAILURE.
    | LeafNode                        Contains no children.
-   |   | ActionNode                  Executes a specific task.
+   |   | ActionNode                  Executes a specific task/action.
    |   | ConditionNode               Tests a specific condition.
   ```
 
 * **Action**
 
-  Define a class that inherits from `bt::Action`, and implements the `Update` method:
+  Define a class that inherits from `bt::Action`, and implement the `Update` method:
 
   ```cpp
   class A : public bt::Action {
@@ -163,7 +163,8 @@ root.Tick(ctx);
 * **Parallel**
 
   A `ParallelNode` achieves success when all of its child nodes succeed.
-  It will execute all of its children simultaneously, until some child fails.
+  It will execute all of its children "simultaneously", until some child fails.
+  In detail, it executes all children, then aggregates the results of the child nodes' execution to get the `ParallelNode`'s status.
 
   ```cpp
   // A, B, C are executed parallelly.
@@ -178,7 +179,7 @@ root.Tick(ctx);
 
 * **Decorators**
 
-  * `If` executes its child node only if given condition truns `true`.
+  * `If` executes its child node only if given condition turns `true`.
 
     ```cpp
     .If<SomeCondition>()
@@ -286,7 +287,7 @@ root.Tick(ctx);
 
   The three composite nodes all support stateful ticking: `StatefulSequence`, `StatefulSelector` and `StatefulParallel`.
 
-  The word "stateful" means that skipping the children already succeeded, instead of ticking every children from start.
+  The word "stateful" means that skipping the children already succeeded, instead of ticking every child.
 
   ```cpp
   // For instance, the following A will be skipped by Tick() once it turns SUCCESS.
@@ -339,6 +340,7 @@ root.Tick(ctx);
     ull seq;  // ticking seq number.
     std::chrono::nanoseconds delta;  // delta time since last tick, to current tick.
     std::any data; // user data.
+  }
   ```
 
 * **Blackboard ?**
