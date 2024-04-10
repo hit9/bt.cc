@@ -389,7 +389,7 @@ class ParallelNode : public CompositeNode {
 // running children, aka skipping the succeeded children..
 class StatefulParallelNode : public ParallelNode {
  private:
-   std::unordered_set<int> successtable; // index of succeeded children.
+  std::unordered_set<int> successtable;  // index of succeeded children.
 
  public:
   StatefulParallelNode(const std::string& name = "Parallel*", PtrList<Node>&& cs = {})
@@ -929,6 +929,9 @@ class Builder {
   //   ._()._().Action<D>()
   //   ;
   Builder& Switch() { return C<SelectorNode>("Switch"); }
+
+  // Stateful version `Switch` based on StatefulSelectorNode.
+  Builder& StatefulSwitch() { return C<StatefulSelectorNode>("Switch*"); }
 
   // Alias to If, for working alongs with Switch.
   template <TCondition Condition, typename... ConditionArgs>
