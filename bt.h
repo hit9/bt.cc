@@ -51,6 +51,7 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <unordered_set>
 #include <vector>
 
 namespace bt {
@@ -352,25 +353,51 @@ class StatefulSelectorNode : public SelectorNode {
 // ParallelNode succeeds if all children succeed but runs all children
 // parallelly.
 class ParallelNode : public CompositeNode {
- public:
-  ParallelNode(const std::string& name = "Parallel", PtrList<Node>&& cs = {})
-      : CompositeNode(name, std::move(cs)) {}
-
-  Status Update(const Context& ctx) override {
+ protected:
+  // Internal update function for a parallel node.
+  // The successtable helps to skip already succeeded children, and collects newly succeeded children.
+  // Passing successtable=nullptr to disable this feature.
+  Status update(const Context& ctx, std::unordered_set<int>* successtable = nullptr) {
     // Propagates tick to all children.
-    int cntFailure = 0, cntSuccess = 0;
+    int cntFailure = 0, cntSuccess = 0, total = 0;
 
-    for (auto& c : children) {
-      auto status = c->Tick(ctx);
+    for (int i = 0; i < children.size(); i++) {
+      if (successtable != nullptr && successtable->contains(i)) continue;
+      total++;
+      auto status = children[i]->Tick(ctx);
       if (status == Status::FAILURE) cntFailure++;
-      if (status == Status::SUCCESS) cntSuccess++;
+      if (status == Status::SUCCESS) {
+        cntSuccess++;
+        if (successtable != nullptr) successtable->insert(i);
+      }
     }
     // S if all children S.
-    if (cntSuccess == children.size()) return Status::SUCCESS;
+    if (cntSuccess == total) return Status::SUCCESS;
     // F if any child F.
     if (cntFailure > 0) return Status::FAILURE;
     return Status::RUNNING;
   }
+
+ public:
+  ParallelNode(const std::string& name = "Parallel", PtrList<Node>&& cs = {})
+      : CompositeNode(name, std::move(cs)) {}
+
+  Status Update(const Context& ctx) override { return update(ctx, nullptr); }
+};
+
+// StatefulParallelNode behaves like a ParallelNode, but instead of ticking every child, it only tick the
+// running children, aka skipping the succeeded children..
+class StatefulParallelNode : public ParallelNode {
+ private:
+   std::unordered_set<int> successtable; // index of succeeded children.
+
+ public:
+  StatefulParallelNode(const std::string& name = "Parallel*", PtrList<Node>&& cs = {})
+      : ParallelNode(name, std::move(cs)) {}
+
+  // Resets the successtable.
+  void OnTerminate(Status status) override { successtable.clear(); }
+  Status Update(const Context& ctx) override { return update(ctx, &successtable); }
 };
 
 // DecoratorNode decorates a single child node.
@@ -698,7 +725,7 @@ class Builder {
   // Creates a stateful sequence node.
   // It behaves like a sequence node, executes its children sequentially, succeeds if all children succeed,
   // fails if any child fails. What's the difference is, a StatefulSequenceNode starts from running child
-  // instead of the first.
+  // instead of always starting from the first child.
   Builder& StatefulSequence(PtrList<Node>&& cs = {}) {
     return C<StatefulSequenceNode>("Sequence*", std::move(cs));
   }
@@ -711,7 +738,7 @@ class Builder {
   // Creates a stateful selector node.
   // It behaves like a selector node, executes its children sequentially, succeeds if any child succeeds,
   // fails if all child fail. What's the difference is, a StatefulSelectorNode starts from running child
-  // instead of the first.
+  // instead of always starting from the first child.
   Builder& StatefulSelector(PtrList<Node>&& cs = {}) {
     return C<StatefulSelectorNode>("Selector*", std::move(cs));
   }
@@ -721,6 +748,14 @@ class Builder {
   // A ParallelNode executes its children parallelly.
   // It succeeds if all children succeed, and fails if any child fails.
   Builder& Parallel(PtrList<Node>&& cs = {}) { return C<ParallelNode>("Parallel", std::move(cs)); }
+
+  // Creates a stateful parallel node.
+  // It behaves like a parallel node, executes its children parallelly, succeeds if all succeed, fails if all
+  // child fail. What's the difference is, a StatefulParallelNode will skip the "already success" children
+  // instead of executing every child all the time.
+  Builder& StatefulParallel(PtrList<Node>&& cs = {}) {
+    return C<StatefulParallelNode>("Parallel*", std::move(cs));
+  }
 
   ///////////////////////////////////
   // LeafNode creators
