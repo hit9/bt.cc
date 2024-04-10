@@ -1,0 +1,6 @@
+.cache
+build
+*.o
+*.out
+CMakeUserPresets.json
+Testing
