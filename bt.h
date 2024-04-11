@@ -42,18 +42,21 @@
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
 
+#include <algorithm>  // for max, min
 #include <any>
-#include <chrono>
+#include <chrono>  // for milliseconds, high_resolution_clock
 #include <functional>
-#include <iostream>
-#include <memory>
+#include <iostream>  // for cout, flush
+#include <memory>    // for unique_ptr
+#include <queue>     // for priority_queue
 #include <stack>
-#include <stdexcept>
+#include <stdexcept>  // for runtime_error
 #include <string>
 #include <string_view>
-#include <thread>
-#include <type_traits>
+#include <thread>       // for this_thread::sleep_for
+#include <type_traits>  // for is_base_of_v
 #include <unordered_set>
+#include <utility>  // for declval
 #include <vector>
 
 namespace bt {
@@ -93,6 +96,10 @@ struct Context {
   template <typename T>
   Context(T data) : data(data), seq(0) {}
 };
+
+////////////////////////////
+/// Node
+////////////////////////////
 
 // The most base virtual class of all behavior nodes.
 class Node {
@@ -162,12 +169,25 @@ class Node {
   /////////////////////////////////////////
 
   // Hook function to be called on this node's first run.
+  // Nice to call parent class' OnEnter before your implementation.
   virtual void OnEnter(){};
+
   // Hook function to be called once this node goes into success or failure.
+  // Nice to call parent class' OnTerminate after your implementation
   virtual void OnTerminate(Status status){};
+
   // Main update function to be implemented by all subclasses.
   // It's the body part of function Tick().
   virtual Status Update(const Context& ctx) { return Status::SUCCESS; };
+
+  // Returns the priority of this node, should be larger than 0, the larger the higher.
+  // By default, all nodes' priorities are equal, to 0.
+  // Providing this method is primarily for selecting children by dynamic priorities.
+  // It's recommended to implement this function fast enough, since it will be called on each
+  // tick. For instance, we may not need to do the calculation on every tick if it's complex.
+  // Another optimization is to seperate calculation from getter, for example, pre-cache the result
+  // somewhere on the blackboard, and just ask it from memory here.
+  virtual uint Priority() const { return 0; }
 };
 
 // Concept TNode for all classes derived from Node.
@@ -181,6 +201,67 @@ using Ptr = std::unique_ptr<T>;
 template <typename T>
 using PtrList = std::vector<std::unique_ptr<T>>;
 
+////////////////////////////
+/// Node > LeafNode
+////////////////////////////
+
+// LeafNode is a class contains no children.
+class LeafNode : public Node {
+ public:
+  LeafNode(const std::string& name = "LeafNode") : Node(name) {}
+};
+
+// Concept TLeafNode for all classes derived from LeafNode.
+template <typename T>
+concept TLeafNode = std::is_base_of_v<LeafNode, T>;
+
+////////////////////////////////////
+/// Node > LeafNode > ConditionNode
+/////////////////////////////////////
+
+// ConditionNode succeeds only if Check() returns true, it never returns
+// RUNNING.
+class ConditionNode : public LeafNode {
+ public:
+  using Checker = std::function<bool(const Context&)>;
+  ConditionNode(Checker checker = nullptr, const std::string& name = "Condition")
+      : LeafNode(name), checker(checker) {}
+  Status Update(const Context& ctx) override { return Check(ctx) ? Status::SUCCESS : Status::FAILURE; }
+
+  // Check if condition is satisfied.
+  virtual bool Check(const Context& ctx) { return checker != nullptr && checker(ctx); };
+
+ private:
+  Checker checker = nullptr;
+};
+
+using Condition = ConditionNode;  // alias
+
+// Concept TCondition for all classes derived from Condition.
+template <typename T>
+concept TCondition = std::is_base_of_v<ConditionNode, T>;
+
+////////////////////////////////////
+/// Node > LeafNode > ActionNode
+/////////////////////////////////////
+
+// ActionNode contains no children, it just runs a task.
+class ActionNode : public LeafNode {
+ public:
+  ActionNode(const std::string& name = "Action") : LeafNode(name) {}
+
+  // Subclasses must implement function Update().
+};
+using Action = ActionNode;  // alias
+
+// Concept TAction for all classes derived from Action.
+template <typename T>
+concept TAction = std::is_base_of_v<ActionNode, T>;
+
+////////////////////////////
+/// Node > InternalNode
+////////////////////////////
+
 // InternalNode can have children nodes.
 class InternalNode : public Node {
  public:
@@ -192,15 +273,9 @@ class InternalNode : public Node {
 template <typename T>
 concept TInternalNode = std::is_base_of_v<InternalNode, T>;
 
-// LeafNode is a class contains no children.
-class LeafNode : public Node {
- public:
-  LeafNode(const std::string& name = "LeafNode") : Node(name) {}
-};
-
-// Concept TLeafNode for all classes derived from LeafNode.
-template <typename T>
-concept TLeafNode = std::is_base_of_v<LeafNode, T>;
+////////////////////////////////////////////////
+/// Node > InternalNode > SingleNode
+////////////////////////////////////////////////
 
 // SingleNode contains exactly a single child.
 class SingleNode : public InternalNode {
@@ -221,12 +296,25 @@ class SingleNode : public InternalNode {
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
   void Append(Ptr<Node> node) override { child = std::move(node); }
+  uint Priority() const override { return child->Priority(); }
 };
+
+////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode
+////////////////////////////////////////////////
 
 // CompositeNode contains multiple children.
 class CompositeNode : public InternalNode {
  protected:
   PtrList<Node> children;
+
+  std::string_view validate() const override { return children.empty() ? "children empty" : ""; }
+  // Should we consider ith child during this round?
+  virtual bool considerable(int i) const { return true; }
+  // Internal hook function to be called after a child is success.
+  virtual void onChildSuccess(const int i){};
+  // Internal hook function to be called after a child is failure.
+  virtual void onChildFailure(const int i){};
 
   void makeVisualizeString(std::string& s, int depth, ull seq) override {
     Node::makeVisualizeString(s, depth, seq);
@@ -238,134 +326,204 @@ class CompositeNode : public InternalNode {
     }
   }
 
-  std::string_view validate() const override { return children.empty() ? "children empty" : ""; }
-
  public:
   CompositeNode(const std::string& name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
+
+  // Returns the max priority of considerable children.
+  uint Priority() const override {
+    uint ans = 0;
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) ans = std::max(ans, children[i]->Priority());
+    return ans;
+  }
 };
 
-// ConditionNode succeeds only if Check() returns true, it never returns
-// RUNNING.
-class ConditionNode : public LeafNode {
- public:
-  using Checker = std::function<bool(const Context&)>;
-  ConditionNode(Checker checker = nullptr, const std::string& name = "Condition")
-      : LeafNode(name), checker(checker) {}
-  Status Update(const Context& ctx) override { return Check(ctx) ? Status::SUCCESS : Status::FAILURE; }
+//////////////////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode > _Internal Impls
+///////////////////////////////////////////////////////////////
 
-  // Check if condition is satisfied.
-  virtual bool Check(const Context& ctx) { return checker != nullptr && checker(ctx); };
-
- private:
-  Checker checker = nullptr;
-};
-using Condition = ConditionNode;  // alias
-
-// Concept TCondition for all classes derived from Condition.
-template <typename T>
-concept TCondition = std::is_base_of_v<ConditionNode, T>;
-
-// SequenceNode run children one by one, and succeeds only if all children
-// succeed.
-class SequenceNode : public CompositeNode {
+// Always skip children that already succeeded or failure during current round.
+class _InternalStatefulCompositeNode : virtual public CompositeNode {
  protected:
-  Status update(const Context& ctx, int& start) {
-    // Tick children one by one sequentially.
-    while (start != children.size()) {
-      auto status = children[start]->Tick(ctx);
+  // stores the index of children already succeeded or failure in this round.
+  std::unordered_set<int> skiptable;
+  bool considerable(int i) const override { return !skiptable.contains(i); }
+  void tableInsert(const int i) { skiptable.insert(i); }
+
+ public:
+  using CompositeNode::CompositeNode;
+  void OnTerminate(Status status) override { skiptable.clear(); }
+};
+
+// Priority related CompositeNode.
+class _InternalPriorityCompositeNode : virtual public CompositeNode {
+ protected:
+  // Prepare priorities of considerable children on every tick.
+  std::vector<uint> p;
+  // Refresh priorities for considerable children.
+  void refreshp(void) {
+    if (p.size() < children.size()) p.resize(children.size());
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) p[i] = children[i]->Priority();
+  }
+
+ public:
+  using CompositeNode::CompositeNode;
+};
+
+// SequenceNode and SelectorNode are sequential composite node, but not ParallelNode.
+class _InternalSequentialCompositeNode : virtual public _InternalPriorityCompositeNode {
+ protected:
+  // Compare priorities between children, where a and b index.
+  using PQ = std::priority_queue<int, std::vector<int>, std::function<bool(const int, const int)>>;
+  PQ q;
+
+  // SequenceNode and SelectorNode should implement update.
+  // It should propagates tick() to chilren in the q.
+  virtual Status update(const Context& ctx) = 0;
+
+ public:
+  _InternalSequentialCompositeNode(const std::string& name = "_InternalSequentialCompositeNode",
+                                   PtrList<Node>&& cs = {})
+      : _InternalPriorityCompositeNode(name, std::move(cs)) {
+    //  priority from large to smaller, so use less, pa < pb
+    //  order: from small to larger, so use greater, a > b
+    auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
+    PQ q1(cmp);
+    q.swap(q1);
+  }
+  Status Update(const Context& ctx) override {
+    // clear q
+    while (q.size()) q.pop();
+    // refresh priorities
+    refreshp();
+    // enqueue
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) q.push(i);
+    // propagates ticks, one by one sequentially.
+    return update(ctx);
+  }
+};
+
+//////////////////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode > SequenceNode
+///////////////////////////////////////////////////////////////
+
+class _InternalSequenceNodeBase : virtual public _InternalSequentialCompositeNode {
+ protected:
+  Status update(const Context& ctx) override {
+    // propagates ticks, one by one sequentially.
+    while (q.size()) {
+      auto i = q.top();
+      q.pop();
+      auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // F if any child F.
-      if (status == Status::FAILURE) return Status::FAILURE;
-      ++start;
+      if (status == Status::FAILURE) {
+        onChildFailure(i);
+        return Status::FAILURE;
+      }
+      // S
+      onChildSuccess(i);
     }
     // S if all children S.
     return Status::SUCCESS;
   }
 
  public:
-  SequenceNode(const std::string& name = "Sequence", PtrList<Node>&& cs = {})
-      : CompositeNode(name, std::move(cs)) {}
+  using _InternalSequentialCompositeNode::_InternalSequentialCompositeNode;
+};
 
-  Status Update(const Context& ctx) override {
-    int start = 0;
-    return update(ctx, start);
-  }
+// SequenceNode run children one by one, and succeeds only if all children succeed.
+class SequenceNode final : public _InternalSequenceNodeBase {
+ public:
+  SequenceNode(const std::string& name = "Sequence", PtrList<Node>&& cs = {})
+      : _InternalSequenceNodeBase(name, std::move(cs)) {}
 };
 
 // StatefulSequenceNode behaves like a SequenceNode, but instead of ticking children from the first, it
 // starts from the running child instead.
-class StatefulSequenceNode : public SequenceNode {
- private:
-  int start = 0;  // starting node index
+class StatefulSequenceNode final : public _InternalStatefulCompositeNode, public _InternalSequenceNodeBase {
+ protected:
+  void onChildSuccess(const int i) override { tableInsert(i); }
 
  public:
   StatefulSequenceNode(const std::string& name = "Sequence*", PtrList<Node>&& cs = {})
-      : SequenceNode(name, std::move(cs)) {}
-  // Restarts to the first child on the next tick on termination.
-  void OnTerminate(Status status) override { start = 0; }
-  Status Update(const Context& ctx) override { return update(ctx, start); }
+      : _InternalSequenceNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
 };
-// SelectorNode succeeds if any child succeeds.
-class SelectorNode : public CompositeNode {
+
+//////////////////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode > SelectorNode
+///////////////////////////////////////////////////////////////
+
+class _InternalSelectorNodeBase : virtual public _InternalSequentialCompositeNode {
  protected:
-  Status update(const Context& ctx, int& start) {
-    while (start != children.size()) {
-      auto status = children[start]->Tick(ctx);
+  Status update(const Context& ctx) override {
+    // select a success children.
+    while (q.size()) {
+      auto i = q.top();
+      q.pop();
+      auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // S if any child S.
-      if (status == Status::SUCCESS) return Status::SUCCESS;
-      ++start;
+      if (status == Status::SUCCESS) {
+        onChildSuccess(i);
+        return Status::SUCCESS;
+      }
+      // F
+      onChildFailure(i);
     }
     // F if all children F.
     return Status::FAILURE;
   }
 
  public:
-  SelectorNode(const std::string& name = "Selector", PtrList<Node>&& cs = {})
-      : CompositeNode(name, std::move(cs)) {}
+  using _InternalSequentialCompositeNode::_InternalSequentialCompositeNode;
+};
 
-  Status Update(const Context& ctx) override {
-    int start = 0;
-    return update(ctx, start);
-  }
+// SelectorNode succeeds if any child succeeds.
+class SelectorNode final : public _InternalSelectorNodeBase {
+ public:
+  SelectorNode(const std::string& name = "Selector", PtrList<Node>&& cs = {})
+      : _InternalSelectorNodeBase(name, std::move(cs)) {}
 };
 
 // StatefulSelectorNode behaves like a SelectorNode, but instead of ticking children from the first, it
 // starts from the running child instead.
-class StatefulSelectorNode : public SelectorNode {
- private:
-  int start = 0;  // starting node index
+class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _InternalSelectorNodeBase {
+ protected:
+  void onChildFailure(const int i) override { tableInsert(i); }
 
  public:
   StatefulSelectorNode(const std::string& name = "Selector*", PtrList<Node>&& cs = {})
-      : SelectorNode(name, std::move(cs)) {}
-  // Restarts to the first child on the next tick on termination.
-  void OnTerminate(Status status) override { start = 0; }
-  Status Update(const Context& ctx) override { return update(ctx, start); }
+      : _InternalSelectorNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
 };
 
-// ParallelNode succeeds if all children succeed but runs all children
-// parallelly.
-class ParallelNode : public CompositeNode {
- protected:
-  // Internal update function for a parallel node.
-  // The successtable helps to skip already succeeded children, and collects newly succeeded children.
-  // Passing successtable=nullptr to disable this feature.
-  Status update(const Context& ctx, std::unordered_set<int>* successtable = nullptr) {
-    // Propagates tick to all children.
+//////////////////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode > ParallelNode
+///////////////////////////////////////////////////////////////
+
+class _InternalParallelNodeBase : virtual public CompositeNode {
+ public:
+  using CompositeNode::CompositeNode;
+  Status Update(const Context& ctx) {
+    // Propagates tick to all considerable children.
     int cntFailure = 0, cntSuccess = 0, total = 0;
 
     for (int i = 0; i < children.size(); i++) {
-      if (successtable != nullptr && successtable->contains(i)) continue;
+      if (!considerable(i)) continue;
       total++;
       auto status = children[i]->Tick(ctx);
-      if (status == Status::FAILURE) cntFailure++;
+      if (status == Status::FAILURE) {
+        cntFailure++;
+        onChildFailure(i);
+      }
       if (status == Status::SUCCESS) {
         cntSuccess++;
-        if (successtable != nullptr) successtable->insert(i);
+        onChildSuccess(i);
       }
     }
     // S if all children S.
@@ -374,28 +532,31 @@ class ParallelNode : public CompositeNode {
     if (cntFailure > 0) return Status::FAILURE;
     return Status::RUNNING;
   }
+};
 
+// ParallelNode succeeds if all children succeed but runs all children
+// parallelly.
+class ParallelNode final : virtual public _InternalParallelNodeBase {
+ protected:
  public:
   ParallelNode(const std::string& name = "Parallel", PtrList<Node>&& cs = {})
-      : CompositeNode(name, std::move(cs)) {}
-
-  Status Update(const Context& ctx) override { return update(ctx, nullptr); }
+      : _InternalParallelNodeBase(name, std::move(cs)) {}
 };
 
 // StatefulParallelNode behaves like a ParallelNode, but instead of ticking every child, it only tick the
 // running children, aka skipping the succeeded children..
-class StatefulParallelNode : public ParallelNode {
- private:
-  std::unordered_set<int> successtable;  // index of succeeded children.
+class StatefulParallelNode final : public _InternalStatefulCompositeNode, public _InternalParallelNodeBase {
+ protected:
+  void onChildSuccess(const int i) override { tableInsert(i); }
 
  public:
   StatefulParallelNode(const std::string& name = "Parallel*", PtrList<Node>&& cs = {})
-      : ParallelNode(name, std::move(cs)) {}
-
-  // Resets the successtable.
-  void OnTerminate(Status status) override { successtable.clear(); }
-  Status Update(const Context& ctx) override { return update(ctx, &successtable); }
+      : _InternalParallelNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
 };
+
+//////////////////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode > Decorator
+///////////////////////////////////////////////////////////////
 
 // DecoratorNode decorates a single child node.
 class DecoratorNode : public SingleNode {
@@ -586,18 +747,9 @@ class RetryNode : public DecoratorNode {
   }
 };
 
-// ActionNode contains no children, it just runs a task.
-class ActionNode : public LeafNode {
- public:
-  ActionNode(const std::string& name = "Action") : LeafNode(name) {}
-
-  // Subclasses must implement function Update().
-};
-using Action = ActionNode;  // alias
-
-// Concept TAction for all classes derived from Action.
-template <typename T>
-concept TAction = std::is_base_of_v<ActionNode, T>;
+//////////////////////////////////////////////////////////////
+/// Node > SingleNode > RootNode
+///////////////////////////////////////////////////////////////
 
 // RootNode is a SingleNode.
 class RootNode : public SingleNode {
@@ -616,6 +768,10 @@ class RootNode : public SingleNode {
     std::cout << s << std::flush;
   }
 };
+
+//////////////////////////////////////////////////////////////
+/// Tree Builder
+///////////////////////////////////////////////////////////////
 
 // Builder helps to build a tree.
 class Builder {
@@ -703,7 +859,7 @@ class Builder {
   //    ._().Action<A>()
   template <TNode T, typename... Args>
   Builder& C(Args... args) {
-    if constexpr (std::is_base_of<LeafNode, T>::value)  // LeafNode
+    if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
       return attachLeafNode(std::make_unique<T>(std::forward<Args>(args)...));
     else  // InternalNode.
       return attachInternalNode(std::make_unique<T>(std::forward<Args>(args)...));
@@ -960,6 +1116,10 @@ class Builder {
   // Subtree function that receives an unique_ptr.
   Builder& Subtree(Ptr<RootNode> tree) { return attachInternalNode(std::move(tree)); }
 };
+
+//////////////////////////////////////////////////////////////
+/// Tree
+///////////////////////////////////////////////////////////////
 
 // Behavior Tree.
 class Tree : public RootNode, public Builder {
