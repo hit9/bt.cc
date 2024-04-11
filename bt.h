@@ -56,7 +56,6 @@
 #include <thread>       // for this_thread::sleep_for
 #include <type_traits>  // for is_base_of_v
 #include <unordered_set>
-#include <utility>  // for declval
 #include <vector>
 
 namespace bt {
