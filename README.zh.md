@@ -44,7 +44,36 @@ root.Tick(ctx);
 
 ## 参考手册
 
-* 执行状态码:
+目录: <span id="ref"></span>
+
+- [状态码](#status)
+- [节点分类](#classes)
+- 叶子节点:
+  - [动作节点 Action](#action)
+  - [条件节点 Condition](#condition)
+- 组合节点:
+  - [顺序节点 Sequence](#sequence)
+  - [选择节点 Selector](#selector)
+  - [并行节点 Parallel](#parallel)
+- [装饰器 Decorators](#decorators)
+  - [If](#if)
+  - [Invert 反转](#invert)
+  - [Switch Case](#switchcase)
+  - [Repeat 重复](#repeat)
+  - [Timeout 超时](#timeout)
+  - [Delay 延时](#delay)
+  - [Retry 重试](#retry)
+  - [自定义装饰器](#custom-decorator)
+- [子树](#subtree)
+- [有状态的组合节点](#stateful)
+- [钩子函数](#hooks)
+- [可视化](#visualization)
+- [Tick 上下文](#context)
+- [黑板 ?](#blackboard)
+- [Tick 循环](#ticker-loop)
+- [自定义 Builder](#custom-builder)
+
+* 执行状态码 <span id="status"></span> <a href="#ref">[↑]</ref>:
 
   ```cpp
   bt::Status::RUNNING  // 执行中
@@ -52,7 +81,7 @@ root.Tick(ctx);
   bt::Status::SUCCESS  // 已成功
   ```
 
-* 行为树节点的分类:
+* 行为树节点的分类:  <span id="classes"></span> :  <a href="#ref">[↑]</ref>
 
   ```
   Node                               所有节点的基类
@@ -69,7 +98,7 @@ root.Tick(ctx);
    |   | ConditionNode               条件节点
   ```
 
-* **Action**
+* **Action**  <span id="action"></span> <a href="#ref">[↑]</ref>
 
   要定义一个 `Action` 节点，只需要继承自 `bt::Action`，并实现方法 `Update`：
 
@@ -90,7 +119,7 @@ root.Tick(ctx);
   .Action<A>()
   ```
 
-* **Condition**
+* **Condition**  <span id="condition"></span> <a href="#ref">[↑]</ref>
 
   条件节点没有子节点，当它的 `Check()` 方法返回 `true` 时，算作成功。
 
@@ -126,7 +155,7 @@ root.Tick(ctx);
   ;
   ```
 
-* **Sequence**
+* **Sequence** <span id="sequence"></span> <a href="#ref">[↑]</ref>
 
   顺序节点会依次执行它的所有子节点，如果子节点全部成功，则它会成功，否则会立即失败。
 
@@ -142,7 +171,7 @@ root.Tick(ctx);
   ;
   ```
 
-* **Selector**
+* **Selector**  <span id="selector"></span> <a href="#ref">[↑]</ref>
 
   选择节点会依次执行它的所有子节点，如果子节点全部失败，则它会失败，否则遇到一个成功的子节点，会立即成功。
 
@@ -160,7 +189,7 @@ root.Tick(ctx);
   ;
   ```
 
-* **Parallel**
+* **Parallel** <span id="parallel"></span> <a href="#ref">[↑]</ref>
 
   并行节点会并行地执行所有子节点，即每次 `Tick()` 都会对所有子节点跑一次 `Tick()`，然后再综合子节点的运行结果。
   如果所有节点成功，则算作成功，否则如果至少一个子节点执行失败，则算作失败。
@@ -178,16 +207,16 @@ root.Tick(ctx);
   ;
   ```
 
-* **Decorators**
+* **Decorators** <span id="decorators"></span> <a href="#ref">[↑]</ref>
 
-  * `If` 只有在它的条件满足时执行其装饰的子节点：
+  * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#ref">[↑]</ref>
 
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()
     ```
 
-  * `Invert()` 会反转其装饰的子节点的执行状态:
+  * `Invert()` 会反转其装饰的子节点的执行状态:  <span id="invert"></span> <a href="#ref">[↑]</ref>
 
     ```cpp
     .Invert()
@@ -199,7 +228,7 @@ root.Tick(ctx);
     //   FAILURE => SUCCESS
     ```
 
-  * `Switch/Case` 是基于 `Selector` 和 `If` 的一种语法糖：
+  * `Switch/Case` 是基于 `Selector` 和 `If` 的一种语法糖：  <span id="switchcase"></span> <a href="#ref">[↑]</ref>
 
     ```cpp
     // 只有一个 case 会成功，或者全部失败。
@@ -212,7 +241,7 @@ root.Tick(ctx);
     ._()._().Action<TaskY>()
     ```
 
-  * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。
+  * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。  <span id="repeat"></span> <a href="#ref">[↑]</ref>
 
     如果把节点从 开始 `RUNNING`、到 `SUCCESS` 或者 `FAILURE` 叫做一轮的话，`Repeat(n)` 的作用就是执行被修饰的子节点 `n` 轮。
 
@@ -222,7 +251,7 @@ root.Tick(ctx);
     ._().Action<A>()
     ```
 
-  * `Timeout` 会对其修饰的子节点加一个执行时间限制，如果到时间期限子节点仍未返回成功，则它会返回失败，也不再 tick 子节点。
+  * `Timeout` 会对其修饰的子节点加一个执行时间限制，如果到时间期限子节点仍未返回成功，则它会返回失败，也不再 tick 子节点。   <span id="timeout"></span> <a href="#ref">[↑]</ref>
 
     ```cpp
     using namespace std::chrono_literals;
@@ -231,7 +260,7 @@ root.Tick(ctx);
     ._().Action<Task>()
     ```
 
-  * `Delay` 会在执行其子节点之前，等待一段时间。
+  * `Delay` 会在执行其子节点之前，等待一段时间。   <span id="delay"></span> <a href="#ref">[↑]</ref>
 
     ```cpp
     using namespace std::chrono_literals;
@@ -240,7 +269,7 @@ root.Tick(ctx);
     ._().Action<Task>()
     ```
 
-  * `Retry` 在其装饰的子节点执行失败时会发起重试，最多重试 `n` 次，重试间隔是 `interval` 。
+  * `Retry` 在其装饰的子节点执行失败时会发起重试，最多重试 `n` 次，重试间隔是 `interval` 。  <span id="retry"></span> <a href="#ref">[↑]</ref>
 
     下面的代码中，在 `Task` 子树失败时会发起重试，最多执行 3 次，每次重试的间隔是 `1000ms`：
 
@@ -254,7 +283,7 @@ root.Tick(ctx);
     ._().Action<Task>()
     ```
 
-  * **自定义装饰器**
+  * **自定义装饰器**  <a href="#ref">[↑]</ref>
 
     要定义一个自定义的装饰器，可以继承 `bt::DecoratorNode`:
 
@@ -270,7 +299,7 @@ root.Tick(ctx);
     };
     ```
 
-* **子树**
+* **子树**  <span id="subtree"></span> <a href="#ref">[↑]</ref>
 
   一个行为树可以挂载到另一颗行为树上，作为子树存在：
 
@@ -283,7 +312,7 @@ root.Tick(ctx);
   ._().Subtree<A>(std::move(subtree));
   ```
 
-* **有状态的节点**
+* **有状态的节点**  <span id="stateful"></span> <a href="#ref">[↑]</ref>
 
   三种组合节点都有支持「有状态的」版本：`StatefulSequence`, `StatefulSelector` 和 `StatefulParallel`.
 
@@ -298,7 +327,7 @@ root.Tick(ctx);
   ._().Action<B>()
   ```
 
-* **钩子函数**
+* **钩子函数**  <span id="hooks"></span> <a href="#ref">[↑]</ref>
 
   对于每个节点，都支持两种钩子函数：
 
@@ -315,7 +344,7 @@ root.Tick(ctx);
   }
   ```
 
-* **可视化**
+* **可视化**  <span id="visualization"></span> <a href="#ref">[↑]</ref>
 
   `bt.h` 实现了一个简单的实时把行为树运行状态可视化展示的函数，绿色的节点表示正在被 tick 的节点。
 
@@ -328,7 +357,7 @@ root.Tick(ctx);
   root.Visualize(ctx.seq)
   ```
 
-* **Tick 的上下文结构体 `Context`**
+* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#ref">[↑]</ref>
 
   这个结构体会从根节点一路传递到每个被执行到的节点：
 
@@ -340,7 +369,7 @@ root.Tick(ctx);
   }
   ```
 
-* **黑板 ?**
+* **黑板 ?**  <span id="blackboard"></span> <a href="#ref">[↑]</ref>
 
   实际上，如果不面向非开发人员的话，行为树和黑板是不需要序列化机制的，也就是说，可以直接使用一个 `struct` 来作为黑板，简单而高效：
 
@@ -363,7 +392,7 @@ root.Tick(ctx);
   }
   ```
 
-* **Tick 循环**
+* **Tick 循环**   <span id="ticker-loop"></span> <a href="#ref">[↑]</ref>
 
   `bt.h` 中内置了一个简单额 tick 主循环：
 
@@ -371,7 +400,7 @@ root.Tick(ctx);
   root.TickForever(ctx, 100ms);
   ```
 
-* **自定义行为树的构建器 Builder**
+* **自定义行为树的构建器 Builder**  <span id="custom-builder"></span> <a href="#ref">[↑]</ref>
 
   ```cpp
   class MyTree : public bt::Tree {
