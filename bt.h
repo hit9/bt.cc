@@ -354,7 +354,6 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   void tableInsert(const int i) { skiptable.insert(i); }
 
  public:
-  using CompositeNode::CompositeNode;
   void OnTerminate(Status status) override { skiptable.clear(); }
 };
 
@@ -379,9 +378,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   virtual Status update(const Context& ctx) = 0;
 
  public:
-  _InternalPriorityCompositeNode(const std::string& name = "_InternalPriorityCompositeNode",
-                                 PtrList<Node>&& cs = {})
-      : CompositeNode(name, std::move(cs)) {
+  _InternalPriorityCompositeNode() {
     //  priority from large to smaller, so use less, pa < pb
     //  order: from small to larger, so use greater, a > b
     auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
@@ -426,16 +423,13 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
     // S if all children S.
     return Status::SUCCESS;
   }
-
- public:
-  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
 };
 
 // SequenceNode run children one by one, and succeeds only if all children succeed.
 class SequenceNode final : public _InternalSequenceNodeBase {
  public:
   SequenceNode(const std::string& name = "Sequence", PtrList<Node>&& cs = {})
-      : _InternalSequenceNodeBase(name, std::move(cs)) {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 // StatefulSequenceNode behaves like a SequenceNode, but instead of ticking children from the first, it
@@ -446,7 +440,7 @@ class StatefulSequenceNode final : public _InternalStatefulCompositeNode, public
 
  public:
   StatefulSequenceNode(const std::string& name = "Sequence*", PtrList<Node>&& cs = {})
-      : _InternalSequenceNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 //////////////////////////////////////////////////////////////
@@ -473,16 +467,13 @@ class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode 
     // F if all children F.
     return Status::FAILURE;
   }
-
- public:
-  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
 };
 
 // SelectorNode succeeds if any child succeeds.
 class SelectorNode final : public _InternalSelectorNodeBase {
  public:
   SelectorNode(const std::string& name = "Selector", PtrList<Node>&& cs = {})
-      : _InternalSelectorNodeBase(name, std::move(cs)) {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 // StatefulSelectorNode behaves like a SelectorNode, but instead of ticking children from the first, it
@@ -493,7 +484,7 @@ class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _Inte
 
  public:
   StatefulSelectorNode(const std::string& name = "Selector*", PtrList<Node>&& cs = {})
-      : _InternalSelectorNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 //////////////////////////////////////////////////////////////
@@ -548,7 +539,6 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
   }
 
  public:
-  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
   Status Update(const Context& ctx) override {
     refreshp(ctx);
     return update(ctx);
@@ -559,7 +549,7 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
 class RandomSelectorNode final : public _InternalRandomSelectorNodeBase {
  public:
   RandomSelectorNode(const std::string& name = "RandomSelector", PtrList<Node>&& cs = {})
-      : _InternalRandomSelectorNodeBase(name, std::move(cs)) {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 // StatefulRandomSelectorNode behaves like RandomSelectorNode.
@@ -568,7 +558,7 @@ class StatefulRandomSelectorNode final : virtual public _InternalStatefulComposi
                                          virtual public _InternalRandomSelectorNodeBase {
  public:
   StatefulRandomSelectorNode(const std::string& name = "RandomSelector*", PtrList<Node>&& cs = {})
-      : _InternalRandomSelectorNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 //////////////////////////////////////////////////////////////
@@ -600,9 +590,6 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
     if (cntFailure > 0) return Status::FAILURE;
     return Status::RUNNING;
   }
-
- public:
-  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
 };
 
 // ParallelNode succeeds if all children succeed but runs all children
@@ -610,7 +597,7 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
 class ParallelNode final : public _InternalParallelNodeBase {
  public:
   ParallelNode(const std::string& name = "Parallel", PtrList<Node>&& cs = {})
-      : _InternalParallelNodeBase(name, std::move(cs)) {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 // StatefulParallelNode behaves like a ParallelNode, but instead of ticking every child, it only tick the
@@ -621,7 +608,7 @@ class StatefulParallelNode final : public _InternalStatefulCompositeNode, public
 
  public:
   StatefulParallelNode(const std::string& name = "Parallel*", PtrList<Node>&& cs = {})
-      : _InternalParallelNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
+      : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
 //////////////////////////////////////////////////////////////
