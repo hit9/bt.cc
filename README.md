@@ -228,13 +228,13 @@ Reference: <span id="a"></span>
 
 * **Priority**  <span id="priority"></span> <a href="#a">[↑]</a>
 
-  By default, childre nodes are equal in weight, that is, their priorities are equal (all are defaulted to 1).
-  For composite nodes, the child nodes are examined from top to bottom.
+  By default, children nodes are equal in weight, that is, their priorities are equal (all are defaulted to 1).
+  For composite nodes, their child nodes are examined from top to bottom.
 
   However, in order to support the "dynamic priority" feature, for example,
   the behavior of each child node has a dynamic scoring mechanism,
   and the child node with the highest score should be selected for execution each tick,
-  for such cases, the class `Node` supports overloading a `Priority` function.
+  for such cases, the class `Node` supports overriding a `Priority` function.
 
   ```cpp
   class A : public bt::Action {
@@ -250,7 +250,7 @@ Reference: <span id="a"></span>
 
   It's recommended to implement this function fast enough, since it will be called on each
   tick. For instance, we may not need to do the calculation on every tick if it's complex.
-  Another optimization is to seperate calculation from queries, for example, pre-cache the result
+  Another optimization is to separate calculation from queries, for example, pre-cache the result
   somewhere on the blackboard, and just ask it from memory here.
 
   All composite nodes, including stateful ones, will respect to its children's `Priority()` functions.
@@ -262,7 +262,8 @@ Reference: <span id="a"></span>
   The word "stateful" means that skipping the children already succeeded (failed for selectors), instead of ticking every child.
 
   ```cpp
-  // For instance, the following A will be skipped by Tick() once it turns SUCCESS, only B will got future ticks.
+  // For instance, the following A will be skipped by Tick() once it
+  // turns SUCCESS, only B will got future ticks.
 
   root
   .StatefulSequence()
@@ -273,7 +274,8 @@ Reference: <span id="a"></span>
   Another example:
 
   ```cpp
-  // the following A will be skipped by Tick() once it turns FAILURE, only B will got future ticks.
+  // the following A will be skipped by Tick() once it
+  // turns FAILURE, only B will got future ticks.
 
   root
   .StatefulSelector()

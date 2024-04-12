@@ -185,7 +185,7 @@ class Node {
   // Providing this method is primarily for selecting children by dynamic priorities.
   // It's recommended to implement this function fast enough, since it will be called on each
   // tick. For instance, we may not need to do the calculation on every tick if it's complex.
-  // Another optimization is to seperate calculation from getter, for example, pre-cache the result
+  // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
   virtual uint Priority(const Context& ctx) const { return 1; }
 };
