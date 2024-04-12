@@ -173,3 +173,40 @@ TEST_CASE("Parallel/4", "[all failure]") {
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
+
+TEST_CASE("Parallel/5", "[priority partial]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .Parallel()
+    ._().Action<G>()
+    ._().Action<H>()
+    ;
+  // clang-format on
+
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 0);
+
+  bb->shouldPriorityG = 3;
+  bb->shouldPriorityH = 2;
+
+  // Tick#1
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 1);
+  REQUIRE(bb->counterH == 1);
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#2
+  bb->shouldG = bt::Status::FAILURE;
+  bb->shouldH = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->statusG == bt::Status::FAILURE);
+  REQUIRE(bb->statusH == bt::Status::SUCCESS);
+  REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+}
