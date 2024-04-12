@@ -20,7 +20,7 @@ Just copy the header file `bt.h` and include it.
 Code overview to structure a behavior tree in C++:
 
 * Horizontally from left to right represents the relationship from parent node to child node.
-* Vertically, the sibling relationship, from top to bottom, prioritizes from high to low.
+* Vertically, the sibling relationship, from top to bottom, prioritizes from high to low (by default).
 * In a depth-first way, prioritize recursively ticking all descendant nodes.
 
 ```cpp
@@ -45,9 +45,40 @@ bt::Context ctx;
 root.Tick(ctx);
 ```
 
-## Manual Reference
+## Manual
 
-* Execution status enums:
+Reference: <span id="a"></span>
+
+- [Status](#status)
+- [Node Classification](#classes)
+- Leaf Nodes:
+  - [Action](#action)
+  - [Condition](#condition)
+- Composite Nodes:
+  - [Sequence](#sequence)
+  - [Selector](#selector)
+  - [Parallel](#parallel)
+  - [RandomSelector](#random-selector)
+  - [Priority](#priority)
+  - [Stateful Composite nodes](#stateful)
+- [Decorators](#decorators)
+  - [If](#if)
+  - [Invert](#invert)
+  - [Switch Case](#switchcase)
+  - [Repeat](#repeat)
+  - [Timeout](#timeout)
+  - [Delay](#delay)
+  - [Retry](#retry)
+  - [Custom Decorator](#custom-decorator)
+- [Sub Tree](#subtree)
+- [Hook Methods](#hooks)
+- [Visualization](#visualization)
+- [Tick Context](#context)
+- [Blackboard?](#blackboard)
+- [Ticker Loop](#ticker-loop)
+- [Custom Builder](#custom-builder)
+
+* Execution status enums <span id="status"></span> <a href="#a">[↑]</a>:
 
   ```cpp
   bt::Status::RUNNING
@@ -55,7 +86,7 @@ root.Tick(ctx);
   bt::Status::SUCCESS
   ```
 
-* Classification of nodes:
+* Classification of nodes <span id="classes"></span> :  <a href="#a">[↑]</a>
 
   ```
   Node                               Base class of all kinds of nodes.
@@ -72,7 +103,7 @@ root.Tick(ctx);
    |   | ConditionNode               Tests a specific condition.
   ```
 
-* **Action**
+* **Action**  <span id="action"></span> <a href="#a">[↑]</a>
 
   Define a class that inherits from `bt::Action`, and implement the `Update` method:
 
@@ -93,7 +124,7 @@ root.Tick(ctx);
   .Action<A>()
   ```
 
-* **Condition**
+* **Condition**  <span id="condition"></span> <a href="#a">[↑]</a>
 
   A `Condition` is a leaf node without children, it succeeds only if the `Check()` method returns `true`.
 
@@ -129,7 +160,7 @@ root.Tick(ctx);
   ;
   ```
 
-* **Sequence**
+* **Sequence**  <span id="sequence"></span> <a href="#a">[↑]</a>
 
   A `SequenceNode` executes its child nodes sequentially, succeeding only if all children succeed.
   It behaves akin to the logical **AND** operation, especially for the `Condition` children nodes.
@@ -144,7 +175,7 @@ root.Tick(ctx);
   ;
   ```
 
-* **Selector**
+* **Selector** <span id="selector"></span> <a href="#a">[↑]</a>
 
   A `SelectorNode` executes its child nodes sequentially, one by one.
   It succeeds if any child succeeds and fails only if all children fail.
@@ -160,7 +191,7 @@ root.Tick(ctx);
   ;
   ```
 
-* **Parallel**
+* **Parallel**  <span id="parallel"></span> <a href="#a">[↑]</a>
 
   A `ParallelNode` achieves success when all of its child nodes succeed.
   It will execute all of its children "simultaneously", until some child fails.
@@ -177,16 +208,91 @@ root.Tick(ctx);
   ;
   ```
 
-* **Decorators**
+* **RandomSelector**  <span id="random-selector"></span> <a href="#a">[↑]</a>
 
-  * `If` executes its child node only if given condition turns `true`.
+  RandomSelector will randomly select a child node to execute until it encounters a successful one.
+
+  If its children nodes implement the function `Priority()`,
+  it will follow a weighted random approach, that is to say, the node with a greater weight will be easier to be selected.
+
+  One use of randomly selecting nodes is to make the AI's behavior less rigid.
+
+  ```cpp
+  root
+  .RandomSelector()
+  ._().Action<A>()
+  ._().Action<B>()
+  ._().Action<C>()
+  ;
+  ```
+
+* **Priority**  <span id="priority"></span> <a href="#a">[↑]</a>
+
+  By default, children nodes are equal in weight, that is, their priorities are equal (all are defaulted to 1).
+  For composite nodes, their child nodes are examined from top to bottom.
+
+  However, in order to support the "dynamic priority" feature, for example,
+  the behavior of each child node has a dynamic scoring mechanism,
+  and the child node with the highest score should be selected for execution each tick,
+  for such cases, the class `Node` supports overriding a `Priority` function.
+
+  ```cpp
+  class A : public bt::Action {
+   public:
+    uint Priority(const bt::Context& ctx) const override {
+        // TODO, returns a number > 0
+    }
+  };
+  ```
+
+  Child nodes with higher priority will be considered firstly.
+  If they're equal, then in order, the one above will take precedence.
+
+  It's recommended to implement this function fast enough, since it will be called on each
+  tick. For instance, we may not need to do the calculation on every tick if it's complex.
+  Another optimization is to separate calculation from queries, for example, pre-cache the result
+  somewhere on the blackboard, and just ask it from memory here.
+
+  All composite nodes, including stateful ones, will respect to its children's `Priority()` functions.
+
+* **Stateful Nodes**  <span id="stateful"></span> <a href="#a">[↑]</a>
+
+  The 4 composite nodes all support stateful ticking: `StatefulSequence`, `StatefulSelector`, `StatefulRandomSelector` and `StatefulParallel`.
+
+  The word "stateful" means that skipping the children already succeeded (failed for selectors), instead of ticking every child.
+
+  ```cpp
+  // For instance, the following A will be skipped by Tick() once it
+  // turns SUCCESS, only B will got future ticks.
+
+  root
+  .StatefulSequence()
+  ._().Action<A>()
+  ._().Action<B>()
+  ```
+
+  Another example:
+
+  ```cpp
+  // the following A will be skipped by Tick() once it
+  // turns FAILURE, only B will got future ticks.
+
+  root
+  .StatefulSelector()
+  ._().Action<A>()
+  ._().Action<B>()
+  ```
+
+* **Decorators** <span id="decorators"></span> <a href="#a">[↑]</a>
+
+  * `If` executes its child node only if given condition turns `true`. <span id="if"></span> <a href="#a">[↑]</a>
 
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()
     ```
 
-  * `Invert()` inverts its child node's execution status.
+  * `Invert()` inverts its child node's execution status. <span id="invert"></span> <a href="#a">[↑]</a>
 
     ```cpp
     .Invert()
@@ -198,7 +304,7 @@ root.Tick(ctx);
     //   FAILURE => SUCCESS
     ```
 
-  * `Switch/Case` are just syntax sugar based on `Selector` and `If`:
+  * `Switch/Case` are just syntax sugar based on `Selector` and `If`: <span id="switchcase"></span> <a href="#a">[↑]</a>
 
     ```cpp
     // Only one case will success, or all fail.
@@ -211,7 +317,7 @@ root.Tick(ctx);
     ._()._().Action<TaskY>()
     ```
 
-  * `Repeat(n)` (alias `Loop`) repeats its child node' execution for exactly `n` times, it fails immediately if its child fails.
+  * `Repeat(n)` (alias `Loop`) repeats its child node' execution for exactly `n` times, it fails immediately if its child fails. <span id="repeat"></span> <a href="#a">[↑]</a>
 
     We can name the process a "round", that from the start (turns `RUNNING`) to the termination (turns `SUCCESS` or `FAILURE`).
     The `Repeat(n)` node performs `n` rounds of its child's execution.
@@ -222,7 +328,7 @@ root.Tick(ctx);
     ._().Action<A>()
     ```
 
-  * `Timeout` executes its child node with a time duration limitation, fails on timeout.
+  * `Timeout` executes its child node with a time duration limitation, fails on timeout.  <span id="timeout"></span> <a href="#a">[↑]</a>
 
     ```cpp
     using namespace std::chrono_literals;
@@ -231,7 +337,7 @@ root.Tick(ctx);
     ._().Action<Task>()
     ```
 
-  * `Delay` waits for a certain time duration before executing its child node.
+  * `Delay` waits for a certain time duration before executing its child node.   <span id="delay"></span> <a href="#a">[↑]</a>
 
     ```cpp
     using namespace std::chrono_literals;
@@ -240,7 +346,7 @@ root.Tick(ctx);
     ._().Action<Task>()
     ```
 
-  * `Retry` retries its child node on failure, for a maximum of `n` times, with a given `interval`.
+  * `Retry` retries its child node on failure, for a maximum of `n` times, with a given `interval`.  <span id="retry"></span> <a href="#a">[↑]</a>
 
     The following code retry the `Task` on failure for at most 3 times, the retry interval is `1000ms`:
 
@@ -254,7 +360,7 @@ root.Tick(ctx);
     ._().Action<Task>()
     ```
 
-  * **Custom Decorator**
+  * **Custom Decorator** <span id="custom-decorator"></span> <a href="#a">[↑]</a>
 
     To implement a custom decorator, just inherits from `bt::DecoratorNode`:
 
@@ -270,7 +376,7 @@ root.Tick(ctx);
     };
     ```
 
-* **Sub Tree**
+* **Sub Tree** <span id="subtree"></span> <a href="#a">[↑]</a>
 
   A behavior tree can be used as another behavior tree's child:
 
@@ -283,22 +389,7 @@ root.Tick(ctx);
   ._().Subtree<A>(std::move(subtree));
   ```
 
-* **Stateful Nodes**
-
-  The three composite nodes all support stateful ticking: `StatefulSequence`, `StatefulSelector` and `StatefulParallel`.
-
-  The word "stateful" means that skipping the children already succeeded, instead of ticking every child.
-
-  ```cpp
-  // For instance, the following A will be skipped by Tick() once it turns SUCCESS.
-
-  root
-  .StatefulSequence()
-  ._().Action<A>()
-  ._().Action<B>()
-  ```
-
-* **Hook Methods**
+* **Hook Methods**  <span id="hooks"></span> <a href="#a">[↑]</a>
 
   For each `Node`, there are two hook functions:
 
@@ -317,7 +408,7 @@ root.Tick(ctx);
   }
   ```
 
-* **Visualization**
+* **Visualization**  <span id="visualization"></span> <a href="#a">[↑]</a>
 
   There's a simple real time behavior tree visualization function implemented in `bt.h`.
 
@@ -333,7 +424,7 @@ root.Tick(ctx);
   root.Visualize(ctx.seq)
   ```
 
-* **The tick `Context`**
+* **The tick `Context`** <span id="context"></span> <a href="#a">[↑]</a>
 
   ```cpp
   struct Context {
@@ -343,7 +434,7 @@ root.Tick(ctx);
   }
   ```
 
-* **Blackboard ?**
+* **Blackboard ?**  <span id="blackboard"></span> <a href="#a">[↑]</a>
 
   In fact, if there's no need for non-programmer usage, behavior trees and blackboards don't require a serialization mechanism.
   In such cases, using a plain `struct` as the blackboard is a simple and fast approach.
@@ -367,7 +458,7 @@ root.Tick(ctx);
   }
   ```
 
-* **Ticker Loop**
+* **Ticker Loop**   <span id="ticker-loop"></span> <a href="#a">[↑]</a>
 
   There's a simple builtin ticker loop implemented in `bt.h`, to use it:
 
@@ -375,7 +466,7 @@ root.Tick(ctx);
   root.TickForever(ctx, 100ms);
   ```
 
-* **Custom Builder**
+* **Custom Builder**  <span id="custom-builder"></span> <a href="#a">[↑]</a>
 
   ```cpp
   class MyTree : public bt::Tree {

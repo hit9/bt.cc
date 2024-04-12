@@ -148,3 +148,171 @@ TEST_CASE("Selector/3", "[all failure]") {
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 }
+
+TEST_CASE("Selector/4", "[priority selector final success]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .Selector()
+    ._().Action<G>()
+    ._().Action<H>()
+    ;
+  // clang-format on
+
+  REQUIRE(bb->counterH == 0);
+  REQUIRE(bb->counterG == 0);
+
+  // Tick#1
+  bb->shouldPriorityG = 1;
+  bb->shouldPriorityH = 2;
+
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 1);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#2: makes H failure.
+  bb->shouldH = bt::Status::FAILURE;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 1);  // G now started.
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::FAILURE);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#3: one more tick
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);
+  REQUIRE(bb->counterH == 3);
+
+  // Tick#4: make G success.
+  bb->shouldG = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 3);
+  REQUIRE(bb->counterH == 4);
+  REQUIRE(bb->statusG == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::FAILURE);
+  // The whole tree should SUCCESS
+  REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+}
+
+TEST_CASE("Selector/4", "[priority selector final failure]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .Selector()
+    ._().Action<G>()
+    ._().Action<H>()
+    ;
+  // clang-format on
+
+  REQUIRE(bb->counterH == 0);
+  REQUIRE(bb->counterG == 0);
+
+  // Tick#1
+  bb->shouldPriorityG = 1;
+  bb->shouldPriorityH = 2;
+
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 1);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#2: makes H failure.
+  bb->shouldH = bt::Status::FAILURE;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 1);  // G now started.
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::FAILURE);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#3: make G failure.
+  bb->shouldG = bt::Status::FAILURE;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);
+  REQUIRE(bb->counterH == 3);
+  REQUIRE(bb->statusG == bt::Status::FAILURE);
+  REQUIRE(bb->statusH == bt::Status::FAILURE);
+  // The whole tree should SUCCESS
+  REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+}
+
+TEST_CASE("Selector/5", "[priority selector - dynamic]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .Selector()
+    ._().Action<G>()
+    ._().Action<H>()
+    ;
+  // clang-format on
+
+  REQUIRE(bb->counterH == 0);
+  REQUIRE(bb->counterG == 0);
+
+  // Tick#1
+  bb->shouldPriorityG = 1;
+  bb->shouldPriorityH = 2;
+
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 1);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#2: increase G's priority
+  bb->shouldPriorityG = 2;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 1);  // G now started
+  REQUIRE(bb->counterH == 1);  // H should not ticked
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#3: increase G's priority
+  bb->shouldPriorityG = 3;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);  // G now started
+  REQUIRE(bb->counterH == 1);  // H should not ticked
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  // The whole tree should RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#4: makes H success.
+  bb->shouldH = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 3);  // G now started
+  REQUIRE(bb->counterH == 1);  // H still blocked
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);  // h is not ticked.
+  // The whole tree should still RUNNING
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick$5 makes H's priority highest
+  bb->shouldPriorityH = 99;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 3);  // G should be skipped.
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::SUCCESS);
+  REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+}

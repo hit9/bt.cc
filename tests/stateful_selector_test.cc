@@ -174,3 +174,68 @@ TEST_CASE("StatefulSelector/2", "[final failure]") {
   root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // got ticked.
 }
+
+TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .StatefulSelector()
+    ._().Action<G>()
+    ._().Action<H>()
+    ._().Action<I>()
+    ;
+  // clang-format on
+
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 0);
+  REQUIRE(bb->counterI == 0);
+
+  bb->shouldPriorityG = 1;
+  bb->shouldPriorityH = 2;
+  bb->shouldPriorityI = 3;
+
+  // Tick#1
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 0);
+  REQUIRE(bb->counterI == 1);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusH == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusI == bt::Status::RUNNING);
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#2: Make I failure.
+  bb->shouldI = bt::Status::FAILURE;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 1);
+  REQUIRE(bb->counterI == 2);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  REQUIRE(bb->statusI == bt::Status::FAILURE);
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#3: Make H failure.
+  bb->shouldH = bt::Status::FAILURE;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 1);
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->counterI == 2);  // skip ticked
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::FAILURE);
+  REQUIRE(bb->statusI == bt::Status::FAILURE);
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#4: Make G SUCCESS.
+  bb->shouldG = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);
+  REQUIRE(bb->counterH == 2);  // skip ticked.
+  REQUIRE(bb->counterI == 2);  // skip ticked
+  REQUIRE(bb->statusG == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::FAILURE);
+  REQUIRE(bb->statusI == bt::Status::FAILURE);
+  REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+}
