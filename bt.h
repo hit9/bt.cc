@@ -309,11 +309,11 @@ class CompositeNode : public InternalNode {
   PtrList<Node> children;
 
   std::string_view validate() const override { return children.empty() ? "children empty" : ""; }
-  // Should we consider ith child during this round?
+  // Should we consider i'th child during this round?
   virtual bool considerable(int i) const { return true; }
-  // Internal hook function to be called after a child is success.
+  // Internal hook function to be called after a child goes success.
   virtual void onChildSuccess(const int i){};
-  // Internal hook function to be called after a child is failure.
+  // Internal hook function to be called after a child goes failure.
   virtual void onChildFailure(const int i){};
 
   void makeVisualizeString(std::string& s, int depth, ull seq) override {
@@ -348,19 +348,20 @@ class CompositeNode : public InternalNode {
 // Always skip children that already succeeded or failure during current round.
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
  protected:
-  // stores the index of children already succeeded or failure in this round.
-  std::unordered_set<int> skiptable;
-  bool considerable(int i) const override { return !skiptable.contains(i); }
-  void tableInsert(const int i) { skiptable.insert(i); }
+  // stores the index of children already succeeded or failed in this round.
+  std::unordered_set<int> skipTable;
+  bool considerable(int i) const override { return !skipTable.contains(i); }
+  void skip(const int i) { skipTable.insert(i); }
 
  public:
-  void OnTerminate(Status status) override { skiptable.clear(); }
+  void OnTerminate(Status status) override { skipTable.clear(); }
 };
 
 // Priority related CompositeNode.
 class _InternalPriorityCompositeNode : virtual public CompositeNode {
  protected:
   // Prepare priorities of considerable children on every tick.
+  // p[i] stands for i'th child's priority.
   std::vector<uint> p;
   // Refresh priorities for considerable children.
   void refreshp(const Context& ctx) {
@@ -369,20 +370,20 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
       if (considerable(i)) p[i] = children[i]->Priority(ctx);
   }
 
-  // Compare priorities between children, where a and b index.
-  using PQ = std::priority_queue<int, std::vector<int>, std::function<bool(const int, const int)>>;
-  PQ q;
+  // Compare priorities between children, where a and b are indexes.
+  std::priority_queue<int, std::vector<int>, std::function<bool(const int, const int)>> q;
 
-  // SequenceNode and SelectorNode should implement update.
-  // It should propagates tick() to chilren in the q.
+  // update is an internal method to propagates tick() to chilren in the q.
+  // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
 
  public:
   _InternalPriorityCompositeNode() {
-    //  priority from large to smaller, so use less, pa < pb
-    //  order: from small to larger, so use greater, a > b
+    // priority from large to smaller, so use `less`: pa < pb
+    // order: from small to larger, so use `greater`: a > b
     auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
-    PQ q1(cmp);
+    // swap in the real comparator
+    decltype(q) q1(cmp);
     q.swap(q1);
   }
 
@@ -394,7 +395,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
     // enqueue
     for (int i = 0; i < children.size(); i++)
       if (considerable(i)) q.push(i);
-    // propagates ticks, one by one sequentially.
+    // propagates ticks
     return update(ctx);
   }
 };
@@ -425,7 +426,7 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
   }
 };
 
-// SequenceNode run children one by one, and succeeds only if all children succeed.
+// SequenceNode runs children one by one, and succeeds only if all children succeed.
 class SequenceNode final : public _InternalSequenceNodeBase {
  public:
   SequenceNode(const std::string& name = "Sequence", PtrList<Node>&& cs = {})
@@ -436,7 +437,7 @@ class SequenceNode final : public _InternalSequenceNodeBase {
 // starts from the running child instead.
 class StatefulSequenceNode final : public _InternalStatefulCompositeNode, public _InternalSequenceNodeBase {
  protected:
-  void onChildSuccess(const int i) override { tableInsert(i); }
+  void onChildSuccess(const int i) override { skip(i); }
 
  public:
   StatefulSequenceNode(const std::string& name = "Sequence*", PtrList<Node>&& cs = {})
@@ -480,7 +481,7 @@ class SelectorNode final : public _InternalSelectorNodeBase {
 // starts from the running child instead.
 class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _InternalSelectorNodeBase {
  protected:
-  void onChildFailure(const int i) override { tableInsert(i); }
+  void onChildFailure(const int i) override { skip(i); }
 
  public:
   StatefulSelectorNode(const std::string& name = "Selector*", PtrList<Node>&& cs = {})
@@ -498,12 +499,13 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
  protected:
   Status update(const Context& ctx) override {
     // Sum of weights/priorities.
-    uint totalWeight = 0;
+    uint total = 0;
     for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) totalWeight += p[i];
+      if (considerable(i)) total += p[i];
 
-    // random select one.
-    std::uniform_int_distribution<uint> distribution(1, totalWeight);
+    // random select one, in range [1, total]
+    std::uniform_int_distribution<uint> distribution(1, total);
+
     auto select = [&]() -> int {
       uint v = distribution(rng);  // gen random uint between [0, sum]
       uint s = 0;                  // sum of iterated children.
@@ -516,8 +518,9 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
     };
 
     // While still have children considerable.
-    // totalWeight reaches 0 only if no children left, because Priority() returns value > 0.
-    while (totalWeight) {
+    // total reaches 0 only if no children left,
+    // notes that Priority() always returns a positive value.
+    while (total) {
       int i = select();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
@@ -526,13 +529,12 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
         onChildSuccess(i);
         return Status::SUCCESS;
       }
-      // Failure.
-      // shouldn't be considered any more in  this tick.
+      // Failure, it shouldn't be considered any more in this tick.
       onChildFailure(i);
-      // remove its weight from total weight, won't be consider again.
-      totalWeight -= p[i];
+      // remove its weight from total, won't be consider again.
+      total -= p[i];
       // updates the upper bound of distribution.
-      distribution.param(std::uniform_int_distribution<uint>::param_type(1, totalWeight));
+      distribution.param(std::uniform_int_distribution<uint>::param_type(1, total));
     }
     // F if all children F.
     return Status::FAILURE;
@@ -557,7 +559,7 @@ class RandomSelectorNode final : public _InternalRandomSelectorNodeBase {
 class StatefulRandomSelectorNode final : virtual public _InternalStatefulCompositeNode,
                                          virtual public _InternalRandomSelectorNodeBase {
  protected:
-  void onChildFailure(const int i) override { tableInsert(i); }
+  void onChildFailure(const int i) override { skip(i); }
 
  public:
   StatefulRandomSelectorNode(const std::string& name = "RandomSelector*", PtrList<Node>&& cs = {})
@@ -607,7 +609,7 @@ class ParallelNode final : public _InternalParallelNodeBase {
 // running children, aka skipping the succeeded children..
 class StatefulParallelNode final : public _InternalStatefulCompositeNode, public _InternalParallelNodeBase {
  protected:
-  void onChildSuccess(const int i) override { tableInsert(i); }
+  void onChildSuccess(const int i) override { skip(i); }
 
  public:
   StatefulParallelNode(const std::string& name = "Parallel*", PtrList<Node>&& cs = {})
@@ -972,8 +974,8 @@ class Builder {
 
   // Creates a random selector.
   // Parameter `cs` is the optional initial children for this node.
-  // A RandomSelectorNode determine a child via weighted random selection.
-  // It continues to randomly select a child, propagating tick, until some child success.
+  // A RandomSelectorNode determines a child via weighted random selection.
+  // It continues to randomly select a child, propagating tick, until some child succeeds.
   Builder& RandomSelector(PtrList<Node>&& cs = {}) {
     return C<RandomSelectorNode>("RandomSelector", std::move(cs));
   }
