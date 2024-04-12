@@ -141,5 +141,89 @@ TEST_CASE("StatefulSequence/2", "[paritial failure]") {
 
   // Tick#4: The next tick will starts from first child.
   root.Tick(ctx);
-  REQUIRE(bb->counterA == 3); // restarts from here, got ticked
+  REQUIRE(bb->counterA == 3);  // restarts from here, got ticked
+}
+
+TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .StatefulSequence()
+    ._().Action<G>()
+    ._().Action<H>()
+    ._().Action<I>()
+    ;
+  // clang-format on
+
+  bb->shouldPriorityG = 1;
+  bb->shouldPriorityH = 2;
+  bb->shouldPriorityI = 3;
+
+  // Tick#1
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 0);
+  REQUIRE(bb->counterI == 1);
+  REQUIRE(bb->statusI == bt::Status::RUNNING);
+  REQUIRE(bb->statusH == bt::Status::UNDEFINED);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  // The whole tree should running.
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  // Tick#2: makes I success.
+  bb->shouldI = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 1);
+  REQUIRE(bb->counterI == 2);
+  REQUIRE(bb->statusI == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  // The whole tree should running.
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  // Tick#3
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 0);
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->counterI == 2);
+  REQUIRE(bb->statusI == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  REQUIRE(bb->statusG == bt::Status::UNDEFINED);
+  // The whole tree should running.
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  // Tick#4: Makes G priority highest.
+  bb->shouldPriorityG = 9999;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 1);
+  REQUIRE(bb->counterH == 2);
+  REQUIRE(bb->counterI == 2);
+  REQUIRE(bb->statusI == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  REQUIRE(bb->statusG == bt::Status::RUNNING);
+  // The whole tree should running.
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  // Tick#5: Makes G success.
+  bb->shouldG = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);
+  REQUIRE(bb->counterH == 3);
+  REQUIRE(bb->counterI == 2);
+  REQUIRE(bb->statusI == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::RUNNING);
+  REQUIRE(bb->statusG == bt::Status::SUCCESS);
+  // The whole tree should running.
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  // Tick#6: Makes H success.
+  bb->shouldH = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(bb->counterG == 2);
+  REQUIRE(bb->counterH == 4);
+  REQUIRE(bb->counterI == 2);
+  REQUIRE(bb->statusI == bt::Status::SUCCESS);
+  REQUIRE(bb->statusH == bt::Status::SUCCESS);
+  REQUIRE(bb->statusG == bt::Status::SUCCESS);
+  // The whole tree should running.
+  REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 }
