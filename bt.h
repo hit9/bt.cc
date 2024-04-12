@@ -49,6 +49,7 @@
 #include <iostream>  // for cout, flush
 #include <memory>    // for unique_ptr
 #include <queue>     // for priority_queue
+#include <random>    // for mt19937
 #include <stack>
 #include <stdexcept>  // for runtime_error
 #include <string>
@@ -179,14 +180,14 @@ class Node {
   // It's the body part of function Tick().
   virtual Status Update(const Context& ctx) { return Status::SUCCESS; };
 
-  // Returns the priority of this node, should be larger than 0, the larger the higher.
-  // By default, all nodes' priorities are equal, to 0.
+  // Returns the priority of this node, should be strictly larger than 0, the larger the higher.
+  // By default, all nodes' priorities are equal, to 1.
   // Providing this method is primarily for selecting children by dynamic priorities.
   // It's recommended to implement this function fast enough, since it will be called on each
   // tick. For instance, we may not need to do the calculation on every tick if it's complex.
   // Another optimization is to seperate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
-  virtual uint Priority(const Context& ctx) const { return 0; }
+  virtual uint Priority(const Context& ctx) const { return 1; }
 };
 
 // Concept TNode for all classes derived from Node.
@@ -496,6 +497,81 @@ class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _Inte
 };
 
 //////////////////////////////////////////////////////////////
+/// Node > InternalNode > CompositeNode > RandomSelectorNode
+///////////////////////////////////////////////////////////////
+
+static std::mt19937 rng(std::random_device{}());  // seed random
+
+// Weighted random selector.
+class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityCompositeNode {
+ protected:
+  Status update(const Context& ctx) override {
+    // Sum of weights/priorities.
+    uint totalWeight = 0;
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) totalWeight += p[i];
+
+    // random select one.
+    std::uniform_int_distribution<uint> distribution(0, totalWeight);
+    auto select = [&]() -> int {
+      uint v = distribution(rng);  // gen random uint between [0, sum]
+      uint s = 0;                  // sum of iterated children.
+      for (int i = 0; i < children.size(); i++) {
+        if (!considerable(i)) continue;
+        s += p[i];
+        if (v <= s) return i;
+      }
+      return 0;  // won't reach here.
+    };
+
+    // While still have children considerable.
+    // totalWeight reaches 0 only if no children left, because Priority() returns value > 0.
+    while (totalWeight) {
+      int i = select();
+      auto status = children[i]->Tick(ctx);
+      if (status == Status::RUNNING) return Status::RUNNING;
+      // S if any child S.
+      if (status == Status::SUCCESS) {
+        onChildSuccess(i);
+        return Status::SUCCESS;
+      }
+      // Failure.
+      // shouldn't be considered any more in  this tick.
+      onChildFailure(i);
+      // remove its weight from total weight, won't be consider again.
+      totalWeight -= p[i];
+      // updates the upper bound of distribution.
+      distribution.param(std::uniform_int_distribution<uint>::param_type(1, totalWeight));
+    }
+    // F if all children F.
+    return Status::FAILURE;
+  }
+
+ public:
+  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
+  Status Update(const Context& ctx) override {
+    refreshp(ctx);
+    return update(ctx);
+  }
+};
+
+// RandomSelectorNode selects children via weighted random selection.
+class RandomSelectorNode final : public _InternalRandomSelectorNodeBase {
+ public:
+  RandomSelectorNode(const std::string& name = "RandomSelector", PtrList<Node>&& cs = {})
+      : _InternalRandomSelectorNodeBase(name, std::move(cs)) {}
+};
+
+// StatefulRandomSelectorNode behaves like RandomSelectorNode.
+// But it won't reconsider failure children during a round.
+class StatefulRandomSelectorNode final : virtual public _InternalStatefulCompositeNode,
+                                         virtual public _InternalRandomSelectorNodeBase {
+ public:
+  StatefulRandomSelectorNode(const std::string& name = "RandomSelector*", PtrList<Node>&& cs = {})
+      : _InternalRandomSelectorNodeBase(name, std::move(cs)), _InternalStatefulCompositeNode() {}
+};
+
+//////////////////////////////////////////////////////////////
 /// Node > InternalNode > CompositeNode > ParallelNode
 ///////////////////////////////////////////////////////////////
 
@@ -531,8 +607,7 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
 
 // ParallelNode succeeds if all children succeed but runs all children
 // parallelly.
-class ParallelNode final : virtual public _InternalParallelNodeBase {
- protected:
+class ParallelNode final : public _InternalParallelNodeBase {
  public:
   ParallelNode(const std::string& name = "Parallel", PtrList<Node>&& cs = {})
       : _InternalParallelNodeBase(name, std::move(cs)) {}
@@ -903,6 +978,21 @@ class Builder {
   // instead of executing every child all the time.
   Builder& StatefulParallel(PtrList<Node>&& cs = {}) {
     return C<StatefulParallelNode>("Parallel*", std::move(cs));
+  }
+
+  // Creates a random selector.
+  // Parameter `cs` is the optional initial children for this node.
+  // A RandomSelectorNode determine a child via weighted random selection.
+  // It continues to randomly select a child, propagating tick, until some child success.
+  Builder& RandomSelector(PtrList<Node>&& cs = {}) {
+    return C<RandomSelectorNode>("RandomSelector", std::move(cs));
+  }
+
+  // Creates a stateful random selector.
+  // It behaves like a random selector node, the difference is, a StatefulRandomSelector will skip already
+  // failed children during a round.
+  Builder& StatefulRandomSelector(PtrList<Node>&& cs = {}) {
+    return C<StatefulRandomSelectorNode>("RandomSelector*", std::move(cs));
   }
 
   ///////////////////////////////////
