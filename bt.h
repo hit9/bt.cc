@@ -369,13 +369,6 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
       if (considerable(i)) p[i] = children[i]->Priority(ctx);
   }
 
- public:
-  using CompositeNode::CompositeNode;
-};
-
-// SequenceNode and SelectorNode are sequential composite node, but not ParallelNode.
-class _InternalSequentialCompositeNode : virtual public _InternalPriorityCompositeNode {
- protected:
   // Compare priorities between children, where a and b index.
   using PQ = std::priority_queue<int, std::vector<int>, std::function<bool(const int, const int)>>;
   PQ q;
@@ -384,16 +377,17 @@ class _InternalSequentialCompositeNode : virtual public _InternalPriorityComposi
   // It should propagates tick() to chilren in the q.
   virtual Status update(const Context& ctx) = 0;
 
- public:
-  _InternalSequentialCompositeNode(const std::string& name = "_InternalSequentialCompositeNode",
-                                   PtrList<Node>&& cs = {})
-      : _InternalPriorityCompositeNode(name, std::move(cs)) {
+  _InternalPriorityCompositeNode(const std::string& name = "_InternalPriorityCompositeNode",
+                                 PtrList<Node>&& cs = {})
+      : CompositeNode(name, std::move(cs)) {
     //  priority from large to smaller, so use less, pa < pb
     //  order: from small to larger, so use greater, a > b
     auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
     PQ q1(cmp);
     q.swap(q1);
   }
+
+ public:
   Status Update(const Context& ctx) override {
     // clear q
     while (q.size()) q.pop();
@@ -411,7 +405,7 @@ class _InternalSequentialCompositeNode : virtual public _InternalPriorityComposi
 /// Node > InternalNode > CompositeNode > SequenceNode
 ///////////////////////////////////////////////////////////////
 
-class _InternalSequenceNodeBase : virtual public _InternalSequentialCompositeNode {
+class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode {
  protected:
   Status update(const Context& ctx) override {
     // propagates ticks, one by one sequentially.
@@ -433,7 +427,7 @@ class _InternalSequenceNodeBase : virtual public _InternalSequentialCompositeNod
   }
 
  public:
-  using _InternalSequentialCompositeNode::_InternalSequentialCompositeNode;
+  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
 };
 
 // SequenceNode run children one by one, and succeeds only if all children succeed.
@@ -458,7 +452,7 @@ class StatefulSequenceNode final : public _InternalStatefulCompositeNode, public
 /// Node > InternalNode > CompositeNode > SelectorNode
 ///////////////////////////////////////////////////////////////
 
-class _InternalSelectorNodeBase : virtual public _InternalSequentialCompositeNode {
+class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode {
  protected:
   Status update(const Context& ctx) override {
     // select a success children.
@@ -480,7 +474,7 @@ class _InternalSelectorNodeBase : virtual public _InternalSequentialCompositeNod
   }
 
  public:
-  using _InternalSequentialCompositeNode::_InternalSequentialCompositeNode;
+  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
 };
 
 // SelectorNode succeeds if any child succeeds.
@@ -505,17 +499,15 @@ class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _Inte
 /// Node > InternalNode > CompositeNode > ParallelNode
 ///////////////////////////////////////////////////////////////
 
-class _InternalParallelNodeBase : virtual public CompositeNode {
- public:
-  using CompositeNode::CompositeNode;
-  Status Update(const Context& ctx) {
+class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode {
+  Status update(const Context& ctx) override {
     // Propagates tick to all considerable children.
     int cntFailure = 0, cntSuccess = 0, total = 0;
-
-    for (int i = 0; i < children.size(); i++) {
-      if (!considerable(i)) continue;
-      total++;
+    while (q.size()) {
+      auto i = q.top();
+      q.pop();
       auto status = children[i]->Tick(ctx);
+      total++;
       if (status == Status::FAILURE) {
         cntFailure++;
         onChildFailure(i);
@@ -525,12 +517,16 @@ class _InternalParallelNodeBase : virtual public CompositeNode {
         onChildSuccess(i);
       }
     }
+
     // S if all children S.
     if (cntSuccess == total) return Status::SUCCESS;
     // F if any child F.
     if (cntFailure > 0) return Status::FAILURE;
     return Status::RUNNING;
   }
+
+ public:
+  using _InternalPriorityCompositeNode::_InternalPriorityCompositeNode;
 };
 
 // ParallelNode succeeds if all children succeed but runs all children
