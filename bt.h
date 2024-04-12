@@ -186,7 +186,7 @@ class Node {
   // tick. For instance, we may not need to do the calculation on every tick if it's complex.
   // Another optimization is to seperate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
-  virtual uint Priority() const { return 0; }
+  virtual uint Priority(const Context& ctx) const { return 0; }
 };
 
 // Concept TNode for all classes derived from Node.
@@ -295,7 +295,7 @@ class SingleNode : public InternalNode {
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
   void Append(Ptr<Node> node) override { child = std::move(node); }
-  uint Priority() const override { return child->Priority(); }
+  uint Priority(const Context& ctx) const override { return child->Priority(ctx); }
 };
 
 ////////////////////////////////////////////////
@@ -332,10 +332,10 @@ class CompositeNode : public InternalNode {
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
 
   // Returns the max priority of considerable children.
-  uint Priority() const override {
+  uint Priority(const Context& ctx) const override {
     uint ans = 0;
     for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) ans = std::max(ans, children[i]->Priority());
+      if (considerable(i)) ans = std::max(ans, children[i]->Priority(ctx));
     return ans;
   }
 };
@@ -363,10 +363,10 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // Prepare priorities of considerable children on every tick.
   std::vector<uint> p;
   // Refresh priorities for considerable children.
-  void refreshp(void) {
+  void refreshp(const Context& ctx) {
     if (p.size() < children.size()) p.resize(children.size());
     for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) p[i] = children[i]->Priority();
+      if (considerable(i)) p[i] = children[i]->Priority(ctx);
   }
 
  public:
@@ -398,7 +398,7 @@ class _InternalSequentialCompositeNode : virtual public _InternalPriorityComposi
     // clear q
     while (q.size()) q.pop();
     // refresh priorities
-    refreshp();
+    refreshp(ctx);
     // enqueue
     for (int i = 0; i < children.size(); i++)
       if (considerable(i)) q.push(i);
