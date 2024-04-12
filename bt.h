@@ -378,6 +378,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // It should propagates tick() to chilren in the q.
   virtual Status update(const Context& ctx) = 0;
 
+ public:
   _InternalPriorityCompositeNode(const std::string& name = "_InternalPriorityCompositeNode",
                                  PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)) {
@@ -388,7 +389,6 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
     q.swap(q1);
   }
 
- public:
   Status Update(const Context& ctx) override {
     // clear q
     while (q.size()) q.pop();
