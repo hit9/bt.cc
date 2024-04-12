@@ -316,13 +316,24 @@ root.Tick(ctx);
 
   三种组合节点都有支持「有状态的」版本：`StatefulSequence`, `StatefulSelector` 和 `StatefulParallel`.
 
-  「有状态的」意思是说，不再是每次执行所有子节点，而是跳过已经执行成功的子节点，以提高性能。
+  「有状态的」意思是说，不再是每次执行所有子节点，而是跳过已经执行成功的子节点(对于 Selector 来说是跳过已经执行失败的子节点)，以提高性能。
 
   ```cpp
   // 比如说，下面的 A 在它成功之后，不会再被 Tick 到, 直到 StatefulSequence 整体成功或失败之后的下一轮才会被重新 Tick。
 
   root
   .StatefulSequence()
+  ._().Action<A>()
+  ._().Action<B>()
+  ```
+
+  另一个例子:
+
+  ```cpp
+  // 下面的 A 在它失败之后，不会再被 Tick 到, 后续只会 Tick B 节点
+
+  root
+  .StatefulSelector()
   ._().Action<A>()
   ._().Action<B>()
   ```

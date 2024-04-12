@@ -316,13 +316,24 @@ Reference: <span id="ref"></span>
 
   The three composite nodes all support stateful ticking: `StatefulSequence`, `StatefulSelector` and `StatefulParallel`.
 
-  The word "stateful" means that skipping the children already succeeded, instead of ticking every child.
+  The word "stateful" means that skipping the children already succeeded (failed for selectors), instead of ticking every child.
 
   ```cpp
-  // For instance, the following A will be skipped by Tick() once it turns SUCCESS.
+  // For instance, the following A will be skipped by Tick() once it turns SUCCESS, only B will got future ticks.
 
   root
   .StatefulSequence()
+  ._().Action<A>()
+  ._().Action<B>()
+  ```
+
+  Another example:
+
+  ```cpp
+  // the following A will be skipped by Tick() once it turns FAILURE, only B will got future ticks.
+
+  root
+  .StatefulSelector()
   ._().Action<A>()
   ._().Action<B>()
   ```
