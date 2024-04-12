@@ -37,7 +37,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.1.0
+// Version: 0.2.0
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -556,8 +556,9 @@ class RandomSelectorNode final : public _InternalRandomSelectorNodeBase {
 // But it won't reconsider failure children during a round.
 class StatefulRandomSelectorNode final : virtual public _InternalStatefulCompositeNode,
                                          virtual public _InternalRandomSelectorNodeBase {
-                                             protected:
+ protected:
   void onChildFailure(const int i) override { tableInsert(i); }
+
  public:
   StatefulRandomSelectorNode(const std::string& name = "RandomSelector*", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
