@@ -22,9 +22,9 @@ struct Blackboard {
   bool shouldD = false;
   bool shouldF = false;
 
-  uint shouldPriorityG = 0;
-  uint shouldPriorityH = 0;
-  uint shouldPriorityI = 0;
+  uint shouldPriorityG = 1;
+  uint shouldPriorityH = 1;
+  uint shouldPriorityI = 1;
 
   // Status snapshots for every Action.
   bt::Status statusA = bt::Status::UNDEFINED;

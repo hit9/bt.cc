@@ -503,7 +503,7 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
       if (considerable(i)) totalWeight += p[i];
 
     // random select one.
-    std::uniform_int_distribution<uint> distribution(0, totalWeight);
+    std::uniform_int_distribution<uint> distribution(1, totalWeight);
     auto select = [&]() -> int {
       uint v = distribution(rng);  // gen random uint between [0, sum]
       uint s = 0;                  // sum of iterated children.
