@@ -29,7 +29,7 @@ int main(void) {
   bt::Tree root("Root");
 
   auto st = [&]() {
-    bt::Tree subtree;
+    bt::Tree subtree("Subtree");
     // clang-format off
       subtree
         .Sequence()
