@@ -13,9 +13,12 @@ find_package(Catch2 CONFIG REQUIRED)
 
 # Targets
 file(GLOB TEST_SOURCES *_test.cc)
+file(GLOB BENCHMARK_SOURCES *_benchmark.cc)
 add_executable(bt_tests ${TEST_SOURCES})
+add_executable(bt_benchmark ${BENCHMARK_SOURCES})
 
 target_link_libraries(bt_tests PRIVATE Catch2::Catch2WithMain)
+target_link_libraries(bt_benchmark PRIVATE Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)

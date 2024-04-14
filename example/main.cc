@@ -26,7 +26,19 @@ class C : public bt::ConditionNode {
 };
 
 int main(void) {
-  bt::Tree root;
+  bt::Tree root("Root");
+
+  auto st = [&]() {
+    bt::Tree subtree("Subtree");
+    // clang-format off
+      subtree
+        .Sequence()
+        ._().Action<A>()
+        ._().Action<B>()
+      ;
+    // clang-format on
+    return subtree;
+  };
 
   // clang-format off
   root
@@ -41,6 +53,7 @@ int main(void) {
     ._().Parallel()
     ._()._().Action<A>()
     ._()._().Action<B>()
+    ._().Subtree(st())
     ;
   // clang-format on
   std::string s;

@@ -37,7 +37,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.2.0
+// Version: 0.2.1
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -61,6 +61,10 @@
 
 namespace bt {
 
+////////////////////////////
+/// Status
+////////////////////////////
+
 enum class Status { UNDEFINED = 0, RUNNING = 1, SUCCESS = 2, FAILURE = 3 };
 
 // Returns char representation of given status.
@@ -79,6 +83,10 @@ static const char statusRepr(Status s) {
 }
 
 using ull = unsigned long long;
+
+////////////////////////////
+/// Context
+////////////////////////////
 
 // Tick/Update's Context.
 struct Context {
@@ -199,7 +207,7 @@ template <typename T>
 using Ptr = std::unique_ptr<T>;
 
 template <typename T>
-using PtrList = std::vector<std::unique_ptr<T>>;
+using PtrList = std::vector<Ptr<T>>;
 
 ////////////////////////////
 /// Node > LeafNode
@@ -829,6 +837,30 @@ class RootNode : public SingleNode {
     makeVisualizeString(s, 0, seq);
     std::cout << s << std::flush;
   }
+
+  // Handy function to run tick loop forever.
+  // Parameter interval specifies the time interval between ticks.
+  // Parameter visualize enables debugging visualization on the console.
+  template <typename Clock = std::chrono::high_resolution_clock>
+  void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false) {
+    auto lastTickAt = Clock::now();
+
+    while (true) {
+      auto nextTickAt = lastTickAt + interval;
+
+      // Time delta between last tick and current tick.
+      ctx.delta = Clock::now() - lastTickAt;
+      ++ctx.seq;
+      Tick(ctx);
+      if (visualize) Visualize(ctx.seq);
+
+      // Catch up with next tick.
+      lastTickAt = Clock::now();
+      if (lastTickAt < nextTickAt) {
+        std::this_thread::sleep_for(nextTickAt - lastTickAt);
+      }
+    }
+  }
 };
 
 //////////////////////////////////////////////////////////////
@@ -931,72 +963,43 @@ class Builder {
   // CompositeNode creators
   ///////////////////////////////////
 
-  // Creates a sequence node.
-  // Parameter `cs` is the optional initial children for this node.
   // A SequenceNode executes its children one by one sequentially,
   // it succeeds only if all children succeed.
-  Builder& Sequence(PtrList<Node>&& cs = {}) { return C<SequenceNode>("Sequence", std::move(cs)); }
+  Builder& Sequence() { return C<SequenceNode>("Sequence"); }
 
-  // Creates a stateful sequence node.
-  // It behaves like a sequence node, executes its children sequentially, succeeds if all children succeed,
-  // fails if any child fails. What's the difference is, a StatefulSequenceNode skips the succeeded children
-  // instead of always starting from the first child.
-  Builder& StatefulSequence(PtrList<Node>&& cs = {}) {
-    return C<StatefulSequenceNode>("Sequence*", std::move(cs));
-  }
+  // A StatefulSequenceNode behaves like a sequence node, executes its children sequentially, succeeds if all
+  // children succeed, fails if any child fails. What's the difference is, a StatefulSequenceNode skips the
+  // succeeded children instead of always starting from the first child.
+  Builder& StatefulSequence() { return C<StatefulSequenceNode>("Sequence*"); }
 
-  // Creates a selector node.
-  // Parameter `cs` is the optional initial children for this node.
   // A SelectorNode succeeds if any child succeeds, fails only if all children fail.
-  Builder& Selector(PtrList<Node>&& cs = {}) { return C<SelectorNode>("Selector", std::move(cs)); }
+  Builder& Selector() { return C<SelectorNode>("Selector"); }
 
-  // Creates a stateful selector node.
-  // It behaves like a selector node, executes its children sequentially, succeeds if any child succeeds,
-  // fails if all child fail. What's the difference is, a StatefulSelectorNode skips the succeeded children
-  // instead of always starting from the first child.
-  Builder& StatefulSelector(PtrList<Node>&& cs = {}) {
-    return C<StatefulSelectorNode>("Selector*", std::move(cs));
-  }
+  // A StatefulSelectorNode behaves like a selector node, executes its children sequentially, succeeds if any
+  // child succeeds, fails if all child fail. What's the difference is, a StatefulSelectorNode skips the
+  // failure children instead of always starting from the first child.
+  Builder& StatefulSelector() { return C<StatefulSelectorNode>("Selector*"); }
 
-  // Creates a parallel node.
-  // Parameter `cs` is the optional initial children for this node.
   // A ParallelNode executes its children parallelly.
   // It succeeds if all children succeed, and fails if any child fails.
-  Builder& Parallel(PtrList<Node>&& cs = {}) { return C<ParallelNode>("Parallel", std::move(cs)); }
+  Builder& Parallel() { return C<ParallelNode>("Parallel"); }
 
-  // Creates a stateful parallel node.
-  // It behaves like a parallel node, executes its children parallelly, succeeds if all succeed, fails if all
-  // child fail. What's the difference is, a StatefulParallelNode will skip the "already success" children
-  // instead of executing every child all the time.
-  Builder& StatefulParallel(PtrList<Node>&& cs = {}) {
-    return C<StatefulParallelNode>("Parallel*", std::move(cs));
-  }
+  // A StatefulParallelNode behaves like a parallel node, executes its children parallelly, succeeds if all
+  // succeed, fails if all child fail. What's the difference is, a StatefulParallelNode will skip the "already
+  // success" children instead of executing every child all the time.
+  Builder& StatefulParallel() { return C<StatefulParallelNode>("Parallel*"); }
 
-  // Creates a random selector.
-  // Parameter `cs` is the optional initial children for this node.
   // A RandomSelectorNode determines a child via weighted random selection.
   // It continues to randomly select a child, propagating tick, until some child succeeds.
-  Builder& RandomSelector(PtrList<Node>&& cs = {}) {
-    return C<RandomSelectorNode>("RandomSelector", std::move(cs));
-  }
+  Builder& RandomSelector() { return C<RandomSelectorNode>("RandomSelector"); }
 
-  // Creates a stateful random selector.
-  // It behaves like a random selector node, the difference is, a StatefulRandomSelector will skip already
-  // failed children during a round.
-  Builder& StatefulRandomSelector(PtrList<Node>&& cs = {}) {
-    return C<StatefulRandomSelectorNode>("RandomSelector*", std::move(cs));
-  }
+  // A StatefulRandomSelector behaves like a random selector node, the difference is, a StatefulRandomSelector
+  // will skip already failed children during a round.
+  Builder& StatefulRandomSelector() { return C<StatefulRandomSelectorNode>("RandomSelector*"); }
 
   ///////////////////////////////////
   // LeafNode creators
   ///////////////////////////////////
-
-  // Creates an ActionNode by providing an unique_ptr to implemented Action object.
-  // Code example::
-  //  root
-  //  .Action(std::make_unique<MyActionClass>())
-  //  ;
-  Builder& Action(Ptr<ActionNode> node) { return attachLeafNode(std::move(node)); }
 
   // Creates an Action node by providing implemented Action class.
   // Code example::
@@ -1007,15 +1010,6 @@ class Builder {
   Builder& Action(Args&&... args) {
     return C<Impl>(std::forward<Args>(args)...);
   }
-
-  // Creates a ConditionNode by providing an unique_ptr to implemented Action object.
-  // Code example::
-  //   root
-  //   .Sequence()
-  //   ._().Condition(std::make_unique<MyConditionClass>())
-  //   ._().Action<A>()
-  //   ;
-  Builder& Condition(Ptr<ConditionNode> node) { return attachLeafNode(std::move(node)); }
 
   // Creates a ConditionNode from a lambda function.
   // Code example::
@@ -1047,22 +1041,22 @@ class Builder {
   // Code exapmle::
   //   root
   //   .Invert()
-  //   ._().Condition<A>()
-  Builder& Invert(Ptr<Node> child = nullptr) { return C<InvertNode>("Invert", std::move(child)); }
+  //   ._().Condition<A>();
+  Builder& Invert() { return C<InvertNode>("Invert"); }
 
   // Alias to Invert, just named 'Not'.
   // Code exapmle::
   //   root
   //   .Not()
-  //   ._().Condition<A>()
-  Builder& Not(Ptr<Node> child = nullptr) { return C<InvertNode>("Not", std::move(child)); }
+  //   ._().Condition<A>();
+  Builder& Not() { return C<InvertNode>("Not"); }
 
-  // Creates a invert condition.
+  // Creates a invert condition of given Condition class.
   // Code exapmle::
   //   root
   //   .Sequence()
   //   ._().Not<IsXXX>()
-  //   ._().Action<DoSomething>()
+  //   ._().Action<DoSomething>();
   template <TCondition Condition, typename... ConditionArgs>
   Builder& Not(ConditionArgs... args) {
     return C<InvertNode>("Not", std::make_unique<Condition>(std::forward<ConditionArgs>(args)...));
@@ -1075,25 +1069,25 @@ class Builder {
   // Code exapmle::
   //   root
   //   .Repeat(3)
-  //   ._().Action<A>()
-  Builder& Repeat(int n, Ptr<Node> child = nullptr) { return C<RepeatNode>(n, "Repeat", std::move(child)); }
+  //   ._().Action<A>();
+  Builder& Repeat(int n) { return C<RepeatNode>(n, "Repeat"); }
 
   // Alias to Repeat.
   // Code exapmle::
   //   root
   //   .Loop(3)
-  //   ._().Action<A>()
-  Builder& Loop(int n, Ptr<Node> child = nullptr) { return C<RepeatNode>(n, "Loop", std::move(child)); }
+  //   ._().Action<A>();
+  Builder& Loop(int n) { return C<RepeatNode>(n, "Loop"); }
 
   // Timeout creates a TimeoutNode.
   // It executes the decorated node for at most given duration.
   // Code exapmle::
   //   root
   //   .Timeout(3000ms)
-  //   ._().Action<A>()
+  //   ._().Action<A>();
   template <typename Clock = std::chrono::high_resolution_clock>
-  Builder& Timeout(std::chrono::milliseconds duration, Ptr<Node> child = nullptr) {
-    return C<TimeoutNode<Clock>>(duration, "Timeout", std::move(child));
+  Builder& Timeout(std::chrono::milliseconds duration) {
+    return C<TimeoutNode<Clock>>(duration, "Timeout");
   }
 
   // Delay creates a DelayNode.
@@ -1103,8 +1097,8 @@ class Builder {
   //   .Delay(3000ms)
   //   ._().Action<A>()
   template <typename Clock = std::chrono::high_resolution_clock>
-  Builder& Delay(std::chrono::milliseconds duration, Ptr<Node> child = nullptr) {
-    return C<DelayNode<Clock>>(duration, "Delay", std::move(child));
+  Builder& Delay(std::chrono::milliseconds duration) {
+    return C<DelayNode<Clock>>(duration, "Delay");
   }
 
   // Retry creates a RetryNode.
@@ -1116,14 +1110,14 @@ class Builder {
   //   .Retry(1, 3000ms)
   //   ._().Action<A>()
   template <typename Clock = std::chrono::high_resolution_clock>
-  Builder& Retry(int n, std::chrono::milliseconds interval, Ptr<Node> child = nullptr) {
-    return C<RetryNode<Clock>>(n, interval, "Retry", std::move(child));
+  Builder& Retry(int n, std::chrono::milliseconds interval) {
+    return C<RetryNode<Clock>>(n, interval, "Retry");
   }
 
   // Alias for Retry(-1, interval)
   template <typename Clock = std::chrono::high_resolution_clock>
-  Builder& RetryForever(std::chrono::milliseconds interval, Ptr<Node> child = nullptr) {
-    return C<RetryNode<Clock>>(-1, interval, "RetryForever", std::move(child));
+  Builder& RetryForever(std::chrono::milliseconds interval) {
+    return C<RetryNode<Clock>>(-1, interval, "RetryForever");
   }
 
   // If creates a ConditionalRunNode.
@@ -1179,19 +1173,18 @@ class Builder {
 
   // Attach a sub behavior tree into this tree.
   // Code example::
+  //
   //    bt::Tree subtree;
   //    subtree
   //      .Parallel()
   //      ._().Action<A>()
   //      ._().Action<B>();
+  //
   //    root
   //      .Sequence()
   //      ._().Subtree(std::move(subtree))
   //      ;
   Builder& Subtree(RootNode&& tree) { return C<RootNode>(std::move(tree)); }
-
-  // Subtree function that receives an unique_ptr.
-  Builder& Subtree(Ptr<RootNode> tree) { return attachInternalNode(std::move(tree)); }
 };
 
 //////////////////////////////////////////////////////////////
@@ -1202,30 +1195,6 @@ class Builder {
 class Tree : public RootNode, public Builder {
  public:
   Tree(std::string name = "Root") : RootNode(name), Builder() { bindRoot(*this); }
-
-  // Handy function to run tick loop forever.
-  // Parameter interval specifies the time interval between ticks.
-  // Parameter visualize enables debugging visualization on the console.
-  template <typename Clock = std::chrono::high_resolution_clock>
-  void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false) {
-    auto lastTickAt = Clock::now();
-
-    while (true) {
-      auto nextTickAt = lastTickAt + interval;
-
-      // Time delta between last tick and current tick.
-      ctx.delta = Clock::now() - lastTickAt;
-      ++ctx.seq;
-      Tick(ctx);
-      if (visualize) Visualize(ctx.seq);
-
-      // Catch up with next tick.
-      lastTickAt = Clock::now();
-      if (lastTickAt < nextTickAt) {
-        std::this_thread::sleep_for(nextTickAt - lastTickAt);
-      }
-    }
-  }
 };
 
 }  // namespace bt

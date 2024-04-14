@@ -4,19 +4,22 @@
 #include "types.h"
 
 TEST_CASE("SubTree/1", "[subtree test]") {
-  bt::Tree root, subtree;
+  bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
 
-  // clang-format off
+  bt::Tree subtree;
 
+  // clang-format off
   subtree
   .Sequence()
   ._().Action<A>()
   ._().If<C>()
   ._()._().Action<B>()
   ;
+  // clang-format on
 
+  // clang-format off
   root
   .Selector()
   ._().Action<E>()
