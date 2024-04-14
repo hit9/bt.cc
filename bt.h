@@ -855,6 +855,30 @@ class RootNode : public SingleNode {
     makeVisualizeString(s, 0, seq);
     std::cout << s << std::flush;
   }
+
+  // Handy function to run tick loop forever.
+  // Parameter interval specifies the time interval between ticks.
+  // Parameter visualize enables debugging visualization on the console.
+  template <typename Clock = std::chrono::high_resolution_clock>
+  void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false) {
+    auto lastTickAt = Clock::now();
+
+    while (true) {
+      auto nextTickAt = lastTickAt + interval;
+
+      // Time delta between last tick and current tick.
+      ctx.delta = Clock::now() - lastTickAt;
+      ++ctx.seq;
+      Tick(ctx);
+      if (visualize) Visualize(ctx.seq);
+
+      // Catch up with next tick.
+      lastTickAt = Clock::now();
+      if (lastTickAt < nextTickAt) {
+        std::this_thread::sleep_for(nextTickAt - lastTickAt);
+      }
+    }
+  }
 };
 
 //////////////////////////////////////////////////////////////
@@ -932,8 +956,6 @@ class Builder {
  protected:
   // Bind a tree root onto this builder.
   void bindRoot(RootNode& root) { stack.push(&root); }
-  // Bind a memory pool.
-  void bindPool(std::shared_ptr<NodePool> p) { pool = p; }
 
   // Creates a leaf node.
   Builder& attachLeafNode(Ptr<LeafNode> p) {
@@ -960,6 +982,12 @@ class Builder {
  public:
   Builder() : level(1) {}
   ~Builder() {}
+
+  // Bind a memory pool.
+  Builder& BindPool(std::shared_ptr<NodePool> p) {
+    pool = p;
+    return *this;
+  }
 
   // Increases indent level to append node.
   Builder& _() {
@@ -1227,36 +1255,6 @@ class Builder {
 class Tree : public RootNode, public Builder {
  public:
   Tree(std::string name = "Root") : RootNode(name), Builder() { bindRoot(*this); }
-
-  // Bind a existing node pool to this tree.
-  Tree& BindPool(std::shared_ptr<NodePool> pool) {
-    bindPool(pool);
-    return *this;
-  }
-
-  // Handy function to run tick loop forever.
-  // Parameter interval specifies the time interval between ticks.
-  // Parameter visualize enables debugging visualization on the console.
-  template <typename Clock = std::chrono::high_resolution_clock>
-  void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false) {
-    auto lastTickAt = Clock::now();
-
-    while (true) {
-      auto nextTickAt = lastTickAt + interval;
-
-      // Time delta between last tick and current tick.
-      ctx.delta = Clock::now() - lastTickAt;
-      ++ctx.seq;
-      Tick(ctx);
-      if (visualize) Visualize(ctx.seq);
-
-      // Catch up with next tick.
-      lastTickAt = Clock::now();
-      if (lastTickAt < nextTickAt) {
-        std::this_thread::sleep_for(nextTickAt - lastTickAt);
-      }
-    }
-  }
 };
 
 }  // namespace bt
