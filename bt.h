@@ -206,8 +206,8 @@ concept TNode = std::is_base_of_v<Node, T>;
 // Deleter is a custom deleter for unique_ptr.
 template <typename T>
 struct Deleter {
-  // should we skip delete the ptr from heap?
-  // for Node pointers managed in NodePool, is will set to true.
+  // should we skip deleting the ptr from heap?
+  // for Node pointers managed in a NodePool, it will set to true.
   bool skip = false;
   // Default constructor.
   Deleter(bool skip = false) : skip(skip) {}
@@ -215,6 +215,7 @@ struct Deleter {
   // to support unique_ptr<D, Deleter<D>> to unique_ptr<B, Deleter<B>> conversion.
   template <typename U>
   Deleter(const Deleter<U>& other) : skip(other.skip) {}
+  // Deleting performs here.
   void operator()(T* ptr) const noexcept {
     if (!skip) delete ptr;
   }
@@ -901,9 +902,10 @@ class NodePool {
   // Allocates memory for give typed node. returns the raw pointer.
   template <TNode T, typename... Args>
   T* Allocate(Args... args) {
-    if (offset + sizeof(T) > size) throw std::runtime_error("bt: node pool size not enough");
+    size_t to = offset + sizeof(T);
+    if (to > size) throw std::runtime_error("bt: node pool size not enough");
     T* node = new (buffer + offset) T(std::forward<Args>(args)...);
-    offset += sizeof(T);
+    offset = to;
     return node;
   }
 };
@@ -1235,14 +1237,18 @@ class Builder {
 
   // Attach a sub behavior tree into this tree.
   // Code example::
-  //    bt::Tree subtree;
-  //    subtree
-  //      .Parallel()
-  //      ._().Action<A>()
-  //      ._().Action<B>();
+  //    auto st = [&]() {
+  //      bt::Tree subtree;
+  //      subtree
+  //        .Parallel()
+  //        ._().Action<A>()
+  //        ._().Action<B>();
+  //      return subtree;
+  //    };
+  //
   //    root
   //      .Sequence()
-  //      ._().Subtree(std::move(subtree))
+  //      ._().Subtree(st())
   //      ;
   Builder& Subtree(RootNode&& tree) { return C<RootNode>(std::move(tree)); }
 };
