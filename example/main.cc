@@ -26,13 +26,10 @@ class C : public bt::ConditionNode {
 };
 
 int main(void) {
-  auto pool = std::make_shared<bt::NodePool>(10 * 1024);
   bt::Tree root("Root");
-  root.BindPool(pool);
 
   auto st = [&]() {
     bt::Tree subtree;
-    subtree.BindPool(pool);
     // clang-format off
       subtree
         .Sequence()

@@ -37,7 +37,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.2.0
+// Version: 0.2.1
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -45,7 +45,6 @@
 #include <algorithm>  // for max, min
 #include <any>
 #include <chrono>  // for milliseconds, high_resolution_clock
-#include <cstdint>
 #include <functional>
 #include <iostream>  // for cout, flush
 #include <memory>    // for unique_ptr
@@ -1180,7 +1179,6 @@ class Builder {
   //      .Parallel()
   //      ._().Action<A>()
   //      ._().Action<B>();
-  //    return subtree;
   //
   //    root
   //      .Sequence()
