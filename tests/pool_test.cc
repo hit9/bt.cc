@@ -3,13 +3,16 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("SubTree/1", "[subtree test]") {
+TEST_CASE("Pool/1", "[pool - subtree test]") {
   bt::Tree root;
+  auto pool = std::make_shared<bt::NodePool>(10240); // 10KB
+  root.BindPool(pool);
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
 
   auto st = [&]() {
     bt::Tree subtree;
+    subtree.BindPool(pool);
 
     // clang-format off
 
