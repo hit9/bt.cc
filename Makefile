@@ -31,6 +31,9 @@ run-example: build-example
 run-tests: build-test
 	ctest --test-dir ./build/tests --output-on-failure
 
+run-benchmark: build-test
+	./build/tests/bt_benchmark
+
 clean:
 	make -C build clean
 
