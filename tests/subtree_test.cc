@@ -8,27 +8,22 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
 
-  auto st = [&]() {
-    bt::Tree subtree;
+  bt::Tree subtree;
 
-    // clang-format off
-
-    subtree
-    .Sequence()
-    ._().Action<A>()
-    ._().If<C>()
-    ._()._().Action<B>()
-    ;
-    // clang-format on
-
-    return subtree;
-  };
+  // clang-format off
+  subtree
+  .Sequence()
+  ._().Action<A>()
+  ._().If<C>()
+  ._()._().Action<B>()
+  ;
+  // clang-format on
 
   // clang-format off
   root
   .Selector()
   ._().Action<E>()
-  ._().Subtree(st());
+  ._().Subtree(std::move(subtree));
   ;
   // clang-format on
 

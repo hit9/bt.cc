@@ -26,7 +26,22 @@ class C : public bt::ConditionNode {
 };
 
 int main(void) {
-  bt::Tree root;
+  auto pool = std::make_shared<bt::NodePool>(10 * 1024);
+  bt::Tree root("Root");
+  root.BindPool(pool);
+
+  auto st = [&]() {
+    bt::Tree subtree;
+    subtree.BindPool(pool);
+    // clang-format off
+      subtree
+        .Sequence()
+        ._().Action<A>()
+        ._().Action<B>()
+      ;
+    // clang-format on
+    return subtree;
+  };
 
   // clang-format off
   root
@@ -41,6 +56,7 @@ int main(void) {
     ._().Parallel()
     ._()._().Action<A>()
     ._()._().Action<B>()
+    ._().Subtree(st())
     ;
   // clang-format on
   std::string s;

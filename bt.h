@@ -203,27 +203,9 @@ class Node {
 template <typename T>
 concept TNode = std::is_base_of_v<Node, T>;
 
-// Deleter is a custom deleter for unique_ptr.
-template <typename T>
-struct Deleter {
-  // should we skip deleting the ptr from heap?
-  // for Node pointers managed in a NodePool, it will set to true.
-  bool skip = false;
-  // Default constructor.
-  Deleter(bool skip = false) : skip(skip) {}
-  // implicit conversion from other Deleter,
-  // to support unique_ptr<D, Deleter<D>> to unique_ptr<B, Deleter<B>> conversion.
-  template <typename U>
-  Deleter(const Deleter<U>& other) : skip(other.skip) {}
-  // Deleting performs here.
-  void operator()(T* ptr) const noexcept {
-    if (!skip) delete ptr;
-  }
-};
-
 // Alias
 template <typename T>
-using Ptr = std::unique_ptr<T, Deleter<T>>;
+using Ptr = std::unique_ptr<T>;
 
 template <typename T>
 using PtrList = std::vector<Ptr<T>>;
@@ -883,34 +865,6 @@ class RootNode : public SingleNode {
 };
 
 //////////////////////////////////////////////////////////////
-/// Node Memory Pool
-///////////////////////////////////////////////////////////////
-
-// NodePool manages a piece of contiguous memory for node allocations.
-// Its main purpose is for less cache misses in runtime node traversal.
-// It's optional to use a memory pool.
-class NodePool {
- private:
-  uint8_t* buffer = nullptr;
-  size_t size;
-  size_t offset;
-
- public:
-  NodePool(std::size_t size) : size(size), offset(0), buffer(new uint8_t[size]) {}
-  ~NodePool() { delete[] buffer; }
-
-  // Allocates memory for give typed node. returns the raw pointer.
-  template <TNode T, typename... Args>
-  T* Allocate(Args... args) {
-    size_t to = offset + sizeof(T);
-    if (to > size) throw std::runtime_error("bt: node pool size not enough");
-    T* node = new (buffer + offset) T(std::forward<Args>(args)...);
-    offset = to;
-    return node;
-  }
-};
-
-//////////////////////////////////////////////////////////////
 /// Tree Builder
 ///////////////////////////////////////////////////////////////
 
@@ -919,9 +873,6 @@ class Builder {
  private:
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
-
-  // Optional node pool to use.
-  std::shared_ptr<NodePool> pool = nullptr;
 
   // Validate node.
   void validate(Node* node) {
@@ -985,12 +936,6 @@ class Builder {
   Builder() : level(1) {}
   ~Builder() {}
 
-  // Bind a memory pool.
-  Builder& BindPool(std::shared_ptr<NodePool> p) {
-    pool = p;
-    return *this;
-  }
-
   // Increases indent level to append node.
   Builder& _() {
     level++;
@@ -1001,14 +946,6 @@ class Builder {
   // General creators.
   ///////////////////////////////////
 
-  // Makes a Node, returns an unique ptr.
-  // Allocate memory from the pool if binded, otherwise from heap.
-  template <TNode T, typename... Args>
-  Ptr<T> Make(Args... args) {
-    if (pool != nullptr) return Ptr<T>(pool->Allocate<T>(std::forward<Args>(args)...), Deleter<T>(true));
-    return Ptr<T>(new T(std::forward<Args>(args)...), Deleter<T>(false));
-  }
-
   // C is a function to attach an arbitrary Node.
   // It can be used to attach custom node implementation.
   // Code exapmle::
@@ -1018,9 +955,9 @@ class Builder {
   template <TNode T, typename... Args>
   Builder& C(Args... args) {
     if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
-      return attachLeafNode(Make<T>(std::forward<Args>(args)...));
+      return attachLeafNode(std::make_unique<T>(std::forward<Args>(args)...));
     else  // InternalNode.
-      return attachInternalNode(Make<T>(std::forward<Args>(args)...));
+      return attachInternalNode(std::make_unique<T>(std::forward<Args>(args)...));
   }
 
   ///////////////////////////////////
@@ -1123,7 +1060,7 @@ class Builder {
   //   ._().Action<DoSomething>();
   template <TCondition Condition, typename... ConditionArgs>
   Builder& Not(ConditionArgs... args) {
-    return C<InvertNode>("Not", Make<Condition>(std::forward<ConditionArgs>(args)...));
+    return C<InvertNode>("Not", std::make_unique<Condition>(std::forward<ConditionArgs>(args)...));
   }
 
   // Repeat creates a RepeatNode.
@@ -1192,7 +1129,7 @@ class Builder {
   //   ._().Action(DoSomething)()
   template <TCondition Condition, typename... ConditionArgs>
   Builder& If(ConditionArgs&&... args) {
-    auto condition = Make<Condition>(std::forward<ConditionArgs>(args)...);
+    auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
     return C<ConditionalRunNode>(std::move(condition), "If");
   }
 
@@ -1224,7 +1161,7 @@ class Builder {
   // Alias to If, for working alongs with Switch.
   template <TCondition Condition, typename... ConditionArgs>
   Builder& Case(ConditionArgs&&... args) {
-    auto condition = Make<Condition>(std::forward<ConditionArgs>(args)...);
+    auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
     return C<ConditionalRunNode>(std::move(condition), "Case");
   }
 
@@ -1237,18 +1174,17 @@ class Builder {
 
   // Attach a sub behavior tree into this tree.
   // Code example::
-  //    auto st = [&]() {
-  //      bt::Tree subtree;
-  //      subtree
-  //        .Parallel()
-  //        ._().Action<A>()
-  //        ._().Action<B>();
-  //      return subtree;
-  //    };
+  //
+  //    bt::Tree subtree;
+  //    subtree
+  //      .Parallel()
+  //      ._().Action<A>()
+  //      ._().Action<B>();
+  //    return subtree;
   //
   //    root
   //      .Sequence()
-  //      ._().Subtree(st())
+  //      ._().Subtree(std::move(subtree))
   //      ;
   Builder& Subtree(RootNode&& tree) { return C<RootNode>(std::move(tree)); }
 };
