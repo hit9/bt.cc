@@ -33,6 +33,7 @@ root
  ._()._().Parallel()
  ._()._()._().Action<D>()
  ._()._()._().Action<E>()
+ .End()
 ;
 
 bt::Context ctx;
@@ -44,8 +45,9 @@ root.Tick(ctx);
 
 ## 参考手册
 
-目录: <span id="a"></span>
+目录: <span id="ref"></span>
 
+- [构建过程](#build)
 - [状态码](#status)
 - [节点分类](#classes)
 - 叶子节点:
@@ -68,12 +70,36 @@ root.Tick(ctx);
   - [Retry 重试](#retry)
   - [自定义装饰器](#custom-decorator)
 - [子树](#subtree)
-- [钩子函数](#hooks)
-- [可视化](#visualization)
-- [Tick 上下文](#context)
-- [黑板 ?](#blackboard)
-- [Tick 循环](#ticker-loop)
-- [自定义 Builder](#custom-builder)
+- 其他:
+  - [钩子函数](#hooks)
+  - [可视化](#visualization)
+  - [Tick 上下文](#context)
+  - [黑板 ?](#blackboard)
+  - [Tick 循环](#ticker-loop)
+  - [自定义 Builder](#custom-builder)
+
+* **构建一棵树**: <span id="build"></span> <a href="#ref">[↑]</a>:
+
+  1. 函数 `_()`  用来递增缩进层级.
+  2. 在构建的最后, 需要调用函数 `End()`.
+
+  比如说,下面的树:
+
+  1. `root` 节点包含一个子节点, 是一个 `Sequence` 顺序节点.
+  2. 这个顺序节点, 进一步包含了 `2` 个子节点:
+     1. 第一个是一个叫做 `ConditionalRunNode` 的装饰器节点, 它的子节点是一个动作节点 `B`.
+        一旦条件 `A` 检查到满足, 那么 `B` 就会被激活.
+     2. 第二个子节点就是一个动作节点 `C`.
+  3. 最后不要忘记调用 `End()`.
+
+  ```cpp
+  root
+  .Sequence()
+   ._().If<A>()
+   ._()._().Action<B>()
+   ._().Action<C>()
+   .End();
+  ```
 
 * 执行状态码 <span id="status"></span> <a href="#a">[↑]</a>:
 
@@ -385,7 +411,7 @@ root.Tick(ctx);
 
 * **钩子函数**  <span id="hooks"></span> <a href="#a">[↑]</a>
 
-  对于每个节点，都支持两种钩子函数：
+  对于每个节点，都支持 3 种钩子函数：
 
   ```cpp
   class MyNode : public Node {
@@ -397,6 +423,8 @@ root.Tick(ctx);
     // 在一轮的结束时会被调用，就是说本节点的状态变成 FAILURE/SUCCESS 的时候：
     virtual void OnTerminate(Status status){};
 
+    // 在这个节点刚被构建完成时调用
+    virtual void OnBuild() {}
   }
   ```
 
