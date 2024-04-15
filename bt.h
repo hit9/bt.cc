@@ -195,7 +195,7 @@ class Node {
   // tick. For instance, we may not need to do the calculation on every tick if it's complex.
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
-  virtual uint Priority(const Context& ctx) const { return 1; }
+  virtual unsigned int Priority(const Context& ctx) const { return 1; }
 };
 
 // Concept TNode for all classes derived from Node.
@@ -304,7 +304,7 @@ class SingleNode : public InternalNode {
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
   void Append(Ptr<Node> node) override { child = std::move(node); }
-  uint Priority(const Context& ctx) const override { return child->Priority(ctx); }
+  unsigned int Priority(const Context& ctx) const override { return child->Priority(ctx); }
 };
 
 ////////////////////////////////////////////////
@@ -341,8 +341,8 @@ class CompositeNode : public InternalNode {
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
 
   // Returns the max priority of considerable children.
-  uint Priority(const Context& ctx) const override {
-    uint ans = 0;
+  unsigned int Priority(const Context& ctx) const override {
+    unsigned int ans = 0;
     for (int i = 0; i < children.size(); i++)
       if (considerable(i)) ans = std::max(ans, children[i]->Priority(ctx));
     return ans;
@@ -370,7 +370,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
  protected:
   // Prepare priorities of considerable children on every tick.
   // p[i] stands for i'th child's priority.
-  std::vector<uint> p;
+  std::vector<unsigned int> p;
   // Refresh priorities for considerable children.
   void refreshp(const Context& ctx) {
     if (p.size() < children.size()) p.resize(children.size());
@@ -507,16 +507,16 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
  protected:
   Status update(const Context& ctx) override {
     // Sum of weights/priorities.
-    uint total = 0;
+    unsigned int total = 0;
     for (int i = 0; i < children.size(); i++)
       if (considerable(i)) total += p[i];
 
     // random select one, in range [1, total]
-    std::uniform_int_distribution<uint> distribution(1, total);
+    std::uniform_int_distribution<unsigned int> distribution(1, total);
 
     auto select = [&]() -> int {
-      uint v = distribution(rng);  // gen random uint between [0, sum]
-      uint s = 0;                  // sum of iterated children.
+      unsigned int v = distribution(rng);  // gen random unsigned int between [0, sum]
+      unsigned int s = 0;                  // sum of iterated children.
       for (int i = 0; i < children.size(); i++) {
         if (!considerable(i)) continue;
         s += p[i];
@@ -542,7 +542,7 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
       // remove its weight from total, won't be consider again.
       total -= p[i];
       // updates the upper bound of distribution.
-      distribution.param(std::uniform_int_distribution<uint>::param_type(1, total));
+      distribution.param(std::uniform_int_distribution<unsigned int>::param_type(1, total));
     }
     // F if all children F.
     return Status::FAILURE;
