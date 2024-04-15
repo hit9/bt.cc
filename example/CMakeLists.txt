@@ -8,4 +8,3 @@ include_directories("..")
 
 # Targets
 add_executable(bt_example main.cc)
-target_link_libraries(bt)
