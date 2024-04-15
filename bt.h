@@ -13,7 +13,7 @@
 //   ._().Action<A>()
 //   ._().Repeat(3)
 //   ._()._().Action<B>()
-//   ;
+//   .End();
 //
 // Run Tick
 // ~~~~~~~~~
@@ -183,6 +183,9 @@ class Node {
   // Hook function to be called once this node goes into success or failure.
   // Nice to call parent class' OnTerminate after your implementation
   virtual void OnTerminate(Status status){};
+
+  // Hook function to be called on this node's build is finished.
+  virtual void OnBuild() {}
 
   // Main update function to be implemented by all subclasses.
   // It's the body part of function Tick().
@@ -896,13 +899,17 @@ class Builder {
     }
   }
 
+  // pops an internal node from the stack.
+  void pop() {
+    validate(stack.top());  // validate before pop
+    stack.top()->OnBuild();
+    stack.pop();
+  }
+
   // Adjust stack to current indent level.
   void adjust() {
     validateIndent();
-    while (level < stack.size()) {
-      validate(stack.top());  // validate before pop
-      stack.pop();
-    }
+    while (level < stack.size()) pop();
   }
 
  protected:
@@ -913,6 +920,7 @@ class Builder {
   Builder& attachLeafNode(Ptr<LeafNode> p) {
     adjust();
     // Append to stack's top as a child.
+    p->OnBuild();
     stack.top()->Append(std::move(p));
     // resets level.
     level = 1;
@@ -939,6 +947,11 @@ class Builder {
   Builder& _() {
     level++;
     return *this;
+  }
+
+  // Should be called on the end of the build process.
+  void End() {
+    while (stack.size()) pop();  // clears the stack
   }
 
   ///////////////////////////////////

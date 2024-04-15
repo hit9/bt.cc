@@ -13,6 +13,7 @@ TEST_CASE("StatefulSequence/1", "[all success]") {
     ._().Action<A>()
     ._().Action<B>()
     ._().Action<E>()
+    .End()
     ;
   // clang-format on
 
@@ -95,6 +96,7 @@ TEST_CASE("StatefulSequence/2", "[paritial failure]") {
     ._().Action<A>()
     ._().Action<B>()
     ._().Action<E>()
+    .End()
     ;
   // clang-format on
 
@@ -154,6 +156,7 @@ TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]") {
     ._().Action<G>()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
 

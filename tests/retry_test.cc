@@ -15,6 +15,7 @@ TEST_CASE("Retry/1", "[simple retry success]") {
     root
     .Retry(3, 30ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -39,6 +40,7 @@ TEST_CASE("Retry/2", "[simple retry final failure]") {
     root
     .Retry(3, 30ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -78,6 +80,7 @@ TEST_CASE("Retry/3", "[simple retry final success ]") {
     root
     .Retry(3, 30ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -108,6 +111,7 @@ TEST_CASE("Retry/4", "[simple retry forever ]") {
     root
     .RetryForever(1ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 

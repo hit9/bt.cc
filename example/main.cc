@@ -35,6 +35,7 @@ int main(void) {
         .Sequence()
         ._().Action<A>()
         ._().Action<B>()
+        .End()
       ;
     // clang-format on
     return subtree;
@@ -54,6 +55,7 @@ int main(void) {
     ._()._().Action<A>()
     ._()._().Action<B>()
     ._().Subtree(st())
+    .End()
     ;
   // clang-format on
   std::string s;

@@ -15,6 +15,7 @@ TEST_CASE("Delay/1", "[simple delay]") {
     root
     .Delay(100ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 

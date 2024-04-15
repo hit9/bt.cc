@@ -16,6 +16,7 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   ._().Action<A>()
   ._().If<C>()
   ._()._().Action<B>()
+  .End()
   ;
   // clang-format on
 
@@ -23,7 +24,8 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   root
   .Selector()
   ._().Action<E>()
-  ._().Subtree(std::move(subtree));
+  ._().Subtree(std::move(subtree))
+  .End()
   ;
   // clang-format on
 

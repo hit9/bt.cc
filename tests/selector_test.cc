@@ -12,6 +12,7 @@ TEST_CASE("Selector/1", "[first success]") {
     .Selector()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -60,6 +61,7 @@ TEST_CASE("Selector/2", "[first failure and second success]") {
     .Selector()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -109,6 +111,7 @@ TEST_CASE("Selector/3", "[all failure]") {
     .Selector()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -158,6 +161,7 @@ TEST_CASE("Selector/4", "[priority selector final success]") {
     .Selector()
     ._().Action<G>()
     ._().Action<H>()
+    .End()
     ;
   // clang-format on
 
@@ -211,6 +215,7 @@ TEST_CASE("Selector/4", "[priority selector final failure]") {
     .Selector()
     ._().Action<G>()
     ._().Action<H>()
+    .End()
     ;
   // clang-format on
 
@@ -259,6 +264,7 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
     .Selector()
     ._().Action<G>()
     ._().Action<H>()
+    .End()
     ;
   // clang-format on
 

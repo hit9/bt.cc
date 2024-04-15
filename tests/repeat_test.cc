@@ -17,6 +17,7 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
     ._()._().Sequence()
     ._()._()._().Action<A>()
     ._()._()._().Action<B>()
+    .End()
     ;
   // clang-format on
 

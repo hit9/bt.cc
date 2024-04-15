@@ -12,6 +12,7 @@ TEST_CASE("Sequence/1", "[all success]") {
     .Sequence()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -66,6 +67,7 @@ TEST_CASE("Sequence/2", "[partial failure - first failure]") {
     .Sequence()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -101,6 +103,7 @@ TEST_CASE("Sequence/3", "[partial failure - last failure]") {
     .Sequence()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -150,6 +153,7 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
     ._().Action<G>()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
   REQUIRE(bb->counterG == 0);
@@ -215,6 +219,7 @@ TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
     ._().Action<G>()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
   REQUIRE(bb->counterG == 0);
@@ -269,6 +274,7 @@ TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
     ._().Action<G>()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
   REQUIRE(bb->counterG == 0);

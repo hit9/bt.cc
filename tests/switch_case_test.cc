@@ -17,6 +17,7 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   ._()._()._().Action<E>()
   ._().Case<D>()
   ._()._().Action<B>()
+  .End()
   ;
   // clang-format on
 

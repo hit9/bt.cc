@@ -13,6 +13,7 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
     .Sequence()
     ._().Condition<C>()
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -51,6 +52,7 @@ TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
     .Sequence()
     ._().Condition([&](const bt::Context& ctx) ->auto { return bb->shouldC; })
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -83,6 +85,7 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
     .Sequence()
     ._().If<C>()
     ._()._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -125,6 +128,7 @@ TEST_CASE("Condition/4", "[simplest condition - and]") {
     ._().Condition<C>()
     ._().Condition<D>()
     ._().Condition<F>()
+    .End()
     ;
   // clang-format on
 
@@ -157,6 +161,7 @@ TEST_CASE("Condition/5", "[simplest condition - or]") {
     ._().Condition<C>()
     ._().Condition<D>()
     ._().Condition<F>()
+    .End()
     ;
   // clang-format on
 
@@ -193,6 +198,7 @@ TEST_CASE("Condition/6", "[simplest condition - not]") {
     root
     .Not()
     ._().Condition<C>()
+    .End()
     ;
   // clang-format on
 

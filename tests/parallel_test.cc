@@ -12,6 +12,7 @@ TEST_CASE("Parallel/1", "[all success]") {
     .Parallel()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -60,6 +61,7 @@ TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
     .Parallel()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -108,6 +110,7 @@ TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
     .Parallel()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -145,6 +148,7 @@ TEST_CASE("Parallel/4", "[all failure]") {
     .Parallel()
     ._().Action<A>()
     ._().Action<B>()
+    .End()
     ;
   // clang-format on
 
@@ -183,6 +187,7 @@ TEST_CASE("Parallel/5", "[priority partial]") {
     .Parallel()
     ._().Action<G>()
     ._().Action<H>()
+    .End()
     ;
   // clang-format on
 
