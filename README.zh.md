@@ -418,10 +418,10 @@ root.Tick(ctx);
    public:
 
     // 在一轮的开始时会被调用，就是说本节点的状态从其他变成 RUNNING 的时候：
-    virtual void OnEnter(){};
+    virtual void OnEnter(const Context& ctx){};
 
     // 在一轮的结束时会被调用，就是说本节点的状态变成 FAILURE/SUCCESS 的时候：
-    virtual void OnTerminate(Status status){};
+    virtual void OnTerminate(const Context& ctx, Status status){};
 
     // 在这个节点刚被构建完成时调用
     virtual void OnBuild() {}

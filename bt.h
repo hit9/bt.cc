@@ -152,7 +152,7 @@ class Node {
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
     // First run of current round.
-    if (!running) OnEnter();
+    if (!running) OnEnter(ctx);
     running = true;
 
     auto status = Update(ctx);
@@ -161,7 +161,7 @@ class Node {
 
     // Last run of current round.
     if (status == Status::FAILURE || status == Status::SUCCESS) {
-      OnTerminate(status);
+      OnTerminate(ctx, status);
       running = false;  // reset
     }
     return status;
@@ -178,11 +178,11 @@ class Node {
 
   // Hook function to be called on this node's first run.
   // Nice to call parent class' OnEnter before your implementation.
-  virtual void OnEnter(){};
+  virtual void OnEnter(const Context& ctx){};
 
   // Hook function to be called once this node goes into success or failure.
   // Nice to call parent class' OnTerminate after your implementation
-  virtual void OnTerminate(Status status){};
+  virtual void OnTerminate(const Context& ctx, Status status){};
 
   // Hook function to be called on this node's build is finished.
   virtual void OnBuild() {}
@@ -365,7 +365,7 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   void skip(const int i) { skipTable.insert(i); }
 
  public:
-  void OnTerminate(Status status) override { skipTable.clear(); }
+  void OnTerminate(const Context& ctx,Status status) override { skipTable.clear(); }
 };
 
 // Priority related CompositeNode.
@@ -695,9 +695,9 @@ class RepeatNode : public DecoratorNode {
       : DecoratorNode(name, std::move(child)), n(n) {}
 
   // Clears counter on enter.
-  void OnEnter() override { cnt = 0; };
+  void OnEnter(const Context& ctx) override { cnt = 0; };
   // Reset counter on termination.
-  void OnTerminate(Status status) override { cnt = 0; };
+  void OnTerminate(const Context& ctx,Status status) override { cnt = 0; };
 
   Status Update(const Context& ctx) override {
     if (n == 0) return Status::SUCCESS;
@@ -727,7 +727,7 @@ class TimeoutNode : public DecoratorNode {
   TimeoutNode(std::chrono::milliseconds d, const std::string& name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
-  void OnEnter() override { startAt = Clock::now(); };
+  void OnEnter(const Context& ctx) override { startAt = Clock::now(); };
 
   Status Update(const Context& ctx) override {
     // Check if timeout at first.
@@ -754,8 +754,8 @@ class DelayNode : public DecoratorNode {
   DelayNode(std::chrono::milliseconds duration, const std::string& name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
-  void OnEnter() override { firstRunAt = Clock::now(); };
-  void OnTerminate(Status status) override { firstRunAt = Timepoint::min(); };
+  void OnEnter(const Context& ctx) override { firstRunAt = Clock::now(); };
+  void OnTerminate(const Context& ctx,Status status) override { firstRunAt = Timepoint::min(); };
 
   Status Update(const Context& ctx) override {
     auto now = Clock::now();
@@ -789,11 +789,11 @@ class RetryNode : public DecoratorNode {
         interval(interval),
         lastRetryAt(TimePoint::min()) {}
 
-  void OnEnter() override {
+  void OnEnter(const Context& ctx) override {
     cnt = 0;
     lastRetryAt = TimePoint::min();
   }
-  void OnTerminate(Status status) override {
+  void OnTerminate(const Context& ctx,Status status) override {
     cnt = 0;
     lastRetryAt = status == Status::FAILURE ? Clock::now() : TimePoint::min();
   }

@@ -25,3 +25,39 @@ TEST_CASE("Hook/1", "[hook OnBuild]") {
 
   REQUIRE(onBuildCalled);
 }
+
+TEST_CASE("Hook/2", "[hook OnEnter]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .Parallel()
+    ._().Action<A>()
+    .End()
+    ;
+  // clang-format on
+
+  root.Tick(ctx);
+  REQUIRE(bb->onEnterCalledA);
+}
+
+TEST_CASE("Hook/3", "[hook OnTerminate]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  // clang-format off
+    root
+    .Parallel()
+    ._().Action<A>()
+    .End()
+    ;
+  // clang-format on
+
+  root.Tick(ctx);
+  REQUIRE(!bb->onTerminatedCalledA);
+
+  bb->shouldA = bt::Status::FAILURE;
+  root.Tick(ctx);
+  REQUIRE(bb->onTerminatedCalledA);
+}

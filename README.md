@@ -428,11 +428,11 @@ Reference: <span id="ref"></span>
 
     // Will be called on the node's first run of a round.
     // Each time the node changes from other status to RUNNING.
-    virtual void OnEnter(){};
+    virtual void OnEnter(const Context& ctx){};
 
     // Will be called on the node's last run of a round.
     // Each time the node goes to FAILURE/SUCCESS.
-    virtual void OnTerminate(Status status){};
+    virtual void OnTerminate(const Context& ctx, Status status){};
 
     // Hook function to be called on this node's build is finished.
     virtual void OnBuild() {}
