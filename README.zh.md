@@ -265,7 +265,7 @@ root.Tick(ctx);
   ```cpp
   class A : public bt::Action {
    public:
-    uint Priority(const bt::Context& ctx) const override {
+    unsigned int Priority(const bt::Context& ctx) const override {
         // TODO, 返回一个正整数
     }
   };
