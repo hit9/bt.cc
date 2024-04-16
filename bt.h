@@ -37,7 +37,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.2.2
+// Version: 0.2.3
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
