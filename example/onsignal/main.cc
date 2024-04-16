@@ -7,8 +7,8 @@
 #include <string>
 #include <string_view>
 
-#include "third_party/blinker.h"
 #include "bt.h"
+#include "third_party/blinker.h"
 
 // Max number of nodes in the board.
 const std::size_t N = 1024;
@@ -84,8 +84,9 @@ class C : public bt::Action {
   std::string_view Name() const override { return "C"; }
   bt::Status Update(const bt::Context& ctx) override {
     // randomly emits signal
-    if (std::rand() % 10 < 3) signalAA->Emit(1);
-    if (std::rand() % 10 < 6) signalAB->Emit(std::string("abc"));
+    int i = std::rand();
+    if (i % 10 < 3) signalAA->Emit(i);
+    if (i % 10 < 6) signalAB->Emit(std::string("abc" + std::to_string(i)));
     return bt::Status::SUCCESS;
   }
 };
