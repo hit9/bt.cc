@@ -13,6 +13,7 @@ TEST_CASE("StatefulSelector/1", "[final success]") {
     ._().Action<A>()
     ._().Action<B>()
     ._().Action<E>()
+    .End()
     ;
   // clang-format on
 
@@ -99,6 +100,7 @@ TEST_CASE("StatefulSelector/2", "[final failure]") {
     ._().Action<A>()
     ._().Action<B>()
     ._().Action<E>()
+    .End()
     ;
   // clang-format on
 
@@ -185,6 +187,7 @@ TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]") {
     ._().Action<G>()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
 

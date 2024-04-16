@@ -17,6 +17,7 @@ void build(bt::Tree& root) {
     ._().Action<I>();
     // clang-format on
   }
+  root.End();
 }
 
 TEST_CASE("Tick/1", "[simple traversal benchmark - without pool]") {
@@ -24,7 +25,5 @@ TEST_CASE("Tick/1", "[simple traversal benchmark - without pool]") {
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   build(root);
-  BENCHMARK("benchmark simple parallel tree tick - without pool") {
-    root.Tick(ctx);
-  };
+  BENCHMARK("benchmark simple parallel tree tick - without pool") { root.Tick(ctx); };
 }

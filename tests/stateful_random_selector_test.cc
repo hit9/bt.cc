@@ -12,6 +12,7 @@ TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector]") {
     .StatefulRandomSelector()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
 

@@ -13,6 +13,7 @@ TEST_CASE("RandomSelector/1", "[simple random selector]") {
     .RandomSelector()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
 
@@ -39,6 +40,7 @@ TEST_CASE("RandomSelector/2", "[simple random selector - equal weights]") {
     .RandomSelector()
     ._().Action<H>()
     ._().Action<I>()
+    .End()
     ;
   // clang-format on
 

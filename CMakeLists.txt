@@ -12,6 +12,7 @@ set_target_properties(bt PROPERTIES PUBLIC_HEADER "bt.h")
 if(BT_TEST)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
   add_subdirectory(example EXCLUDE_FROM_ALL)
+  add_subdirectory(example/onsignal EXCLUDE_FROM_ALL)
 endif()
 
 install(

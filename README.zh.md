@@ -33,6 +33,7 @@ root
  ._()._().Parallel()
  ._()._()._().Action<D>()
  ._()._()._().Action<E>()
+ .End()
 ;
 
 bt::Context ctx;
@@ -44,8 +45,9 @@ root.Tick(ctx);
 
 ## 参考手册
 
-目录: <span id="a"></span>
+目录: <span id="ref"></span>
 
+- [构建过程](#build)
 - [状态码](#status)
 - [节点分类](#classes)
 - 叶子节点:
@@ -68,12 +70,37 @@ root.Tick(ctx);
   - [Retry 重试](#retry)
   - [自定义装饰器](#custom-decorator)
 - [子树](#subtree)
-- [钩子函数](#hooks)
-- [可视化](#visualization)
 - [Tick 上下文](#context)
-- [黑板 ?](#blackboard)
-- [Tick 循环](#ticker-loop)
-- [自定义 Builder](#custom-builder)
+- 其他:
+  - [钩子函数](#hooks)
+  - [可视化](#visualization)
+  - [黑板 ?](#blackboard)
+  - [Tick 循环](#ticker-loop)
+  - [自定义 Builder](#custom-builder)
+  - [信号和事件](#signals)
+
+* **构建一棵树**: <span id="build"></span> <a href="#ref">[↑]</a>:
+
+  1. 函数 `_()`  用来递增缩进层级.
+  2. 在构建的最后, 需要调用函数 `End()`.
+
+  比如说,下面的树:
+
+  1. `root` 节点包含一个子节点, 是一个 `Sequence` 顺序节点.
+  2. 这个顺序节点, 进一步包含了 `2` 个子节点:
+     1. 第一个是一个叫做 `ConditionalRunNode` 的装饰器节点, 它的子节点是一个动作节点 `B`.
+        一旦条件 `A` 检查到满足, 那么 `B` 就会被激活.
+     2. 第二个子节点就是一个动作节点 `C`.
+  3. 最后不要忘记调用 `End()`.
+
+  ```cpp
+  root
+  .Sequence()
+   ._().If<A>()
+   ._()._().Action<B>()
+   ._().Action<C>()
+   .End();
+  ```
 
 * 执行状态码 <span id="status"></span> <a href="#a">[↑]</a>:
 
@@ -382,21 +409,35 @@ root.Tick(ctx);
   ._().Subtree<A>(std::move(subtree));
   ```
 
+* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#a">[↑]</a>
+
+  这个结构体会从根节点一路传递到每个被执行到的节点：
+
+  ```cpp
+  struct Context {
+    ull seq;  // 当前全局的 tick 帧号
+    std::chrono::nanoseconds delta;  // 全局的从上一次 tick 到本次 tick 的时间差
+    std::any data; // 用户数据，比如可以存放一个指向黑板的指针
+  }
+  ```
+
 
 * **钩子函数**  <span id="hooks"></span> <a href="#a">[↑]</a>
 
-  对于每个节点，都支持两种钩子函数：
+  对于每个节点，都支持 3 种钩子函数：
 
   ```cpp
   class MyNode : public Node {
    public:
 
     // 在一轮的开始时会被调用，就是说本节点的状态从其他变成 RUNNING 的时候：
-    virtual void OnEnter(){};
+    virtual void OnEnter(const Context& ctx){};
 
     // 在一轮的结束时会被调用，就是说本节点的状态变成 FAILURE/SUCCESS 的时候：
-    virtual void OnTerminate(Status status){};
+    virtual void OnTerminate(const Context& ctx, Status status){};
 
+    // 在这个节点刚被构建完成时调用
+    virtual void OnBuild() {}
   }
   ```
 
@@ -411,18 +452,6 @@ root.Tick(ctx);
   ++ctx.seq;
   root.Tick(ctx)
   root.Visualize(ctx.seq)
-  ```
-
-* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#a">[↑]</a>
-
-  这个结构体会从根节点一路传递到每个被执行到的节点：
-
-  ```cpp
-  struct Context {
-    ull seq;  // 当前全局的 tick 帧号
-    std::chrono::nanoseconds delta;  // 全局的从上一次 tick 到本次 tick 的时间差
-    std::any data; // 用户数据，比如可以存放一个指向黑板的指针
-  }
   ```
 
 * **黑板 ?**  <span id="blackboard"></span> <a href="#a">[↑]</a>
@@ -459,15 +488,65 @@ root.Tick(ctx);
 * **自定义行为树的构建器 Builder**  <span id="custom-builder"></span> <a href="#a">[↑]</a>
 
   ```cpp
-  class MyTree : public bt::Tree {
+  // 假设我们要添加一个自定义的装饰节点
+  // 先定义一个 Node class
+  class MyCustomMethodNode : public bt::DecoratorNode {
    public:
-    MyTree(std::string name = "Root") : MyTree(name) { bindRoot(*this); }
+    MyCustomMethodNode(const std::string& name, ..) : bt::DecoratorNode(name) {}
+    // 实现核心的 Update 方法
+    bt::Status Update(const bt::Context& ctx) override {
+      // 向下传递 tick 到子节点
+      // child->Tick(ctx)
+      return status;
+    }
+  };
 
-    // Implements custom builder functions.
-  }
+  // 定义一个自己的 Tree 类
+  class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
+   public:
+    // 在构造函数中注意绑定到 builder
+    MyTree(std::string name = "Root") : bt::RootNode(name) { bindRoot(*this); }
+    // 实现自定义方法 MyCustomMethod 来创建一个 MyCustomMethodNode
+    // C 是一个通用的创建节点的方法
+    auto& MyCustomMethod(...) { return C<MyCustomMethodNode>(...); }
+  };
 
   MyTree root;
+
+  root
+  .MyCustomMethod(...)
+  ;
   ```
+
+* **信号和事件** <span id="signals"></span> <a href="#ref">[↑]</a>
+
+  在行为树中释放和处理信号是常见的情况, 但是信号和事件的处理是一个复杂的事情, 我并不想让其和 bt.h 这个很小的库耦合起来.
+
+  一般来说, 要想把信号处理的带入 bt.h 中, 思路如下:
+
+  1. 创建一个自定义的装饰节点, 比如说叫做 `OnSignalNode`.
+  2. 创建一个自定义的 Builder 类, 添加一个方法叫做 `OnSignal`.
+  3. `OnSignal` 装饰器只有在关心的信号发生时才向下传递 tick 到子节点.
+  4. 跟随信号一起传递的数据, 可以临时放在黑板上, tick 后记得清除.
+  5. 可以把 `OnSignal` 节点尽量向上提, 这样会使得行为树更像事件驱动的一点, 提高效率.
+
+  下面是一个具体的例子, 采用的是我的另一个小的事件库 [blinker.h](https://github.com/hit9/blinker.h),
+  具体的代码可以参考目录 [example/onsignal](example/onsignal).
+
+  ```cpp
+  root
+    .Parallel()
+    ._().Action<C>()
+    ._().OnSignal("a.*")
+    ._()._().Parallel()
+    ._()._()._().OnSignal("a.a")
+    ._()._()._()._().Action<A>()
+    ._()._()._().OnSignal("a.b")
+    ._()._()._()._().Action<B>()
+    .End()
+    ;
+  ```
+
 
 ## License
 

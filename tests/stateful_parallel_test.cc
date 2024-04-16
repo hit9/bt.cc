@@ -13,6 +13,7 @@ TEST_CASE("StatefulParallel/1", "[all success]") {
     ._().Action<A>()
     ._().Action<B>()
     ._().Action<E>()
+    .End()
     ;
   // clang-format on
 
@@ -96,6 +97,7 @@ TEST_CASE("StatefulParallel/2", "[final failure]") {
     ._().Action<A>()
     ._().Action<B>()
     ._().Action<E>()
+    .End()
     ;
   // clang-format on
 

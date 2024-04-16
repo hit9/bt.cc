@@ -15,6 +15,7 @@ TEST_CASE("Timeout/1", "[simple timeout success]") {
     root
     .Timeout(100ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -39,6 +40,7 @@ TEST_CASE("Timeout/2", "[simple timeout failure]") {
     root
     .Timeout(100ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -63,6 +65,7 @@ TEST_CASE("Timeout/3", "[simple timeout timedout]") {
     root
     .Timeout(100ms)
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 

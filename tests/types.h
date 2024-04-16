@@ -33,14 +33,27 @@ struct Blackboard {
   bt::Status statusG = bt::Status::UNDEFINED;
   bt::Status statusH = bt::Status::UNDEFINED;
   bt::Status statusI = bt::Status::UNDEFINED;
+
+  bool onEnterCalledA = false;
+  bool onTerminatedCalledA = false;
+
+  int customDecoratorCounter = 0;
 };
 
 class A : public bt::Action {
  public:
+  void OnEnter(const bt::Context& ctx) override {
+    auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
+    bb->onEnterCalledA = true;
+  }
   bt::Status Update(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
     bb->counterA++;
     return bb->statusA = bb->shouldA;
+  }
+  void OnTerminate(const bt::Context& ctx, bt::Status status) override {
+    auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
+    bb->onTerminatedCalledA = true;
   }
 };
 

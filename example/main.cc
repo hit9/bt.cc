@@ -1,9 +1,11 @@
+#include <chrono>
 #include <cstdlib>
 #include <string>
 
 #include "bt.h"
 using namespace std::chrono_literals;
 
+// Action A randomly goes failure/success.
 class A : public bt::ActionNode {
  public:
   bt::Status Update(const bt::Context& ctx) override {
@@ -13,12 +15,14 @@ class A : public bt::ActionNode {
   std::string_view Name() const override { return "A"; }
 };
 
+// Action B always goes success.
 class B : public bt::ActionNode {
  public:
   std::string_view Name() const override { return "B"; }
   bt::Status Update(const bt::Context& ctx) override { return bt::Status::SUCCESS; }
 };
 
+// Condition C randomly returns true.
 class C : public bt::ConditionNode {
  public:
   std::string_view Name() const override { return "C"; }
@@ -28,6 +32,7 @@ class C : public bt::ConditionNode {
 int main(void) {
   bt::Tree root("Root");
 
+  // helps to make a subtree.
   auto st = [&]() {
     bt::Tree subtree("Subtree");
     // clang-format off
@@ -35,6 +40,7 @@ int main(void) {
         .Sequence()
         ._().Action<A>()
         ._().Action<B>()
+        .End()
       ;
     // clang-format on
     return subtree;
@@ -54,9 +60,10 @@ int main(void) {
     ._()._().Action<A>()
     ._()._().Action<B>()
     ._().Subtree(st())
+    .End()
     ;
   // clang-format on
-  std::string s;
+
   bt::Context ctx;
   root.TickForever(ctx, 300ms, true);
   return 0;

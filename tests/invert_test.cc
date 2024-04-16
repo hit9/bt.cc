@@ -12,6 +12,7 @@ TEST_CASE("Invert/1", "[invert once]") {
     root
     .Invert()
     ._().Action<A>()
+    .End()
     ;
   // clang-format on
 
@@ -41,6 +42,7 @@ TEST_CASE("Invert/2", "[invert twice]") {
     .Invert()
     ._().Invert()
     ._()._().Action<A>()
+    .End()
     ;
   // clang-format on
 
