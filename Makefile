@@ -22,11 +22,17 @@ build: cmake-build
 build-example:
 	cd build/example && make
 
+build-example-onsignal:
+	cd build/example/onsignal && make
+
 build-test:
 	cd build/tests && make
 
 run-example: build-example
 	./build/example/bt_example
+
+run-example-onsignal: build-example-onsignal
+	./build/example/onsignal/bt_example_onsignal
 
 run-tests: build-test
 	ctest --test-dir ./build/tests --output-on-failure
