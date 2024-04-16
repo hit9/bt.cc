@@ -870,6 +870,7 @@ class RootNode : public SingleNode {
 ///////////////////////////////////////////////////////////////
 
 // Builder helps to build a tree.
+// The template parameter D is the derived class, a behavior tree class.
 template <typename D = void>
 class Builder {
  private:
