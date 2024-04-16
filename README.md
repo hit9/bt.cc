@@ -75,10 +75,10 @@ Reference: <span id="ref"></span>
   - [Retry](#retry)
   - [Custom Decorator](#custom-decorator)
 - [Sub Tree](#subtree)
+- [Tick Context](#context)
 - Others:
   - [Hook Methods](#hooks)
   - [Visualization](#visualization)
-  - [Tick Context](#context)
   - [Blackboard?](#blackboard)
   - [Ticker Loop](#ticker-loop)
   - [Custom Builder](#custom-builder)
@@ -418,6 +418,16 @@ Reference: <span id="ref"></span>
   ._().Subtree<A>(std::move(subtree));
   ```
 
+* **The tick `Context`** <span id="context"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+  struct Context {
+    ull seq;  // ticking seq number.
+    std::chrono::nanoseconds delta;  // delta time since last tick, to current tick.
+    std::any data; // user data.
+  }
+  ```
+
 * **Hook Methods**  <span id="hooks"></span> <a href="#ref">[↑]</a>
 
   For each `Node`, there are three hook functions:
@@ -455,15 +465,6 @@ Reference: <span id="ref"></span>
   root.Visualize(ctx.seq)
   ```
 
-* **The tick `Context`** <span id="context"></span> <a href="#ref">[↑]</a>
-
-  ```cpp
-  struct Context {
-    ull seq;  // ticking seq number.
-    std::chrono::nanoseconds delta;  // delta time since last tick, to current tick.
-    std::any data; // user data.
-  }
-  ```
 
 * **Blackboard ?**  <span id="blackboard"></span> <a href="#ref">[↑]</a>
 
@@ -500,14 +501,33 @@ Reference: <span id="ref"></span>
 * **Custom Builder**  <span id="custom-builder"></span> <a href="#ref">[↑]</a>
 
   ```cpp
-  class MyTree : public bt::Tree {
+  // Supposes that we need to add a custom decorator.
+  class MyCustomMethodNode : public bt::DecoratorNode {
    public:
-    MyTree(std::string name = "Root") : MyTree(name) { bindRoot(*this); }
+    MyCustomMethodNode(const std::string& name, ..) : bt::DecoratorNode(name) {}
+    // Implements the Update function.
+    bt::Status Update(const bt::Context& ctx) override {
+      // Propagates ticking to the child.
+      // child->Tick(ctx)
+      return status;
+    }
+  };
 
-    // Implements custom builder functions.
-  }
+  // Make a custom Tree class.
+  class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
+   public:
+    // Bind the builder to this tree inside the construct function.
+    MyTree(std::string name = "Root") : bt::RootNode(name) { bindRoot(*this); }
+    // Implements the custom builder method.
+    // C is the method to creates a custom Node.
+    auto& MyCustomMethod(...) { return C<MyCustomMethodNode>(...); }
+  };
 
   MyTree root;
+
+  root
+  .MyCustomMethod(...)
+  ;
   ```
 
 ## License

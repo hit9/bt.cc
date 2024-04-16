@@ -70,10 +70,10 @@ root.Tick(ctx);
   - [Retry 重试](#retry)
   - [自定义装饰器](#custom-decorator)
 - [子树](#subtree)
+- [Tick 上下文](#context)
 - 其他:
   - [钩子函数](#hooks)
   - [可视化](#visualization)
-  - [Tick 上下文](#context)
   - [黑板 ?](#blackboard)
   - [Tick 循环](#ticker-loop)
   - [自定义 Builder](#custom-builder)
@@ -408,6 +408,18 @@ root.Tick(ctx);
   ._().Subtree<A>(std::move(subtree));
   ```
 
+* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#a">[↑]</a>
+
+  这个结构体会从根节点一路传递到每个被执行到的节点：
+
+  ```cpp
+  struct Context {
+    ull seq;  // 当前全局的 tick 帧号
+    std::chrono::nanoseconds delta;  // 全局的从上一次 tick 到本次 tick 的时间差
+    std::any data; // 用户数据，比如可以存放一个指向黑板的指针
+  }
+  ```
+
 
 * **钩子函数**  <span id="hooks"></span> <a href="#a">[↑]</a>
 
@@ -439,18 +451,6 @@ root.Tick(ctx);
   ++ctx.seq;
   root.Tick(ctx)
   root.Visualize(ctx.seq)
-  ```
-
-* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#a">[↑]</a>
-
-  这个结构体会从根节点一路传递到每个被执行到的节点：
-
-  ```cpp
-  struct Context {
-    ull seq;  // 当前全局的 tick 帧号
-    std::chrono::nanoseconds delta;  // 全局的从上一次 tick 到本次 tick 的时间差
-    std::any data; // 用户数据，比如可以存放一个指向黑板的指针
-  }
   ```
 
 * **黑板 ?**  <span id="blackboard"></span> <a href="#a">[↑]</a>
@@ -487,14 +487,34 @@ root.Tick(ctx);
 * **自定义行为树的构建器 Builder**  <span id="custom-builder"></span> <a href="#a">[↑]</a>
 
   ```cpp
-  class MyTree : public bt::Tree {
+  // 假设我们要添加一个自定义的装饰节点
+  // 先定义一个 Node class
+  class MyCustomMethodNode : public bt::DecoratorNode {
    public:
-    MyTree(std::string name = "Root") : MyTree(name) { bindRoot(*this); }
+    MyCustomMethodNode(const std::string& name, ..) : bt::DecoratorNode(name) {}
+    // 实现核心的 Update 方法
+    bt::Status Update(const bt::Context& ctx) override {
+      // 向下传递 tick 到子节点
+      // child->Tick(ctx)
+      return status;
+    }
+  };
 
-    // Implements custom builder functions.
-  }
+  // 定义一个自己的 Tree 类
+  class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
+   public:
+    // 在构造函数中注意绑定到 builder
+    MyTree(std::string name = "Root") : bt::RootNode(name) { bindRoot(*this); }
+    // 实现自定义方法 MyCustomMethod 来创建一个 MyCustomMethodNode
+    // C 是一个通用的创建节点的方法
+    auto& MyCustomMethod(...) { return C<MyCustomMethodNode>(...); }
+  };
 
   MyTree root;
+
+  root
+  .MyCustomMethod(...)
+  ;
   ```
 
 ## License
