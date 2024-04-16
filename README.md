@@ -269,7 +269,7 @@ Reference: <span id="ref"></span>
   ```cpp
   class A : public bt::Action {
    public:
-    uint Priority(const bt::Context& ctx) const override {
+    unsigned int Priority(const bt::Context& ctx) const override {
         // TODO, returns a number > 0
     }
   };
