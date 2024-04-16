@@ -965,6 +965,8 @@ class Builder {
   //    root
   //    .C<MyCustomDecoratorNode>()
   //    ._().Action<A>()
+  //    .End()
+  //    ;
   template <TNode T, typename... Args>
   auto& C(Args... args) {
     if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
@@ -1019,7 +1021,7 @@ class Builder {
   // Code example::
   //  root
   //  .Action<MyActionClass>()
-  //  ;
+  //  .End();
   template <TAction Impl, typename... Args>
   auto& Action(Args&&... args) {
     return C<Impl>(std::forward<Args>(args)...);
@@ -1031,7 +1033,7 @@ class Builder {
   //   .Sequence()
   //   ._().Condition([=](const Context& ctx) { return false;})
   //   ._().Action<A>()
-  //   ;
+  //   .End();
   auto& Condition(ConditionNode::Checker checker) { return C<ConditionNode>(checker); }
 
   // Creates a ConditionNode by providing implemented Condition class.
@@ -1040,7 +1042,7 @@ class Builder {
   //   .Sequence()
   //   ._().Condition<MyConditionClass>()
   //   ._().Action<A>()
-  //   ;
+  //   .End();
   template <TCondition Impl, typename... Args>
   auto& Condition(Args&&... args) {
     return C<Impl>(std::forward<Args>(args)...);
@@ -1055,14 +1057,16 @@ class Builder {
   // Code exapmle::
   //   root
   //   .Invert()
-  //   ._().Condition<A>();
+  //   ._().Condition<A>()
+  //   .End();
   auto& Invert() { return C<InvertNode>("Invert"); }
 
   // Alias to Invert, just named 'Not'.
   // Code exapmle::
   //   root
   //   .Not()
-  //   ._().Condition<A>();
+  //   ._().Condition<A>()
+  //   .End();
   auto& Not() { return C<InvertNode>("Not"); }
 
   // Creates a invert condition of given Condition class.
@@ -1070,7 +1074,8 @@ class Builder {
   //   root
   //   .Sequence()
   //   ._().Not<IsXXX>()
-  //   ._().Action<DoSomething>();
+  //   ._().Action<DoSomething>()
+  //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& Not(ConditionArgs... args) {
     return C<InvertNode>("Not", std::make_unique<Condition>(std::forward<ConditionArgs>(args)...));
@@ -1083,7 +1088,8 @@ class Builder {
   // Code exapmle::
   //   root
   //   .Repeat(3)
-  //   ._().Action<A>();
+  //   ._().Action<A>()
+  //   .End();
   auto& Repeat(int n) { return C<RepeatNode>(n, "Repeat"); }
 
   // Alias to Repeat.
@@ -1098,7 +1104,8 @@ class Builder {
   // Code exapmle::
   //   root
   //   .Timeout(3000ms)
-  //   ._().Action<A>();
+  //   ._().Action<A>()
+  //   .End();
   template <typename Clock = std::chrono::high_resolution_clock>
   auto& Timeout(std::chrono::milliseconds duration) {
     return C<TimeoutNode<Clock>>(duration, "Timeout");
@@ -1110,6 +1117,7 @@ class Builder {
   //   root
   //   .Delay(3000ms)
   //   ._().Action<A>()
+  //   .End();
   template <typename Clock = std::chrono::high_resolution_clock>
   auto& Delay(std::chrono::milliseconds duration) {
     return C<DelayNode<Clock>>(duration, "Delay");
@@ -1123,6 +1131,7 @@ class Builder {
   //   root
   //   .Retry(1, 3000ms)
   //   ._().Action<A>()
+  //   .End();
   template <typename Clock = std::chrono::high_resolution_clock>
   auto& Retry(int n, std::chrono::milliseconds interval) {
     return C<RetryNode<Clock>>(n, interval, "Retry");
@@ -1140,6 +1149,7 @@ class Builder {
   //   root
   //   .If<CheckSomething>()
   //   ._().Action(DoSomething)()
+  //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& If(ConditionArgs&&... args) {
     auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
@@ -1150,7 +1160,7 @@ class Builder {
   // Code example::
   //  root
   //  .If([=](const Context& ctx) { return false; })
-  //  ;
+  //  .End();
   auto& If(ConditionNode::Checker checker) { return If<ConditionNode>(checker); }
 
   // Switch is just an alias to Selector.
@@ -1165,7 +1175,7 @@ class Builder {
   //   ._()._()._().Action<C>()
   //   ._().Case([=](const Context& ctx) { return false; })
   //   ._()._().Action<D>()
-  //   ;
+  //   .End();
   auto& Switch() { return C<SelectorNode>("Switch"); }
 
   // Stateful version `Switch` based on StatefulSelectorNode.
@@ -1192,12 +1202,13 @@ class Builder {
   //    subtree
   //      .Parallel()
   //      ._().Action<A>()
-  //      ._().Action<B>();
+  //      ._().Action<B>(;
+  //      .End();
   //
   //    root
   //      .Sequence()
   //      ._().Subtree(std::move(subtree))
-  //      ;
+  //      .End();
   auto& Subtree(RootNode&& tree) { return C<RootNode>(std::move(tree)); }
 };
 
