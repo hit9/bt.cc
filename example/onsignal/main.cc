@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-#include "blinker.h"
+#include "third_party/blinker.h"
 #include "bt.h"
 
 // Max number of nodes in the board.
