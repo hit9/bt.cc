@@ -77,6 +77,7 @@ root.Tick(ctx);
   - [黑板 ?](#blackboard)
   - [Tick 循环](#ticker-loop)
   - [自定义 Builder](#custom-builder)
+  - [信号和事件](#signals)
 
 * **构建一棵树**: <span id="build"></span> <a href="#ref">[↑]</a>:
 
@@ -516,6 +517,36 @@ root.Tick(ctx);
   .MyCustomMethod(...)
   ;
   ```
+
+* **信号和事件** <span id="signals"></span> <a href="#ref">[↑]</a>
+
+  在行为树中释放和处理信号是常见的情况, 但是信号和事件的处理是一个复杂的事情, 我并不想让其和 bt.h 这个很小的库耦合起来.
+
+  一般来说, 要想把信号处理的带入 bt.h 中, 思路如下:
+
+  1. 创建一个自定义的装饰节点, 比如说叫做 `OnSignalNode`.
+  2. 创建一个自定义的 Builder 类, 添加一个方法叫做 `OnSignal`.
+  3. `OnSignal` 装饰器只有在关心的信号发生时才向下传递 tick 到子节点.
+  4. 跟随信号一起传递的数据, 可以临时放在黑板上, tick 后记得清除.
+  5. 可以把 `OnSignal` 节点尽量向上提, 这样会使得行为树更像事件驱动的一点, 提高效率.
+
+  下面是一个具体的例子, 采用的是我的另一个小的事件库 [blinker.h](https://github.com/hit9/blinker.h),
+  具体的代码可以参考目录 [example/onsignal](example/onsignal).
+
+  ```cpp
+  root
+    .Parallel()
+    ._().Action<C>()
+    ._().OnSignal("a.*")
+    ._()._().Parallel()
+    ._()._()._().OnSignal("a.a")
+    ._()._()._()._().Action<A>()
+    ._()._()._().OnSignal("a.b")
+    ._()._()._()._().Action<B>()
+    .End()
+    ;
+  ```
+
 
 ## License
 

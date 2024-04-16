@@ -1,3 +1,9 @@
+0.2.3
+-----
+
+* 2024-04-16: Make Builder a template class
+* 2024-04-16: Add an example to make a OnSignal decorator.
+
 0.2.2
 -----
 

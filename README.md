@@ -82,6 +82,7 @@ Reference: <span id="ref"></span>
   - [Blackboard?](#blackboard)
   - [Ticker Loop](#ticker-loop)
   - [Custom Builder](#custom-builder)
+  - [Working with Signals/Events](#signals)
 
 * **Build a tree**: <span id="build"></span> <a href="#ref">[↑]</a>:
 
@@ -528,6 +529,36 @@ Reference: <span id="ref"></span>
   root
   .MyCustomMethod(...)
   ;
+  ```
+
+* **Working with Signals/Events** <span id="signals"></span> <a href="#ref">[↑]</a>
+
+  It's a common case to emit and receive signals in a behavior tree.
+  But signal (or event) handling is a complex stuff, I don't want to couple with it in this small library.
+
+  General ideas to introduce signal handling into bt.h is:
+
+  1. Creates a custom decorator node, supposed named `OnSignalNode`.
+  2. Creates a custom builder class, and add a method named `OnSignal`.
+  3. The `OnSignal` decorator propagates the tick down to its child only if the corresponding signal fired.
+  4. The data passing along with the fired signal, can be placed onto the blackboard temporary.
+  5. You can move the OnSignal node as high as possible to make the entire behavior tree more event-driven.
+
+  Here's an example in detail to combine my tiny signal library [blinker.h](https://github.com/hit9/blinker.h) with bt.h,
+  please checkout the code example in folder [example/onsignal](example/onsignal).
+
+  ```cpp
+  root
+    .Parallel()
+    ._().Action<C>()
+    ._().OnSignal("a.*")
+    ._()._().Parallel()
+    ._()._()._().OnSignal("a.a")
+    ._()._()._()._().Action<A>()
+    ._()._()._().OnSignal("a.b")
+    ._()._()._()._().Action<B>()
+    .End()
+    ;
   ```
 
 ## License
