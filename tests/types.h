@@ -36,6 +36,8 @@ struct Blackboard {
 
   bool onEnterCalledA = false;
   bool onTerminatedCalledA = false;
+
+  int customDecoratorCounter = 0;
 };
 
 class A : public bt::Action {
