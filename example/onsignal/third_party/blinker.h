@@ -64,13 +64,14 @@
 //        board.Flip();
 //      }
 
-// Version: 0.1.0
+// Version: 0.1.5
 
 #ifndef HIT9_BLINKER_H
 #define HIT9_BLINKER_H
 
 #include <any>
 #include <bitset>
+#include <cassert>
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
@@ -81,12 +82,14 @@
 
 namespace blinker {
 
+static const std::size_t DefaultNSignal = 1024;
+
 // SignalId is the type of signal id, starts from 1.
 using SignalId = uint16_t;
 
 // Signature matches a chunk of signal ids.
 // The n'th bit setting to 1 means the n'th signal is matched.
-template <std::size_t N>
+template <std::size_t N = DefaultNSignal>
 using Signature = std::bitset<N>;
 
 // Callback function to be executed on subscribed signal fired.
@@ -99,7 +102,7 @@ static void split(std::string_view s, std::vector<std::string>& parts, char deli
 };
 
 // A SignalTrie structures signal ids by names into a tree.
-template <std::size_t N>
+template <std::size_t N = DefaultNSignal>
 class SignalTrie {
  private:
   // Signature of all signals under this tree.
@@ -152,7 +155,7 @@ class SignalTrie {
   }
 };
 
-template <size_t N>
+template <size_t N = DefaultNSignal>
 class Buffer {
  private:
   // A signature stores all ids of fired signals.
@@ -169,7 +172,7 @@ class Buffer {
   void Emit(SignalId id, std::any data) { fired[id] = 1, d[id] = data; }
 
   // Poll fired signals matching given signature.
-  int Poll(Signature<N> signature, Callback cb, SignalId maxId) {
+  int Poll(const Signature<N>& signature, Callback cb, SignalId maxId) {
     auto match = signature & fired;
     for (int i = 1; i < maxId; i++)
       if (match[i]) cb(i, d[i]);
@@ -177,15 +180,54 @@ class Buffer {
   }
 };
 
-// Forward declarations.
-template <size_t N>
-class Signal;
+class IBoardEmitter {
+ public:
+  // Emits a signal to backend buffer by signal id.
+  virtual void Emit(SignalId id, std::any data) = 0;
+};
+
+template <std::size_t N = DefaultNSignal>
+class IBoardPoller {
+ public:
+  // Poll fired signals matching given signature from frontend buffer.
+  virtual int Poll(const Signature<N>& signature, Callback cb) = 0;
+};
+
+class Signal {
+ private:
+  std::string_view name;
+  const SignalId id;
+  // Reference to the board belongs to.
+  IBoardEmitter* board;
+
+ public:
+  Signal(std::string_view name, const SignalId id, IBoardEmitter* board) : name(name), id(id), board(board) {}
+  std::string_view Name() const { return name; }
+  SignalId Id() const { return id; }
+  // Emits this signal.
+  void Emit(std::any data) { board->Emit(id, data); }
+};
 
 template <size_t N>
-class Connection;
+class Connection {
+ private:
+  // Signal ids connected.
+  const Signature<N> signature;
+  // Reference to the board belongs to.
+  IBoardPoller<N>* board;
 
-template <size_t N = 1024>
-class Board {
+ public:
+  Connection(const Signature<N> signature, IBoardPoller<N>* board) : signature(signature), board(board) {}
+  // Poll from board's frontend buffer for subscribed signals.
+  // If there's some signal fired, the given callback function will be called, and returns a positive count of
+  // fired signals.
+  int Poll(Callback cb) { return board->Poll(signature, cb); }
+};
+
+// The board of signals.
+// Where the N is at least (the max number of signals in this board + 1).
+template <size_t N = DefaultNSignal>
+class Board : public IBoardPoller<N>, public IBoardEmitter {
  private:
   // next signal id to use, starts from 1.
   SignalId nextId;
@@ -199,61 +241,45 @@ class Board {
 
   // Creates a new Signal from this board.
   // Returns nullptr if signal count exceeds N.
-  std::shared_ptr<Signal<N>> NewSignal(std::string_view name) {
-    if (nextId > N) return nullptr;
+  [[nodiscard]] std::shared_ptr<Signal> NewSignal(std::string_view name) {
+    if (nextId >= N) {
+      assert(0);
+      return nullptr;
+    }
     auto id = nextId++;
     tree.Put(name, id);
-    return std::make_shared<Signal<N>>(name, id, *this);
+    return std::make_shared<Signal>(name, id, this);
   }
   // Creates a connection to signals matching a single pattern.
-  std::unique_ptr<Connection<N>> Connect(const std::string_view pattern) { return Connect({pattern}); }
+  [[nodiscard]] std::unique_ptr<Connection<N>> Connect(const std::string_view pattern) {
+    return Connect({pattern});
+  }
   // Creates a connection to signals matching given pattern list.
-  std::unique_ptr<Connection<N>> Connect(const std::initializer_list<std::string_view> patterns) {
+  [[nodiscard]] std::unique_ptr<Connection<N>> Connect(
+      const std::initializer_list<std::string_view> patterns) {
+    return Connect(std::vector<std::string_view>(patterns));
+  }
+  [[nodiscard]] std::unique_ptr<Connection<N>> Connect(const std::vector<std::string_view>& patterns) {
     Signature<N> signature;
     for (auto& pattern : patterns) signature |= tree.Match(pattern);
-    return std::make_unique<Connection<N>>(signature, *this);
+    return std::make_unique<Connection<N>>(signature, this);
   }
   // Emits a signal to backend buffer by signal id.
-  void Emit(SignalId id, std::any data) { backend->Emit(id, data); }
+  void Emit(SignalId id, std::any data) override final { backend->Emit(id, data); }
   // Poll fired signals matching given signature from frontend buffer.
-  int Poll(Signature<N> signature, Callback cb) { return frontend->Poll(signature, cb, nextId); }
+  int Poll(const Signature<N>& signature, Callback cb) override final {
+    return frontend->Poll(signature, cb, nextId);
+  }
   // Flips the internal double buffers.
   void Flip(void) {
     frontend->Clear();
     std::swap(frontend, backend);
   }
-};
-
-template <size_t N>
-class Signal {
- private:
-  std::string_view name;
-  const SignalId id;
-  // Reference to the board belongs to.
-  Board<N>& board;
-
- public:
-  Signal(std::string_view name, const SignalId id, Board<N>& board) : name(name), id(id), board(board) {}
-  std::string_view Name() const { return name; }
-  SignalId Id() const { return id; }
-  // Emits this signal.
-  void Emit(std::any data) { board.Emit(id, data); }
-};
-
-template <size_t N>
-class Connection {
- private:
-  // Signal ids connected.
-  const Signature<N> signature;
-  // Reference to the board belongs to.
-  Board<N>& board;
-
- public:
-  Connection(const Signature<N> signature, Board<N>& board) : signature(signature), board(board) {}
-  // Poll from board's frontend buffer for subscribed signals.
-  // If there's some signal fired, the given callback function will be called, and returns a positive count of
-  // fired signals.
-  int Poll(Callback cb) { return board.Poll(signature, cb); }
+  // Clears the internal buffers.
+  void Clear(void) {
+    frontend->Clear();
+    backend->Clear();
+  }
 };
 
 }  // namespace blinker
