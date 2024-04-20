@@ -11,6 +11,8 @@ Requires at least C++20.
 
 ![](misc/visualization.jpg)
 
+**Unstable now !**
+
 ## Installation
 
 Just copy the header file `bt.h` and include it.
