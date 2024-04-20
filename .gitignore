@@ -4,3 +4,4 @@ build
 *.out
 CMakeUserPresets.json
 Testing
+.env
