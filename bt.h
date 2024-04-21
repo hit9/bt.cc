@@ -227,7 +227,7 @@ class Node {
   friend class CompositeNode;
 
  public:
-  Node(const std::string& name = "Node") : name(name) {}
+  Node(const std::string& name = "Node") : name(name), id(0), root(nullptr) {}
   virtual ~Node() = default;
 
   // Return a raw pointer to the node blob for this node.
