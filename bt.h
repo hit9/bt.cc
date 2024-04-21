@@ -205,8 +205,8 @@ class Node {
   std::string name;
 
  protected:
-  IRootNode* root;  // holding a pointer to the root.
   NodeId id;
+  IRootNode* root;  // holding a pointer to the root.
 
   // Internal method to visualize tree.
   virtual void makeVisualizeString(std::string& s, int depth, ull seq) {
@@ -227,7 +227,7 @@ class Node {
   friend class CompositeNode;
 
  public:
-  Node(const std::string& name = "Node") : name(name), root(nullptr), id(0) {}  // TODO: id
+  Node(const std::string& name = "Node") : name(name) {}
   virtual ~Node() = default;
 
   // Return a raw pointer to the node blob for this node.
@@ -1033,6 +1033,7 @@ class Builder {
  private:
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
+  IRootNode* root;
 
   // Validate node.
   void validate(Node* node) {
@@ -1072,7 +1073,7 @@ class Builder {
 
  protected:
   // Bind a tree root onto this builder.
-  void bindRoot(RootNode& root) { stack.push(&root); }
+  void bindRoot(RootNode& r) { stack.push(&r), root = &r; }
 
   // Creates a leaf node.
   auto& attachLeafNode(Ptr<LeafNode> p) {
