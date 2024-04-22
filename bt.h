@@ -163,7 +163,7 @@ class TreeBlob {
   std::unordered_map<NodeId, std::size_t> m;  // stores byte offset
 
  public:
-  TreeBlob(){};
+  TreeBlob() {}
 
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
