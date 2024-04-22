@@ -837,7 +837,7 @@ class RepeatNode : public DecoratorNode {
   RepeatNode(int n, const std::string& name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
-  NodeBlob* GetNodeBlob() const override { getNodeBlob<RepeatNodeBlob>(); }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<RepeatNodeBlob>(); }
   // Clears counter on enter.
   void OnEnter(const Context& ctx) override { getNodeBlob<RepeatNodeBlob>()->cnt = 0; }
   // Reset counter on termination.
@@ -944,9 +944,7 @@ class RetryNode : public DecoratorNode {
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
 
-  NodeBlob* GetNodeBlob() const override {
-    return getNodeBlob<RetryNodeBlob<Clock>>();
-  }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<RetryNodeBlob<Clock>>(); }
   void OnEnter(const Context& ctx) override {
     auto b = getNodeBlob<RetryNodeBlob<Clock>>();
     b->cnt = 0;
