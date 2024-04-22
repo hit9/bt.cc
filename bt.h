@@ -139,14 +139,14 @@ struct Context {
 
 // NodeBlob is the base class to store node's internal entity-related data and states.
 struct NodeBlob {
-  ull lastSeq;           // seq of last execution.
-  Status lastStatus;     // status of last execution.
   bool running = false;  // is still running?
+  Status lastStatus;     // status of last execution.
+  ull lastSeq;           // seq of last execution.
 
-  NodeBlob() : lastSeq(0), lastStatus(Status::UNDEFINED), running(false) {}
+  NodeBlob() : running(false), lastStatus(Status::UNDEFINED), lastSeq(0) {}
 };
 
-// Concept TNodeBlob for all classes derived from NodeInternalState.
+// Concept TNodeBlob for all classes derived from NodeBlob.
 template <typename T>
 concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 
@@ -501,9 +501,7 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   }
 
  public:
-  NodeBlob* GetNodeBlob() const override {
-    return static_cast<NodeBlob*>(getNodeBlob<_InternalStatefulCompositeNodeBlob>());
-  }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<_InternalStatefulCompositeNodeBlob>(); }
   void OnTerminate(const Context& ctx, Status status) override {
     auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
     skipTable.clear();
@@ -839,7 +837,7 @@ class RepeatNode : public DecoratorNode {
   RepeatNode(int n, const std::string& name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
-  NodeBlob* GetNodeBlob() const override { return static_cast<NodeBlob*>(getNodeBlob<RepeatNodeBlob>()); }
+  NodeBlob* GetNodeBlob() const override { getNodeBlob<RepeatNodeBlob>(); }
   // Clears counter on enter.
   void OnEnter(const Context& ctx) override { getNodeBlob<RepeatNodeBlob>()->cnt = 0; }
   // Reset counter on termination.
@@ -877,9 +875,7 @@ class TimeoutNode : public DecoratorNode {
   TimeoutNode(std::chrono::milliseconds d, const std::string& name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
-  NodeBlob* GetNodeBlob() const override {
-    return static_cast<NodeBlob*>(getNodeBlob<TimeoutNodeBlob<Clock>>());
-  }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<TimeoutNodeBlob<Clock>>(); }
   void OnEnter(const Context& ctx) override {
     getNodeBlob<TimeoutNodeBlob<Clock>>()->startAt = Clock::now();
   };
@@ -910,9 +906,7 @@ class DelayNode : public DecoratorNode {
   DelayNode(std::chrono::milliseconds duration, const std::string& name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
-  NodeBlob* GetNodeBlob() const override {
-    return static_cast<NodeBlob*>(getNodeBlob<DelayNodeBlob<Clock>>());
-  }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<DelayNodeBlob<Clock>>(); }
   void OnEnter(const Context& ctx) override {
     getNodeBlob<DelayNodeBlob<Clock>>()->firstRunAt = Clock::now();
   };
@@ -951,7 +945,7 @@ class RetryNode : public DecoratorNode {
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
 
   NodeBlob* GetNodeBlob() const override {
-    return static_cast<NodeBlob*>(getNodeBlob<RetryNodeBlob<Clock>>());
+    return getNodeBlob<RetryNodeBlob<Clock>>();
   }
   void OnEnter(const Context& ctx) override {
     auto b = getNodeBlob<RetryNodeBlob<Clock>>();
