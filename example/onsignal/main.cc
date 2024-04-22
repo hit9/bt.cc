@@ -104,6 +104,8 @@ class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
 int main(void) {
   MyTree root("Root");
 
+  bt::TreeBlob blob;
+
   // clang-format off
   root
     .Parallel()
@@ -123,6 +125,8 @@ int main(void) {
   bt::Context ctx(blackboard);
 
   // Flip the board's internal double buffers post ticking.
+  root.BindBlob(blob);
   root.TickForever(ctx, 300ms, false, [&](const bt::Context& ctx) { board.Flip(); });
+  root.ClearBlob();
   return 0;
 }

@@ -30,14 +30,16 @@
 // Prepares a TreeBlob, e.g. for each entity:
 //
 //   // A TreeBlob contains a continuous buffer that holds all the internal state data.
-//   bt::TreeBlob blob<4*1024>;
+//   bt::TreeBlob blob<1024>;
 //
 // Run ticking:
 //
 //   bt::Context ctx;
 //
-//   while(...) { // In the ticking loop.
-//     for (auto& blob : allBlobs) { // for each blob
+//   // In the ticking loop.
+//   while(...) {
+//     // for each blob
+//     for (auto& blob : allBlobs) {
 //       root.BindBlob(blob);
 //       root.Tick(ctx)
 //       root.ClearBlob();
@@ -118,40 +120,34 @@ using NodeId = unsigned int;
 /// TreeBlob
 ////////////////////////////
 
-// TreeBlob's interface.
-class ITreeBlob {
- public:
-  // Allocates buffer for a node by providing a size.
-  // throws runtime_error if overflows.
-  virtual void* Allocate(NodeId id, std::size_t size) = 0;
-  // Returns the raw pointer to the blob's buffer for a node.
-  virtual void* Get(NodeId id) const = 0;
-};
-
-// A TreeBlob constains a continuous buffer that stores all nodes's states data,
-// e.g. for all entities.
-template <std::size_t N>
-class TreeBlob : public ITreeBlob {
+// A TreeBlob constains a pointer to a continuous buffer that stores all node
+// states data for an entity.
+class TreeBlob {
  private:
-  unsigned int offset;
-  uint8_t* buffer;
-  std::unordered_map<NodeId, unsigned int> m;  // Nodes => offset
+  // using a vector works and is simple enough
+  std::vector<uint8_t> buffer;
+  // Nodes => offset
+  std::unordered_map<NodeId, std::size_t> m;
 
  public:
-  TreeBlob() : offset(0), buffer(new uint8_t[N]) {}
-  ~TreeBlob() { delete[] buffer; }
+  TreeBlob() {}
 
-  void* Allocate(NodeId id, std::size_t size) override {
-    if (offset + size > N) throw std::runtime_error("bt: TreeBlob overflows");
+  // Returns true if the blob of the node with given id exists.
+  bool Exist(NodeId id) const { return m.find(id) != m.end(); }
+
+  // Allocates buffer for a node by providing node's id.
+  void Allocate(NodeId id, std::size_t size) {
+    auto offset = buffer.size();
     m[id] = offset;
-    auto p = buffer + offset;
-    offset += size;
-    return p;
+    buffer.resize(buffer.size() + size);
+    std::fill(buffer.begin() + offset, buffer.end(), 0);
   }
 
-  void* Get(NodeId id) const override {
+  // Returns the pointer to the blob buffer for a node by providing the node id.
+  void* Get(NodeId id) const {
     if (m.find(id) == m.end()) return nullptr;
-    return static_cast<void*>(buffer + m.at(id));
+    auto p = &buffer[m.at(id)];
+    return const_cast<uint8_t*>(p);
   }
 };
 
@@ -184,7 +180,7 @@ struct Context {
 class IRootNode {
  public:
   // Returns the current binding TreeBlob's pointer.
-  virtual ITreeBlob* GetBlob(void) const = 0;
+  virtual TreeBlob* GetBlob(void) const = 0;
 };
 
 // NodeBlob is the base class to store node's internal states.
@@ -222,9 +218,6 @@ class Node {
     if (b->lastSeq == seq) s += "\033[0m";
   }
 
-  // Traverse the subtree of the current node recursively and execute the given function cb.
-  virtual void traverse(std::function<void(Node&)> cb) { cb(*this); }
-
   // firend with SingleNode and CompositeNode for accessbility to makeVisualizeString.
   friend class SingleNode;
   friend class CompositeNode;
@@ -242,10 +235,13 @@ class Node {
   B* GetNodeBlob() const {
     assert(root != nullptr);
     assert(root->GetBlob() != nullptr);
-    auto p = root->GetBlob()->Get(id);
-    if (p == nullptr) p = root->GetBlob()->Allocate(id, sizeof(B));
-    return static_cast<B*>(p);
+    auto b = root->GetBlob();
+    if (!b->Exist(id)) b->Allocate(id, sizeof(B));
+    return static_cast<B*>(b->Get(id));
   }
+
+  // Traverse the subtree of the current node recursively and execute the given function cb.
+  virtual void Traverse(std::function<void(Node&)> cb) { cb(*this); }
 
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
@@ -409,17 +405,16 @@ class SingleNode : public InternalNode {
     }
   }
 
-  void traverse(std::function<void(Node&)> cb) override {
-    child->traverse(cb);
-    Node::traverse(cb);
-  }
-
   // friend with _InternalBuilderBase for accessbility to traverse.
   friend class _InternalBuilderBase;
 
  public:
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
+  void Traverse(std::function<void(Node&)> cb) override {
+    child->Traverse(cb);
+    Node::Traverse(cb);
+  }
   std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
   void Append(Ptr<Node> node) override { child = std::move(node); }
   unsigned int Priority(const Context& ctx) const override { return child->Priority(ctx); }
@@ -451,11 +446,6 @@ class CompositeNode : public InternalNode {
     }
   }
 
-  void traverse(std::function<void(Node&)> cb) override {
-    for (auto& child : children) child->traverse(cb);
-    Node::traverse(cb);
-  }
-
   // friend with _InternalBuilderBase for accessbility to traverse.
   friend class _InternalBuilderBase;
 
@@ -463,6 +453,11 @@ class CompositeNode : public InternalNode {
   CompositeNode(const std::string& name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
+  void Traverse(std::function<void(Node&)> cb) override {
+    for (auto& child : children) child->Traverse(cb);
+    Node::Traverse(cb);
+  }
+
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
   std::string_view Validate() const override { return children.empty() ? "children empty" : ""; }
 
@@ -980,7 +975,7 @@ class RetryNode : public DecoratorNode {
 // RootNode is a SingleNode.
 class RootNode : public SingleNode, public IRootNode {
  protected:
-  ITreeBlob* blob = nullptr;  // Current blob.
+  TreeBlob* blob = nullptr;  // Current blob.
 
  public:
   RootNode(const std::string& name = "Root") : SingleNode(name) { root = this; }
@@ -991,9 +986,9 @@ class RootNode : public SingleNode, public IRootNode {
   //////////////////////////
 
   // Binds a tree blob.
-  void BindBlob(ITreeBlob& b) { blob = &b; }
+  void BindBlob(TreeBlob& b) { blob = &b; }
   // Returns current tree blob.
-  ITreeBlob* GetBlob(void) const override { return blob; }
+  TreeBlob* GetBlob(void) const override { return blob; }
   // Clears current tree blob.
   void ClearBlob() { blob = nullptr; }
 
@@ -1048,17 +1043,11 @@ class RootNode : public SingleNode, public IRootNode {
 /// Tree Builder
 ///////////////////////////////////////////////////////////////
 
-// A internal proxy base class to sets Node's internal attributes.
+// A internal proxy base class to setup Node's internal bindings.
 class _InternalBuilderBase {
  protected:
   void bindNodeRoot(Node& node, IRootNode* root) { node.root = root; }
   void setNodeId(Node& node, NodeId id) { node.id = id; }
-  void bindNodeRootSubtree(RootNode& subtree, IRootNode* root) {
-    subtree.traverse([&](Node& node) { node.root = root; });
-  }
-  void setNodeIdSubtree(RootNode& subtree, NodeId& nextNodeId) {
-    subtree.traverse([&](Node& node) { node.id = nextNodeId++; });
-  }
 };
 
 // Builder helps to build a tree.
@@ -1119,7 +1108,7 @@ class Builder : _InternalBuilderBase {
     adjust();
     // Setup node basic info.
     bindNodeRoot(*p, root);
-    setNodeId(*p, nextNodeId++);
+    setNodeId(*p, ++nextNodeId);
     // Append to stack's top as a child.
     p->OnBuild();
     stack.top()->Append(std::move(p));
@@ -1133,7 +1122,7 @@ class Builder : _InternalBuilderBase {
     adjust();
     // Setup node basic info.
     bindNodeRoot(*p, root);
-    setNodeId(*p, nextNodeId++);
+    setNodeId(*p, ++nextNodeId);
     // Append to stack's top as a child, and replace the top.
     auto parent = stack.top();
     stack.push(p.get());
@@ -1419,12 +1408,12 @@ class Builder : _InternalBuilderBase {
   //      .Sequence()
   //      ._().Subtree(std::move(subtree))
   //      .End();
-  auto& Subtree(RootNode&& tree) {
-    // Resets root and id in sub tree.
-    bindNodeRootSubtree(tree, root);
-    setNodeIdSubtree(tree, nextNodeId);
+  auto& Subtree(RootNode&& subtree) {
+    // Resets root and id in sub tree recursively.
+    subtree.Traverse([&](Node& node) { bindNodeRoot(node, root); });
+    subtree.Traverse([&](Node& node) { setNodeId(node, nextNodeId++); });
     // move to the tree
-    return C<RootNode>(std::move(tree));
+    return C<RootNode>(std::move(subtree));
   }
 };
 
