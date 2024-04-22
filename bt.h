@@ -183,8 +183,7 @@ class IRootNode {
   virtual TreeBlob* GetBlob(void) const = 0;
 };
 
-// NodeBlob is the base class to store node's internal states.
-// Any member within a Node Blob should be guaranteed to be embedded inline,
+// NodeBlob is the base class to store node's internal entity-related data and states.
 struct NodeBlob {
   ull lastSeq;           // seq of last execution.
   Status lastStatus;     // status of last execution.
@@ -240,8 +239,11 @@ class Node {
     return static_cast<B*>(b->Get(id));
   }
 
+  // Type of the callback function for node traversal.
+  using TraversalCallback = std::function<void(Node&)>;
+
   // Traverse the subtree of the current node recursively and execute the given function cb.
-  virtual void Traverse(std::function<void(Node&)> cb) { cb(*this); }
+  virtual void Traverse(TraversalCallback& cb) { cb(*this); }
 
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
@@ -411,7 +413,7 @@ class SingleNode : public InternalNode {
  public:
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
-  void Traverse(std::function<void(Node&)> cb) override {
+  void Traverse(TraversalCallback& cb) override {
     child->Traverse(cb);
     Node::Traverse(cb);
   }
@@ -453,7 +455,7 @@ class CompositeNode : public InternalNode {
   CompositeNode(const std::string& name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
-  void Traverse(std::function<void(Node&)> cb) override {
+  void Traverse(TraversalCallback& cb) override {
     for (auto& child : children) child->Traverse(cb);
     Node::Traverse(cb);
   }
@@ -1132,6 +1134,16 @@ class Builder : _InternalBuilderBase {
     return static_cast<D&>(*this);
   }
 
+  // make a new node onto this tree, returns the unique_ptr.
+  // Any node creation should use this function.
+  template <TNode T, typename... Args>
+  Ptr<T> make(Args... args) {
+    auto p = std::make_unique<T>(std::forward<Args>(args)...);
+    bindNodeRoot(*p, root);
+    setNodeId(*p, nextNodeId++);
+    return p;
+  };
+
  public:
   Builder() : level(1), nextNodeId(0), root(nullptr) {}
   ~Builder() {}
@@ -1162,9 +1174,9 @@ class Builder : _InternalBuilderBase {
   template <TNode T, typename... Args>
   auto& C(Args... args) {
     if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
-      return attachLeafNode(std::make_unique<T>(std::forward<Args>(args)...));
+      return attachLeafNode(make<T>(std::forward<Args>(args)...));
     else  // InternalNode.
-      return attachInternalNode(std::make_unique<T>(std::forward<Args>(args)...));
+      return attachInternalNode(make<T>(std::forward<Args>(args)...));
   }
 
   ///////////////////////////////////
@@ -1270,10 +1282,7 @@ class Builder : _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& Not(ConditionArgs... args) {
-    auto p = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
-    bindNodeRoot(*p, root);
-    setNodeId(*p, nextNodeId++);
-    return C<InvertNode>("Not", std::move(p));
+    return C<InvertNode>("Not", make<Condition>(std::forward<ConditionArgs>(args)...));
   }
 
   // Repeat creates a RepeatNode.
@@ -1347,10 +1356,7 @@ class Builder : _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& If(ConditionArgs&&... args) {
-    auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
-    bindNodeRoot(*condition, root);
-    setNodeId(*condition, nextNodeId++);
-    return C<ConditionalRunNode>(std::move(condition), "If");
+    return C<ConditionalRunNode>(make<Condition>(std::forward<ConditionArgs>(args)...), "If");
   }
 
   // If creates a ConditionalRunNode from lambda function.
@@ -1381,10 +1387,7 @@ class Builder : _InternalBuilderBase {
   // Alias to If, for working alongs with Switch.
   template <TCondition Condition, typename... ConditionArgs>
   auto& Case(ConditionArgs&&... args) {
-    auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
-    bindNodeRoot(*condition, root);
-    setNodeId(*condition, nextNodeId++);
-    return C<ConditionalRunNode>(std::move(condition), "Case");
+    return C<ConditionalRunNode>(make<Condition>(std::forward<ConditionArgs>(args)...), "Case");
   }
 
   // Case creates a ConditionalRunNode from lambda function.
@@ -1410,8 +1413,11 @@ class Builder : _InternalBuilderBase {
   //      .End();
   auto& Subtree(RootNode&& subtree) {
     // Resets root and id in sub tree recursively.
-    subtree.Traverse([&](Node& node) { bindNodeRoot(node, root); });
-    subtree.Traverse([&](Node& node) { setNodeId(node, nextNodeId++); });
+    Node::TraversalCallback f = [&](Node& node) {
+      bindNodeRoot(node, root);
+      setNodeId(node, nextNodeId++);
+    };
+    subtree.Traverse(f);
     // move to the tree
     return C<RootNode>(std::move(subtree));
   }
