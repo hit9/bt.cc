@@ -134,14 +134,15 @@ template <std::size_t N>
 class TreeBlob : public ITreeBlob {
  private:
   unsigned int offset;
-  uint8_t buffer[N];
+  uint8_t* buffer;
   std::unordered_map<NodeId, unsigned int> m;  // Nodes => offset
 
  public:
-  TreeBlob() : offset(0) { memset(buffer, 0, sizeof(buffer)); }
+  TreeBlob() : offset(0), buffer(new uint8_t[N]) {}
+  ~TreeBlob() { delete[] buffer; }
 
   void* Allocate(NodeId id, std::size_t size) override {
-    if (offset + size > sizeof(buffer)) throw std::runtime_error("bt: TreeBlob overflows");
+    if (offset + size > N) throw std::runtime_error("bt: TreeBlob overflows");
     m[id] = offset;
     auto p = buffer + offset;
     offset += size;
@@ -150,7 +151,7 @@ class TreeBlob : public ITreeBlob {
 
   void* Get(NodeId id) const override {
     if (m.find(id) == m.end()) return nullptr;
-    return buffer + m.at(id);
+    return static_cast<void*>(buffer + m.at(id));
   }
 };
 
@@ -188,7 +189,6 @@ class IRootNode {
 
 // NodeBlob is the base class to store node's internal states.
 // Any member within a Node Blob should be guaranteed to be embedded inline,
-// i.e. there will be no pointers to the outside.
 struct NodeBlob {
   ull lastSeq;           // seq of last execution.
   Status lastStatus;     // status of last execution.
@@ -222,9 +222,15 @@ class Node {
     if (b->lastSeq == seq) s += "\033[0m";
   }
 
+  // Traverse the subtree of the current node recursively and execute the given function cb.
+  virtual void traverse(std::function<void(Node&)> cb) { cb(*this); }
+
   // firend with SingleNode and CompositeNode for accessbility to makeVisualizeString.
   friend class SingleNode;
   friend class CompositeNode;
+
+  // friend with _InternalBuilderBase to access root and id;
+  friend class _InternalBuilderBase;
 
  public:
   Node(const std::string& name = "Node") : name(name), id(0), root(nullptr) {}
@@ -403,6 +409,14 @@ class SingleNode : public InternalNode {
     }
   }
 
+  void traverse(std::function<void(Node&)> cb) override {
+    child->traverse(cb);
+    Node::traverse(cb);
+  }
+
+  // friend with _InternalBuilderBase for accessbility to traverse.
+  friend class _InternalBuilderBase;
+
  public:
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
@@ -436,6 +450,14 @@ class CompositeNode : public InternalNode {
       }
     }
   }
+
+  void traverse(std::function<void(Node&)> cb) override {
+    for (auto& child : children) child->traverse(cb);
+    Node::traverse(cb);
+  }
+
+  // friend with _InternalBuilderBase for accessbility to traverse.
+  friend class _InternalBuilderBase;
 
  public:
   CompositeNode(const std::string& name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
@@ -961,7 +983,7 @@ class RootNode : public SingleNode, public IRootNode {
   ITreeBlob* blob = nullptr;  // Current blob.
 
  public:
-  RootNode(const std::string& name = "Root") : SingleNode(name) {}
+  RootNode(const std::string& name = "Root") : SingleNode(name) { root = this; }
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
 
   //////////////////////////
@@ -1026,14 +1048,28 @@ class RootNode : public SingleNode, public IRootNode {
 /// Tree Builder
 ///////////////////////////////////////////////////////////////
 
+// A internal proxy base class to sets Node's internal attributes.
+class _InternalBuilderBase {
+ protected:
+  void bindNodeRoot(Node& node, IRootNode* root) { node.root = root; }
+  void setNodeId(Node& node, NodeId id) { node.id = id; }
+  void bindNodeRootSubtree(RootNode& subtree, IRootNode* root) {
+    subtree.traverse([&](Node& node) { node.root = root; });
+  }
+  void setNodeIdSubtree(RootNode& subtree, NodeId& nextNodeId) {
+    subtree.traverse([&](Node& node) { node.id = nextNodeId++; });
+  }
+};
+
 // Builder helps to build a tree.
 // The template parameter D is the derived class, a behavior tree class.
 template <typename D = void>
-class Builder {
+class Builder : _InternalBuilderBase {
  private:
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
   IRootNode* root;
+  NodeId nextNodeId = 0;
 
   // Validate node.
   void validate(Node* node) {
@@ -1073,11 +1109,17 @@ class Builder {
 
  protected:
   // Bind a tree root onto this builder.
-  void bindRoot(RootNode& r) { stack.push(&r), root = &r; }
+  void bindRoot(RootNode& r) {
+    stack.push(&r);
+    root = &r;
+  }
 
   // Creates a leaf node.
   auto& attachLeafNode(Ptr<LeafNode> p) {
     adjust();
+    // Setup node basic info.
+    bindNodeRoot(*p, root);
+    setNodeId(*p, nextNodeId++);
     // Append to stack's top as a child.
     p->OnBuild();
     stack.top()->Append(std::move(p));
@@ -1089,6 +1131,9 @@ class Builder {
   // Creates an internal node with optional children.
   auto& attachInternalNode(Ptr<InternalNode> p) {
     adjust();
+    // Setup node basic info.
+    bindNodeRoot(*p, root);
+    setNodeId(*p, nextNodeId++);
     // Append to stack's top as a child, and replace the top.
     auto parent = stack.top();
     stack.push(p.get());
@@ -1099,7 +1144,7 @@ class Builder {
   }
 
  public:
-  Builder() : level(1) {}
+  Builder() : level(1), nextNodeId(0), root(nullptr) {}
   ~Builder() {}
 
   // Increases indent level to append node.
@@ -1236,7 +1281,10 @@ class Builder {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& Not(ConditionArgs... args) {
-    return C<InvertNode>("Not", std::make_unique<Condition>(std::forward<ConditionArgs>(args)...));
+    auto p = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
+    bindNodeRoot(*p, root);
+    setNodeId(*p, nextNodeId++);
+    return C<InvertNode>("Not", std::move(p));
   }
 
   // Repeat creates a RepeatNode.
@@ -1311,6 +1359,8 @@ class Builder {
   template <TCondition Condition, typename... ConditionArgs>
   auto& If(ConditionArgs&&... args) {
     auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
+    bindNodeRoot(*condition, root);
+    setNodeId(*condition, nextNodeId++);
     return C<ConditionalRunNode>(std::move(condition), "If");
   }
 
@@ -1343,6 +1393,8 @@ class Builder {
   template <TCondition Condition, typename... ConditionArgs>
   auto& Case(ConditionArgs&&... args) {
     auto condition = std::make_unique<Condition>(std::forward<ConditionArgs>(args)...);
+    bindNodeRoot(*condition, root);
+    setNodeId(*condition, nextNodeId++);
     return C<ConditionalRunNode>(std::move(condition), "Case");
   }
 
@@ -1367,7 +1419,13 @@ class Builder {
   //      .Sequence()
   //      ._().Subtree(std::move(subtree))
   //      .End();
-  auto& Subtree(RootNode&& tree) { return C<RootNode>(std::move(tree)); }
+  auto& Subtree(RootNode&& tree) {
+    // Resets root and id in sub tree.
+    bindNodeRootSubtree(tree, root);
+    setNodeIdSubtree(tree, nextNodeId);
+    // move to the tree
+    return C<RootNode>(std::move(tree));
+  }
 };
 
 //////////////////////////////////////////////////////////////

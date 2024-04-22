@@ -64,7 +64,11 @@ int main(void) {
     ;
   // clang-format on
 
+  bt::TreeBlob<2 * 1024> blob;
+
   bt::Context ctx;
+  root.BindBlob(blob);
   root.TickForever(ctx, 300ms, true);
+  root.ClearBlob();
   return 0;
 }
