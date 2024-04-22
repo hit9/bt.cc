@@ -41,17 +41,24 @@ TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
   ;
   // clang-format on
 
+  Entity e;
+
   // Tick#1
+
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->customDecoratorCounter == 1);
+  root.UnbindTreeBlob();
 
   // Tick#2
+  root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
   REQUIRE(bb->customDecoratorCounter == 3);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Builder/2", "[node id increment]") {

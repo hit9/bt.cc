@@ -21,6 +21,9 @@ TEST_CASE("StatefulParallel/1", "[all success]") {
   REQUIRE(bb->counterB == 0);
   REQUIRE(bb->counterB == 0);
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
+
   // Tick#1
   root.Tick(ctx);
   // A/B/E all started running
@@ -85,6 +88,8 @@ TEST_CASE("StatefulParallel/1", "[all success]") {
   REQUIRE(bb->counterA == 3);  // got ticked.
   REQUIRE(bb->counterB == 5);  // got ticked.
   REQUIRE(bb->counterE == 6);  // got ticked.
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("StatefulParallel/2", "[final failure]") {
@@ -101,6 +106,8 @@ TEST_CASE("StatefulParallel/2", "[final failure]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
   REQUIRE(bb->counterB == 0);
@@ -157,4 +164,5 @@ TEST_CASE("StatefulParallel/2", "[final failure]") {
   REQUIRE(bb->counterA == 3);  // got ticked.
   REQUIRE(bb->counterB == 5);  // got ticked.
   REQUIRE(bb->counterE == 5);  // got ticked.
+  root.UnbindTreeBlob();
 }

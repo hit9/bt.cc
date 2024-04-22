@@ -19,6 +19,9 @@ TEST_CASE("Retry/1", "[simple retry success]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
+
   // Tick#1
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
@@ -29,6 +32,8 @@ TEST_CASE("Retry/1", "[simple retry success]") {
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Retry/2", "[simple retry final failure]") {
@@ -43,6 +48,9 @@ TEST_CASE("Retry/2", "[simple retry final failure]") {
     .End()
     ;
   // clang-format on
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -69,6 +77,8 @@ TEST_CASE("Retry/2", "[simple retry final failure]") {
   // Next the whole tree should failure.
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Retry/3", "[simple retry final success ]") {
@@ -83,6 +93,9 @@ TEST_CASE("Retry/3", "[simple retry final success ]") {
     .End()
     ;
   // clang-format on
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -100,6 +113,7 @@ TEST_CASE("Retry/3", "[simple retry final success ]") {
   bb->shouldA = bt::Status::SUCCESS;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Retry/4", "[simple retry forever ]") {
@@ -114,6 +128,9 @@ TEST_CASE("Retry/4", "[simple retry forever ]") {
     .End()
     ;
   // clang-format on
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -133,4 +150,5 @@ TEST_CASE("Retry/4", "[simple retry forever ]") {
     root.Tick(ctx);
     REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   }
+  root.UnbindTreeBlob();
 }

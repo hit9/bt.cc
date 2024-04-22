@@ -18,6 +18,8 @@ TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector]") {
 
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   bb->shouldPriorityI = 1;
@@ -34,4 +36,5 @@ TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector]") {
 
   // The whole tree should RUNNING
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 }

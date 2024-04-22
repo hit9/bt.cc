@@ -15,6 +15,8 @@ TEST_CASE("Selector/1", "[first success]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -50,6 +52,7 @@ TEST_CASE("Selector/1", "[first success]") {
   REQUIRE(bb->statusB == bt::Status::UNDEFINED);
   // The whole tree should SUCCESS
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Selector/2", "[first failure and second success]") {
@@ -64,6 +67,8 @@ TEST_CASE("Selector/2", "[first failure and second success]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -100,6 +105,7 @@ TEST_CASE("Selector/2", "[first failure and second success]") {
   REQUIRE(bb->statusB == bt::Status::SUCCESS);
   // The whole tree should SUCCESS
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Selector/3", "[all failure]") {
@@ -114,6 +120,8 @@ TEST_CASE("Selector/3", "[all failure]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -150,6 +158,7 @@ TEST_CASE("Selector/3", "[all failure]") {
   REQUIRE(bb->statusB == bt::Status::FAILURE);
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Selector/4", "[priority selector final success]") {
@@ -165,6 +174,8 @@ TEST_CASE("Selector/4", "[priority selector final success]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 0);
 
@@ -204,6 +215,7 @@ TEST_CASE("Selector/4", "[priority selector final success]") {
   REQUIRE(bb->statusH == bt::Status::FAILURE);
   // The whole tree should SUCCESS
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Selector/4", "[priority selector final failure]") {
@@ -218,6 +230,8 @@ TEST_CASE("Selector/4", "[priority selector final failure]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 0);
@@ -253,6 +267,7 @@ TEST_CASE("Selector/4", "[priority selector final failure]") {
   REQUIRE(bb->statusH == bt::Status::FAILURE);
   // The whole tree should SUCCESS
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Selector/5", "[priority selector - dynamic]") {
@@ -268,6 +283,8 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 0);
 
@@ -321,4 +338,5 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
   REQUIRE(bb->statusG == bt::Status::RUNNING);
   REQUIRE(bb->statusH == bt::Status::SUCCESS);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }

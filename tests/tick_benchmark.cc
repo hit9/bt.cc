@@ -20,10 +20,15 @@ void build(bt::Tree& root) {
   root.End();
 }
 
-TEST_CASE("Tick/1", "[simple traversal benchmark - without pool]") {
+TEST_CASE("Tick/1", "[simple traversal benchmark ]") {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   build(root);
-  BENCHMARK("benchmark simple parallel tree tick - without pool") { root.Tick(ctx); };
+  Entity e;
+  BENCHMARK("benchmark simple parallel tree tick ") {
+    root.BindTreeBlob(e.blob);
+    root.Tick(ctx);
+    root.UnbindTreeBlob();
+  };
 }

@@ -20,6 +20,8 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -59,4 +61,6 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
   REQUIRE(bb->counterA == 4);
   REQUIRE(bb->counterB == 2);                         // blocked by A
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);  // repeat => success.
+
+  root.UnbindTreeBlob();
 }

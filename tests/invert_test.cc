@@ -16,20 +16,26 @@ TEST_CASE("Invert/1", "[invert once]") {
     ;
   // clang-format on
 
+  Entity e;
+
   REQUIRE(bb->counterA == 0);
 
   // Tick#1: A is running
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->statusA == bt::Status::RUNNING);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 
   // Tick#2: A is success.
+  root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->statusA == bt::Status::SUCCESS);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Invert/2", "[invert twice]") {
@@ -46,18 +52,24 @@ TEST_CASE("Invert/2", "[invert twice]") {
     ;
   // clang-format on
 
+  Entity e;
+
   REQUIRE(bb->counterA == 0);
 
   // Tick#1: A is running
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->statusA == bt::Status::RUNNING);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 
   // Tick#2: A is success.
+  root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->statusA == bt::Status::SUCCESS);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }

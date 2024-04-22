@@ -38,8 +38,12 @@ TEST_CASE("Hook/2", "[hook OnEnter]") {
     ;
   // clang-format on
 
+  Entity e;
+
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(bb->onEnterCalledA);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Hook/3", "[hook OnTerminate]") {
@@ -54,10 +58,16 @@ TEST_CASE("Hook/3", "[hook OnTerminate]") {
     ;
   // clang-format on
 
+  Entity e;
+
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(!bb->onTerminatedCalledA);
+  root.UnbindTreeBlob();
 
+  root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::FAILURE;
   root.Tick(ctx);
   REQUIRE(bb->onTerminatedCalledA);
+  root.UnbindTreeBlob();
 }

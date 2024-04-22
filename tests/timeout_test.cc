@@ -19,6 +19,8 @@ TEST_CASE("Timeout/1", "[simple timeout success]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
@@ -29,6 +31,7 @@ TEST_CASE("Timeout/1", "[simple timeout success]") {
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Timeout/2", "[simple timeout failure]") {
@@ -44,6 +47,8 @@ TEST_CASE("Timeout/2", "[simple timeout failure]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
@@ -54,6 +59,7 @@ TEST_CASE("Timeout/2", "[simple timeout failure]") {
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Timeout/3", "[simple timeout timedout]") {
@@ -69,6 +75,8 @@ TEST_CASE("Timeout/3", "[simple timeout timedout]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
@@ -79,4 +87,5 @@ TEST_CASE("Timeout/3", "[simple timeout timedout]") {
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }

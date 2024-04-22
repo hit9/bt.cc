@@ -17,6 +17,8 @@ TEST_CASE("StatefulSequence/1", "[all success]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
   REQUIRE(bb->counterB == 0);
@@ -84,6 +86,7 @@ TEST_CASE("StatefulSequence/1", "[all success]") {
   REQUIRE(bb->statusE == bt::Status::SUCCESS);
   // The whole tree should SUCCESS.
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("StatefulSequence/2", "[paritial failure]") {
@@ -100,6 +103,8 @@ TEST_CASE("StatefulSequence/2", "[paritial failure]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
   REQUIRE(bb->counterB == 0);
@@ -144,6 +149,7 @@ TEST_CASE("StatefulSequence/2", "[paritial failure]") {
   // Tick#4: The next tick will starts from first child.
   root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // restarts from here, got ticked
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]") {
@@ -159,6 +165,8 @@ TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   bb->shouldPriorityG = 1;
   bb->shouldPriorityH = 2;
@@ -229,4 +237,5 @@ TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]") {
   REQUIRE(bb->statusG == bt::Status::SUCCESS);
   // The whole tree should running.
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }

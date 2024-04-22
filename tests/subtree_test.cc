@@ -29,6 +29,9 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
+
   // Tick#1: Make Action E Failure.
   bb->shouldE = bt::Status::FAILURE;
   root.Tick(ctx);
@@ -61,4 +64,6 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   REQUIRE(bb->counterE == 4);
   REQUIRE(bb->counterB == 2);  // B ok
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+
+  root.UnbindTreeBlob();
 }

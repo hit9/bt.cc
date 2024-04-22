@@ -21,6 +21,8 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   // Tick#1
   root.Tick(ctx);
   // All should unstarted.
@@ -67,4 +69,5 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   REQUIRE(bb->statusB == bt::Status::RUNNING);  // B wont change, it's not ticked.
   // The whole tree should SUCCESS
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }

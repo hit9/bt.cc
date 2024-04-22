@@ -17,6 +17,8 @@ TEST_CASE("StatefulSelector/1", "[final success]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
   REQUIRE(bb->counterB == 0);
@@ -88,6 +90,7 @@ TEST_CASE("StatefulSelector/1", "[final success]") {
   // Tick#6: One more tick should restart from the first
   root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // got ticked.
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("StatefulSelector/2", "[final failure]") {
@@ -103,6 +106,8 @@ TEST_CASE("StatefulSelector/2", "[final failure]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -175,6 +180,7 @@ TEST_CASE("StatefulSelector/2", "[final failure]") {
   // Tick#6: One more tick should restart from the first
   root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // got ticked.
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]") {
@@ -190,6 +196,8 @@ TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
@@ -241,4 +249,5 @@ TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]") {
   REQUIRE(bb->statusH == bt::Status::FAILURE);
   REQUIRE(bb->statusI == bt::Status::FAILURE);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }

@@ -16,6 +16,9 @@ TEST_CASE("Sequence/1", "[all success]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
+
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
 
@@ -56,6 +59,8 @@ TEST_CASE("Sequence/1", "[all success]") {
   REQUIRE(bb->statusB == bt::Status::SUCCESS);
   // The whole tree should success.
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Sequence/2", "[partial failure - first failure]") {
@@ -70,6 +75,8 @@ TEST_CASE("Sequence/2", "[partial failure - first failure]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -92,6 +99,7 @@ TEST_CASE("Sequence/2", "[partial failure - first failure]") {
   REQUIRE(bb->statusB == bt::Status::UNDEFINED);
   // The whole tree should failure.
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Sequence/3", "[partial failure - last failure]") {
@@ -106,6 +114,8 @@ TEST_CASE("Sequence/3", "[partial failure - last failure]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -140,6 +150,7 @@ TEST_CASE("Sequence/3", "[partial failure - last failure]") {
   REQUIRE(bb->statusB == bt::Status::FAILURE);
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Sequence/4", "[priority sequence - final success]") {
@@ -156,6 +167,8 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
@@ -206,6 +219,7 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
   REQUIRE(bb->statusH == bt::Status::SUCCESS);
   REQUIRE(bb->statusG == bt::Status::SUCCESS);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
@@ -222,6 +236,8 @@ TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
@@ -261,6 +277,7 @@ TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
   REQUIRE(bb->statusH == bt::Status::FAILURE);
   REQUIRE(bb->statusG == bt::Status::UNDEFINED);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
@@ -277,6 +294,8 @@ TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
     .End()
     ;
   // clang-format on
+  Entity e;
+  root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
@@ -318,4 +337,5 @@ TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
   REQUIRE(bb->statusH == bt::Status::UNDEFINED);
   REQUIRE(bb->statusG == bt::Status::RUNNING);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 }

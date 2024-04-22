@@ -29,8 +29,8 @@
 //
 // Prepares a TreeBlob, e.g. for each entity:
 //
-//   // A TreeBlob contains a continuous buffer that holds all the internal state data.
-//   bt::TreeBlob blob<1024>;
+//   // A TreeBlob holds all the internal state data.
+//   bt::TreeBlob blob;
 //
 // Run ticking:
 //
@@ -42,7 +42,7 @@
 //     for (auto& blob : allBlobs) {
 //       root.BindTreeBlob(blob);
 //       root.Tick(ctx)
-//       root.ClearTreeBlob();
+//       root.UnbindTreeBlob();
 //     }
 //   }
 //
@@ -154,36 +154,27 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 /// TreeBlob
 ////////////////////////////
 
-// A TreeBlob constains a vector, as a continuous buffer that stores all node
-// states data for an entity.
+// A TreeBlob stores the entity-related states data for all nodes in a tree.
+// One tree blob for one entity.
 class TreeBlob {
  private:
-  // Using a vector works and is simple enough.
-  // The buffer won't grow any more once the tree is completely built.
-  std::vector<uint8_t> buffer;
-  // Mapping: node id => offset
-  std::unordered_map<NodeId, std::size_t> m;
+  // using a vector is enough and simple, the buffer never shrinks.
+  std::vector<uint8_t> buf;
+  std::unordered_map<NodeId, std::size_t> m;  // stores byte offset
 
  public:
-  TreeBlob() {}
+  TreeBlob(){};
 
-  // Returns true if there's a node with given id already allocated its blob.
-  bool Exist(NodeId id) const { return m.find(id) != m.end(); }
-
-  // Allocates buffer for a node by providing node's id.
+  // Returns a pointer to given NodeBlob B for the node with given id.
+  // Allocates if not exist.
   template <TNodeBlob B>
-  B* Allocate(NodeId id) {
-    auto offset = buffer.size();
-    buffer.resize(offset + sizeof(B), 0);
-    m[id] = offset;
-    return new (&buffer[offset]) B;
-  }
-
-  // Returns the pointer to the blob buffer for a node by providing the node id.
-  template <TNodeBlob B>
-  B* Get(NodeId id) const {
-    if (m.find(id) == m.end()) return nullptr;
-    return reinterpret_cast<B*>(const_cast<uint8_t*>(&buffer[m.at(id)]));
+  B* GetOrAllocate(const NodeId id) {
+    if (m.find(id) != m.end()) return reinterpret_cast<B*>(&buf[m[id]]);
+    // Allocate new buffer.
+    auto offset = buf.size();
+    buf.resize(offset + sizeof(B));
+    m.insert({id, offset});
+    return new (&buf[offset]) B();  // call B's constructor.
   }
 };
 
@@ -211,14 +202,14 @@ class Node {
   IRootNode* root;  // holding a pointer to the root.
 
   // Internal helper method to return the raw pointer to the node blob.
+  // Import note: you should always get the pointer to blob again after tick, if need.
   template <TNodeBlob B>
   B* getNodeBlob() const {
     assert(id != 0);
     assert(root != nullptr);
     auto b = root->GetTreeBlob();
     assert(b != nullptr);
-    if (!b->Exist(id)) return b->Allocate<B>(id);
-    return b->Get<B>(id);
+    return b->GetOrAllocate<B>(id);  // allocate, or get if exist
   }
 
   // Internal method to visualize tree.
@@ -239,7 +230,7 @@ class Node {
   friend class SingleNode;
   friend class CompositeNode;
 
-  // friend with _InternalBuilderBase to access root;
+  // friend with _InternalBuilderBase to access member root;
   friend class _InternalBuilderBase;
 
  public:
@@ -251,8 +242,9 @@ class Node {
   // Type of the callback function for node traversal.
   using TraversalCallback = std::function<void(Node&)>;
 
-  // Helps to access the node blob's pointer, which stores the  entity-related data and states.
+  // Helps to access the node blob's pointer, which stores the entity-related data and states.
   // Any Node has a NodeBlob class should override this.
+  // Import note: you should always get the pointer to blob again after tick, if need.
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
   // Traverse the subtree of the current node recursively and execute the given function cb.
@@ -266,6 +258,10 @@ class Node {
     b->running = true;
 
     auto status = Update(ctx);
+
+    // We should reget the blob pointer.
+    // reason: blob's underlying memory may changed during Update.
+    b = GetNodeBlob();
     b->lastStatus = status;
     b->lastSeq = ctx.seq;
 
@@ -487,22 +483,15 @@ struct _InternalStatefulCompositeNodeBlob : NodeBlob {
 
 // Always skip children that already succeeded or failure during current round.
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
+  using Blob = _InternalStatefulCompositeNodeBlob;
+
  protected:
-  bool considerable(int i) const override {
-    auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
-    return !(skipTable.contains(i));
-  }
-  void skip(const int i) {
-    auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
-    skipTable.insert(i);
-  }
+  bool considerable(int i) const override { return !(getNodeBlob<Blob>()->skipTable.contains(i)); }
+  void skip(const int i) { getNodeBlob<Blob>()->skipTable.insert(i); }
 
  public:
-  NodeBlob* GetNodeBlob() const override { return getNodeBlob<_InternalStatefulCompositeNodeBlob>(); }
-  void OnTerminate(const Context& ctx, Status status) override {
-    auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
-    skipTable.clear();
-  }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
+  void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<Blob>()->skipTable.clear(); }
 };
 
 // Priority related CompositeNode.
@@ -812,6 +801,11 @@ class ConditionalRunNode : public DecoratorNode {
       : DecoratorNode(name + '<' + std::string(condition->Name()) + '>', std::move(child)),
         condition(std::move(condition)) {}
 
+  void Traverse(TraversalCallback& cb) override {
+    condition->Traverse(cb);
+    child->Traverse(cb);
+    Node::Traverse(cb);
+  }
   Status Update(const Context& ctx) override {
     if (condition->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
     return Status::FAILURE;
@@ -826,6 +820,8 @@ struct RepeatNodeBlob : NodeBlob {
 // RepeatNode repeats its child for exactly n times.
 // Fails immediately if its child fails.
 class RepeatNode : public DecoratorNode {
+  using Blob = RepeatNodeBlob;
+
  protected:
   // Times to repeat, -1 for forever, 0 for immediately success.
   int n;
@@ -834,19 +830,19 @@ class RepeatNode : public DecoratorNode {
   RepeatNode(int n, const std::string& name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
-  NodeBlob* GetNodeBlob() const override { return getNodeBlob<RepeatNodeBlob>(); }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
   // Clears counter on enter.
-  void OnEnter(const Context& ctx) override { getNodeBlob<RepeatNodeBlob>()->cnt = 0; }
+  void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->cnt = 0; }
   // Reset counter on termination.
-  void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<RepeatNodeBlob>()->cnt = 0; }
+  void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<Blob>()->cnt = 0; }
 
   Status Update(const Context& ctx) override {
-    auto& cnt = getNodeBlob<RepeatNodeBlob>()->cnt;
     if (n == 0) return Status::SUCCESS;
     auto status = child->Tick(ctx);
     if (status == Status::RUNNING) return Status::RUNNING;
     if (status == Status::FAILURE) return Status::FAILURE;
     // Count success until n times, -1 will never stop.
+    auto& cnt = getNodeBlob<Blob>()->cnt;
     if (++cnt == n) return Status::SUCCESS;
     // Otherwise, it's still running.
     return Status::RUNNING;
@@ -865,6 +861,8 @@ struct TimeoutNodeBlob : NodeBlob {
 // Timeout runs its child for at most given duration, fails on timeout.
 template <typename Clock = std::chrono::high_resolution_clock>
 class TimeoutNode : public DecoratorNode {
+  using Blob = TimeoutNodeBlob<Clock>;
+
  protected:
   std::chrono::milliseconds duration;
 
@@ -872,13 +870,11 @@ class TimeoutNode : public DecoratorNode {
   TimeoutNode(std::chrono::milliseconds d, const std::string& name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
-  NodeBlob* GetNodeBlob() const override { return getNodeBlob<TimeoutNodeBlob<Clock>>(); }
-  void OnEnter(const Context& ctx) override {
-    getNodeBlob<TimeoutNodeBlob<Clock>>()->startAt = Clock::now();
-  };
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
+  void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->startAt = Clock::now(); };
 
   Status Update(const Context& ctx) override {
-    auto& startAt = getNodeBlob<TimeoutNodeBlob<Clock>>()->startAt;
+    const auto& startAt = getNodeBlob<Blob>()->startAt;
     // Check if timeout at first.
     auto now = Clock::now();
     if (now > startAt + duration) return Status::FAILURE;
@@ -895,6 +891,8 @@ struct DelayNodeBlob : NodeBlob {
 // DelayNode runs its child node after given duration.
 template <typename Clock = std::chrono::high_resolution_clock>
 class DelayNode : public DecoratorNode {
+  using Blob = DelayNodeBlob<Clock>;
+
  protected:
   // Duration to wait.
   std::chrono::milliseconds duration;
@@ -903,18 +901,16 @@ class DelayNode : public DecoratorNode {
   DelayNode(std::chrono::milliseconds duration, const std::string& name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
-  NodeBlob* GetNodeBlob() const override { return getNodeBlob<DelayNodeBlob<Clock>>(); }
-  void OnEnter(const Context& ctx) override {
-    getNodeBlob<DelayNodeBlob<Clock>>()->firstRunAt = Clock::now();
-  };
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
+  void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->firstRunAt = Clock::now(); };
   void OnTerminate(const Context& ctx, Status status) override {
-    getNodeBlob<DelayNodeBlob<Clock>>()->firstRunAt = TimePoint<Clock>::min();
+    getNodeBlob<Blob>()->firstRunAt = TimePoint<Clock>::min();
   };
 
   Status Update(const Context& ctx) override {
-    auto b = getNodeBlob<DelayNodeBlob<Clock>>();
+    const auto& a = getNodeBlob<Blob>()->firstRunAt;
     auto now = Clock::now();
-    if (now < b->firstRunAt + duration) return Status::RUNNING;
+    if (now < a + duration) return Status::RUNNING;
     return child->Tick(ctx);
   }
 };
@@ -930,6 +926,8 @@ struct RetryNodeBlob : NodeBlob {
 // RetryNode retries its child node on failure.
 template <typename Clock = std::chrono::high_resolution_clock>
 class RetryNode : public DecoratorNode {
+  using Blob = RetryNodeBlob<Clock>;
+
  protected:
   // Max retry times, -1 for unlimited.
   int maxRetries = -1;
@@ -941,28 +939,28 @@ class RetryNode : public DecoratorNode {
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
 
-  NodeBlob* GetNodeBlob() const override { return getNodeBlob<RetryNodeBlob<Clock>>(); }
+  NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
   void OnEnter(const Context& ctx) override {
-    auto b = getNodeBlob<RetryNodeBlob<Clock>>();
+    auto b = getNodeBlob<Blob>();
     b->cnt = 0;
     b->lastRetryAt = TimePoint<Clock>::min();
   }
   void OnTerminate(const Context& ctx, Status status) override {
-    auto b = getNodeBlob<RetryNodeBlob<Clock>>();
+    auto b = getNodeBlob<Blob>();
     b->cnt = 0;
     b->lastRetryAt = status == Status::FAILURE ? Clock::now() : TimePoint<Clock>::min();
   }
 
   Status Update(const Context& ctx) override {
-    auto b = getNodeBlob<RetryNodeBlob<Clock>>();
-    auto& cnt = b->cnt;
-    auto& lastRetryAt = b->lastRetryAt;
+    auto b = getNodeBlob<Blob>();
+    const auto cnt = b->cnt;
+    const auto a = b->lastRetryAt;
 
     if (maxRetries != -1 && cnt > maxRetries) return Status::FAILURE;
 
     // If has failures before, and retry timepoint isn't arriving.
     auto now = Clock::now();
-    if (cnt > 0 && now < lastRetryAt + interval) return Status::RUNNING;
+    if (cnt > 0 && now < a + interval) return Status::RUNNING;
 
     // Time to run/retry.
     auto status = child->Tick(ctx);
@@ -972,9 +970,11 @@ class RetryNode : public DecoratorNode {
       case Status::SUCCESS:
         return status;
       default:
+        // be careful that: should re-get the blob pointer.
+        b = getNodeBlob<Blob>();
         // Failure
-        if (++cnt > maxRetries && maxRetries != -1) return Status::FAILURE;  // exeeds max retries.
-        return Status::RUNNING;                                              // continues retry
+        if (++b->cnt > maxRetries && maxRetries != -1) return Status::FAILURE;  // exeeds max retries.
+        return Status::RUNNING;                                                 // continues retry
     }
   }
 };
@@ -986,7 +986,8 @@ class RetryNode : public DecoratorNode {
 // RootNode is a SingleNode.
 class RootNode : public SingleNode, public IRootNode {
  protected:
-  TreeBlob* blob = nullptr;  // Current blob.
+  // Current binding tree blob.
+  TreeBlob* blob = nullptr;
 
  public:
   RootNode(const std::string& name = "Root") : SingleNode(name) { root = this; }
@@ -1000,8 +1001,8 @@ class RootNode : public SingleNode, public IRootNode {
   void BindTreeBlob(TreeBlob& b) { blob = &b; }
   // Returns current tree blob.
   TreeBlob* GetTreeBlob(void) const override { return blob; }
-  // Clears current tree blob.
-  void ClearTreeBlob() { blob = nullptr; }
+  // Unbind current tree blob.
+  void UnbindTreeBlob() { blob = nullptr; }
 
   //////////////////////////
   /// Visualization
@@ -1063,7 +1064,7 @@ class _InternalBuilderBase {
 // Builder helps to build a tree.
 // The template parameter D is the derived class, a behavior tree class.
 template <typename D = void>
-class Builder : _InternalBuilderBase {
+class Builder : public _InternalBuilderBase {
  private:
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
@@ -1356,7 +1357,8 @@ class Builder : _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& If(ConditionArgs&&... args) {
-    return C<ConditionalRunNode>(make<Condition>(std::forward<ConditionArgs>(args)...), "If");
+    auto condition = make<Condition>(std::forward<ConditionArgs>(args)...);
+    return C<ConditionalRunNode>(std::move(condition), "If");
   }
 
   // If creates a ConditionalRunNode from lambda function.
@@ -1387,7 +1389,8 @@ class Builder : _InternalBuilderBase {
   // Alias to If, for working alongs with Switch.
   template <TCondition Condition, typename... ConditionArgs>
   auto& Case(ConditionArgs&&... args) {
-    return C<ConditionalRunNode>(make<Condition>(std::forward<ConditionArgs>(args)...), "Case");
+    auto condition = make<Condition>(std::forward<ConditionArgs>(args)...);
+    return C<ConditionalRunNode>(std::move(condition), "Case");
   }
 
   // Case creates a ConditionalRunNode from lambda function.
