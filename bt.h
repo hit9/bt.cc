@@ -71,8 +71,6 @@
 #include <any>
 #include <cassert>
 #include <chrono>  // for milliseconds, high_resolution_clock
-#include <cstdint>
-#include <cstring>
 #include <functional>
 #include <iostream>  // for cout, flush
 #include <memory>    // for unique_ptr
@@ -139,10 +137,9 @@ struct Context {
 
 // NodeBlob is the base class to store node's internal entity-related data and states.
 struct NodeBlob {
-  bool running = false;  // is still running?
-  Status lastStatus;     // status of last execution.
-  ull lastSeq;           // seq of last execution.
-
+  bool running;       // is still running?
+  Status lastStatus;  // status of last execution.
+  ull lastSeq;        // seq of last execution.
   NodeBlob() : running(false), lastStatus(Status::UNDEFINED), lastSeq(0) {}
 };
 
@@ -158,9 +155,7 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 // One tree blob for one entity.
 class TreeBlob {
  private:
-  // using a vector is enough and simple, the buffer never shrinks.
-  std::vector<uint8_t> buf;
-  std::unordered_map<NodeId, std::size_t> m;  // stores byte offset
+  std::unordered_map<NodeId, std::unique_ptr<NodeBlob>> m;
 
  public:
   TreeBlob() {}
@@ -170,12 +165,11 @@ class TreeBlob {
   template <TNodeBlob B>
   B* GetOrAllocate(const NodeId id) {
     auto it = m.find(id);
-    if (it != m.end()) return reinterpret_cast<B*>(&buf[it->second]);
-    // Allocate new buffer.
-    auto offset = buf.size();
-    buf.resize(offset + sizeof(B));
-    m.insert({id, offset});
-    return new (&buf[offset]) B();  // call B's constructor.
+    if (it != m.end()) return static_cast<B*>((it->second).get());
+    auto p = std::make_unique<B>();
+    auto rp = p.get();
+    m[id] = std::move(p);
+    return rp;
   }
 };
 
@@ -203,7 +197,6 @@ class Node {
   IRootNode* root;  // holding a pointer to the root.
 
   // Internal helper method to return the raw pointer to the node blob.
-  // Import note: you should always get the pointer to blob again after tick, if need.
   template <TNodeBlob B>
   B* getNodeBlob() const {
     assert(id != 0);
@@ -245,7 +238,6 @@ class Node {
 
   // Helps to access the node blob's pointer, which stores the entity-related data and states.
   // Any Node has a NodeBlob class should override this.
-  // Import note: you should always get the pointer to blob again after tick, if need.
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
   // Traverse the subtree of the current node recursively and execute the given function cb.
@@ -259,10 +251,6 @@ class Node {
     b->running = true;
 
     auto status = Update(ctx);
-
-    // We should reget the blob pointer.
-    // reason: blob's underlying memory may changed during Update.
-    b = GetNodeBlob();
     b->lastStatus = status;
     b->lastSeq = ctx.seq;
 
@@ -843,8 +831,7 @@ class RepeatNode : public DecoratorNode {
     if (status == Status::RUNNING) return Status::RUNNING;
     if (status == Status::FAILURE) return Status::FAILURE;
     // Count success until n times, -1 will never stop.
-    auto& cnt = getNodeBlob<Blob>()->cnt;
-    if (++cnt == n) return Status::SUCCESS;
+    if (++getNodeBlob<Blob>()->cnt == n) return Status::SUCCESS;
     // Otherwise, it's still running.
     return Status::RUNNING;
   }
@@ -875,10 +862,9 @@ class TimeoutNode : public DecoratorNode {
   void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->startAt = Clock::now(); };
 
   Status Update(const Context& ctx) override {
-    const auto& startAt = getNodeBlob<Blob>()->startAt;
     // Check if timeout at first.
     auto now = Clock::now();
-    if (now > startAt + duration) return Status::FAILURE;
+    if (now > getNodeBlob<Blob>()->startAt + duration) return Status::FAILURE;
     return child->Tick(ctx);
   }
 };
@@ -909,9 +895,8 @@ class DelayNode : public DecoratorNode {
   };
 
   Status Update(const Context& ctx) override {
-    const auto& a = getNodeBlob<Blob>()->firstRunAt;
     auto now = Clock::now();
-    if (now < a + duration) return Status::RUNNING;
+    if (now < getNodeBlob<Blob>()->firstRunAt + duration) return Status::RUNNING;
     return child->Tick(ctx);
   }
 };
@@ -971,8 +956,6 @@ class RetryNode : public DecoratorNode {
       case Status::SUCCESS:
         return status;
       default:
-        // be careful that: should re-get the blob pointer.
-        b = getNodeBlob<Blob>();
         // Failure
         if (++b->cnt > maxRetries && maxRetries != -1) return Status::FAILURE;  // exeeds max retries.
         return Status::RUNNING;                                                 // continues retry
