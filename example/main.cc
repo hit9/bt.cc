@@ -69,6 +69,6 @@ int main(void) {
   bt::Context ctx;
   root.BindTreeBlob(blob);
   root.TickForever(ctx, 300ms, true);
-  root.ClearTreeBlob();
+  root.UnbindTreeBlob();
   return 0;
 }
