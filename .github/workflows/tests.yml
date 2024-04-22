@@ -14,6 +14,7 @@ jobs:
       fail-fast: false
 
       matrix:
+        build_type: [Debug, Release]
         os: [macos-latest, ubuntu-latest]
         cpp_compiler: [g++, clang++]
         include:
@@ -43,14 +44,14 @@ jobs:
         conan install .
         --output-folder=${{ runner.workspace }}/build
         --build=missing -s compiler.cppstd=20
-        -s build_type=Debug
+        -s build_type=${{ matrix.build_type }}
 
     - name: Configure CMake
       working-directory: ${{runner.workspace}}
       run: >
         cmake -B ${{ runner.workspace }}/build -S ${{ github.workspace }}
         -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
-        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DBT_TEST=1
