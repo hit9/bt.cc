@@ -169,7 +169,8 @@ class TreeBlob {
   // Allocates if not exist.
   template <TNodeBlob B>
   B* GetOrAllocate(const NodeId id) {
-    if (m.find(id) != m.end()) return reinterpret_cast<B*>(&buf[m[id]]);
+    auto it = m.find(id);
+    if (it != m.end()) return reinterpret_cast<B*>(&buf[it->second]);
     // Allocate new buffer.
     auto offset = buf.size();
     buf.resize(offset + sizeof(B));
