@@ -125,8 +125,8 @@ int main(void) {
   bt::Context ctx(blackboard);
 
   // Flip the board's internal double buffers post ticking.
-  root.BindBlob(blob);
+  root.BindTreeBlob(blob);
   root.TickForever(ctx, 300ms, false, [&](const bt::Context& ctx) { board.Flip(); });
-  root.ClearBlob();
+  root.ClearTreeBlob();
   return 0;
 }

@@ -8,7 +8,7 @@
 // Features
 // ~~~~~~~~
 //
-// 1. Nodes store no data states, data and behaviors are separated.
+// 1. Nodes store no data states, behaviors and data are separated.
 // 2. Builds a behavior tree in tree structure codes, concise and expressive,
 //    and supports to extend the builder.
 // 3. Built-in multiple decorative nodes, and supports custom decoration nodes,
@@ -40,9 +40,9 @@
 //   while(...) {
 //     // for each blob
 //     for (auto& blob : allBlobs) {
-//       root.BindBlob(blob);
+//       root.BindTreeBlob(blob);
 //       root.Tick(ctx)
-//       root.ClearBlob();
+//       root.ClearTreeBlob();
 //     }
 //   }
 //
@@ -117,41 +117,6 @@ using ull = unsigned long long;
 using NodeId = unsigned int;
 
 ////////////////////////////
-/// TreeBlob
-////////////////////////////
-
-// A TreeBlob constains a pointer to a continuous buffer that stores all node
-// states data for an entity.
-class TreeBlob {
- private:
-  // using a vector works and is simple enough
-  std::vector<uint8_t> buffer;
-  // Nodes => offset
-  std::unordered_map<NodeId, std::size_t> m;
-
- public:
-  TreeBlob() {}
-
-  // Returns true if the blob of the node with given id exists.
-  bool Exist(NodeId id) const { return m.find(id) != m.end(); }
-
-  // Allocates buffer for a node by providing node's id.
-  void Allocate(NodeId id, std::size_t size) {
-    auto offset = buffer.size();
-    m[id] = offset;
-    buffer.resize(buffer.size() + size);
-    std::fill(buffer.begin() + offset, buffer.end(), 0);
-  }
-
-  // Returns the pointer to the blob buffer for a node by providing the node id.
-  void* Get(NodeId id) const {
-    if (m.find(id) == m.end()) return nullptr;
-    auto p = &buffer[m.at(id)];
-    return const_cast<uint8_t*>(p);
-  }
-};
-
-////////////////////////////
 /// Context
 ////////////////////////////
 
@@ -172,6 +137,59 @@ struct Context {
   Context(T data) : data(data), seq(0) {}
 };
 
+// NodeBlob is the base class to store node's internal entity-related data and states.
+struct NodeBlob {
+  ull lastSeq;           // seq of last execution.
+  Status lastStatus;     // status of last execution.
+  bool running = false;  // is still running?
+
+  NodeBlob() : lastSeq(0), lastStatus(Status::UNDEFINED), running(false) {}
+};
+
+// Concept TNodeBlob for all classes derived from NodeInternalState.
+template <typename T>
+concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
+
+////////////////////////////
+/// TreeBlob
+////////////////////////////
+
+// A TreeBlob constains a vector, as a continuous buffer that stores all node
+// states data for an entity.
+class TreeBlob {
+ private:
+  // Using a vector works and is simple enough.
+  // The buffer won't grow any more once the tree is completely built.
+  std::vector<uint8_t> buffer;
+  // Mapping: node id => offset
+  std::unordered_map<NodeId, std::size_t> m;
+
+ public:
+  TreeBlob() {}
+
+  // Returns true if there's a node with given id already allocated its blob.
+  bool Exist(NodeId id) const { return m.find(id) != m.end(); }
+
+  // Allocates buffer for a node by providing node's id.
+  template <TNodeBlob B>
+  B* Allocate(NodeId id) {
+    auto offset = buffer.size();
+    m[id] = offset;
+    buffer.resize(offset + sizeof(B));
+    std::fill(buffer.begin() + offset, buffer.end(), 0);
+    return new (buffer.data() + offset) B();
+  }
+
+  // Returns the pointer to the blob buffer for a node by providing the node id.
+  template <TNodeBlob B>
+  B* Get(NodeId id) const {
+    if (m.find(id) == m.end()) return nullptr;
+    assert(buffer.data() != nullptr);
+    auto p = const_cast<uint8_t*>(buffer.data() + m.at(id));
+    return reinterpret_cast<B*>(p);
+  }
+};
+
 ////////////////////////////
 /// Node
 ////////////////////////////
@@ -180,19 +198,11 @@ struct Context {
 class IRootNode {
  public:
   // Returns the current binding TreeBlob's pointer.
-  virtual TreeBlob* GetBlob(void) const = 0;
+  virtual TreeBlob* GetTreeBlob(void) const = 0;
 };
 
-// NodeBlob is the base class to store node's internal entity-related data and states.
-struct NodeBlob {
-  ull lastSeq;           // seq of last execution.
-  Status lastStatus;     // status of last execution.
-  bool running = false;  // is still running?
-};
-
-// Concept TNodeBlob for all classes derived from NodeInternalState.
-template <typename T>
-concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
+// Global node id incrementer.
+static NodeId nextNodeId = 0;
 
 // The most base class of all behavior nodes.
 class Node {
@@ -203,9 +213,20 @@ class Node {
   NodeId id;
   IRootNode* root;  // holding a pointer to the root.
 
+  // Internal helper method to return the raw pointer to the node blob.
+  template <TNodeBlob B>
+  B* getNodeBlob() const {
+    assert(id != 0);
+    assert(root != nullptr);
+    auto b = root->GetTreeBlob();
+    assert(b != nullptr);
+    if (!b->Exist(id)) return b->Allocate<B>(id);
+    return b->Get<B>(id);
+  }
+
   // Internal method to visualize tree.
   virtual void makeVisualizeString(std::string& s, int depth, ull seq) {
-    auto b = GetNodeBlob<NodeBlob>();
+    auto b = GetNodeBlob();
     if (depth > 0) s += " |";
     for (int i = 1; i < depth; i++) s += "---|";
     if (depth > 0) s += "- ";
@@ -221,33 +242,28 @@ class Node {
   friend class SingleNode;
   friend class CompositeNode;
 
-  // friend with _InternalBuilderBase to access root and id;
+  // friend with _InternalBuilderBase to access root;
   friend class _InternalBuilderBase;
 
  public:
-  Node(const std::string& name = "Node") : name(name), id(0), root(nullptr) {}
+  Node(const std::string& name = "Node") : name(name), id(++nextNodeId), root(nullptr) {}
   virtual ~Node() = default;
-
-  // Return a raw pointer to the node blob for this node.
-  // Use this method to access entity-related data and states.
-  template <TNodeBlob B>
-  B* GetNodeBlob() const {
-    assert(root != nullptr);
-    assert(root->GetBlob() != nullptr);
-    auto b = root->GetBlob();
-    if (!b->Exist(id)) b->Allocate(id, sizeof(B));
-    return static_cast<B*>(b->Get(id));
-  }
+  // Returns the id of this node.
+  NodeId Id() const { return id; }
 
   // Type of the callback function for node traversal.
   using TraversalCallback = std::function<void(Node&)>;
+
+  // Helps to access the node blob's pointer, which stores the  entity-related data and states.
+  // Any Node has a NodeBlob class should override this.
+  virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
   // Traverse the subtree of the current node recursively and execute the given function cb.
   virtual void Traverse(TraversalCallback& cb) { cb(*this); }
 
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
-    auto b = GetNodeBlob<NodeBlob>();
+    auto b = GetNodeBlob();
     // First run of current round.
     if (!b->running) OnEnter(ctx);
     b->running = true;
@@ -267,10 +283,7 @@ class Node {
   // Returns the name of this node.
   virtual std::string_view Name() const { return name; }
   // Returns last status of this node.
-  bt::Status LastStatus() const {
-    auto b = GetNodeBlob<NodeBlob>();
-    return b->lastStatus;
-  }
+  bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
 
   // Validate whether the node is builded correctly.
   // Returns error message, empty string for good.
@@ -407,9 +420,6 @@ class SingleNode : public InternalNode {
     }
   }
 
-  // friend with _InternalBuilderBase for accessbility to traverse.
-  friend class _InternalBuilderBase;
-
  public:
   SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
@@ -448,9 +458,6 @@ class CompositeNode : public InternalNode {
     }
   }
 
-  // friend with _InternalBuilderBase for accessbility to traverse.
-  friend class _InternalBuilderBase;
-
  public:
   CompositeNode(const std::string& name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
@@ -485,17 +492,20 @@ struct _InternalStatefulCompositeNodeBlob : NodeBlob {
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
  protected:
   bool considerable(int i) const override {
-    auto& skipTable = GetNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
+    auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
     return !(skipTable.contains(i));
   }
   void skip(const int i) {
-    auto& skipTable = GetNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
+    auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
     skipTable.insert(i);
   }
 
  public:
+  NodeBlob* GetNodeBlob() const override {
+    return static_cast<NodeBlob*>(getNodeBlob<_InternalStatefulCompositeNodeBlob>());
+  }
   void OnTerminate(const Context& ctx, Status status) override {
-    auto& skipTable = GetNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
+    auto& skipTable = getNodeBlob<_InternalStatefulCompositeNodeBlob>()->skipTable;
     skipTable.clear();
   }
 };
@@ -829,13 +839,14 @@ class RepeatNode : public DecoratorNode {
   RepeatNode(int n, const std::string& name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
+  NodeBlob* GetNodeBlob() const override { return static_cast<NodeBlob*>(getNodeBlob<RepeatNodeBlob>()); }
   // Clears counter on enter.
-  void OnEnter(const Context& ctx) override { GetNodeBlob<RepeatNodeBlob>()->cnt = 0; }
+  void OnEnter(const Context& ctx) override { getNodeBlob<RepeatNodeBlob>()->cnt = 0; }
   // Reset counter on termination.
-  void OnTerminate(const Context& ctx, Status status) override { GetNodeBlob<RepeatNodeBlob>()->cnt = 0; }
+  void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<RepeatNodeBlob>()->cnt = 0; }
 
   Status Update(const Context& ctx) override {
-    auto& cnt = GetNodeBlob<RepeatNodeBlob>()->cnt;
+    auto& cnt = getNodeBlob<RepeatNodeBlob>()->cnt;
     if (n == 0) return Status::SUCCESS;
     auto status = child->Tick(ctx);
     if (status == Status::RUNNING) return Status::RUNNING;
@@ -866,12 +877,15 @@ class TimeoutNode : public DecoratorNode {
   TimeoutNode(std::chrono::milliseconds d, const std::string& name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
+  NodeBlob* GetNodeBlob() const override {
+    return static_cast<NodeBlob*>(getNodeBlob<TimeoutNodeBlob<Clock>>());
+  }
   void OnEnter(const Context& ctx) override {
-    GetNodeBlob<TimeoutNodeBlob<Clock>>()->startAt = Clock::now();
+    getNodeBlob<TimeoutNodeBlob<Clock>>()->startAt = Clock::now();
   };
 
   Status Update(const Context& ctx) override {
-    auto& startAt = GetNodeBlob<TimeoutNodeBlob<Clock>>()->startAt;
+    auto& startAt = getNodeBlob<TimeoutNodeBlob<Clock>>()->startAt;
     // Check if timeout at first.
     auto now = Clock::now();
     if (now > startAt + duration) return Status::FAILURE;
@@ -896,15 +910,18 @@ class DelayNode : public DecoratorNode {
   DelayNode(std::chrono::milliseconds duration, const std::string& name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
+  NodeBlob* GetNodeBlob() const override {
+    return static_cast<NodeBlob*>(getNodeBlob<DelayNodeBlob<Clock>>());
+  }
   void OnEnter(const Context& ctx) override {
-    GetNodeBlob<DelayNodeBlob<Clock>>()->firstRunAt = Clock::now();
+    getNodeBlob<DelayNodeBlob<Clock>>()->firstRunAt = Clock::now();
   };
   void OnTerminate(const Context& ctx, Status status) override {
-    GetNodeBlob<DelayNodeBlob<Clock>>()->ffirstRunAt = TimePoint<Clock>::min();
+    getNodeBlob<DelayNodeBlob<Clock>>()->firstRunAt = TimePoint<Clock>::min();
   };
 
   Status Update(const Context& ctx) override {
-    auto b = GetNodeBlob<DelayNodeBlob<Clock>>();
+    auto b = getNodeBlob<DelayNodeBlob<Clock>>();
     auto now = Clock::now();
     if (now < b->firstRunAt + duration) return Status::RUNNING;
     return child->Tick(ctx);
@@ -933,19 +950,22 @@ class RetryNode : public DecoratorNode {
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
 
+  NodeBlob* GetNodeBlob() const override {
+    return static_cast<NodeBlob*>(getNodeBlob<RetryNodeBlob<Clock>>());
+  }
   void OnEnter(const Context& ctx) override {
-    auto b = GetNodeBlob<RetryNodeBlob>();
+    auto b = getNodeBlob<RetryNodeBlob<Clock>>();
     b->cnt = 0;
     b->lastRetryAt = TimePoint<Clock>::min();
   }
   void OnTerminate(const Context& ctx, Status status) override {
-    auto b = GetNodeBlob<RetryNodeBlob>();
+    auto b = getNodeBlob<RetryNodeBlob<Clock>>();
     b->cnt = 0;
     b->lastRetryAt = status == Status::FAILURE ? Clock::now() : TimePoint<Clock>::min();
   }
 
   Status Update(const Context& ctx) override {
-    auto b = GetNodeBlob<RetryNodeBlob>();
+    auto b = getNodeBlob<RetryNodeBlob<Clock>>();
     auto& cnt = b->cnt;
     auto& lastRetryAt = b->lastRetryAt;
 
@@ -988,11 +1008,11 @@ class RootNode : public SingleNode, public IRootNode {
   //////////////////////////
 
   // Binds a tree blob.
-  void BindBlob(TreeBlob& b) { blob = &b; }
+  void BindTreeBlob(TreeBlob& b) { blob = &b; }
   // Returns current tree blob.
-  TreeBlob* GetBlob(void) const override { return blob; }
+  TreeBlob* GetTreeBlob(void) const override { return blob; }
   // Clears current tree blob.
-  void ClearBlob() { blob = nullptr; }
+  void ClearTreeBlob() { blob = nullptr; }
 
   //////////////////////////
   /// Visualization
@@ -1049,7 +1069,6 @@ class RootNode : public SingleNode, public IRootNode {
 class _InternalBuilderBase {
  protected:
   void bindNodeRoot(Node& node, IRootNode* root) { node.root = root; }
-  void setNodeId(Node& node, NodeId id) { node.id = id; }
 };
 
 // Builder helps to build a tree.
@@ -1060,7 +1079,6 @@ class Builder : _InternalBuilderBase {
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
   IRootNode* root;
-  NodeId nextNodeId = 0;
 
   // Validate node.
   void validate(Node* node) {
@@ -1108,30 +1126,24 @@ class Builder : _InternalBuilderBase {
   // Creates a leaf node.
   auto& attachLeafNode(Ptr<LeafNode> p) {
     adjust();
-    // Setup node basic info.
-    bindNodeRoot(*p, root);
-    setNodeId(*p, ++nextNodeId);
     // Append to stack's top as a child.
     p->OnBuild();
     stack.top()->Append(std::move(p));
     // resets level.
     level = 1;
-    return static_cast<D&>(*this);
+    return *static_cast<D*>(this);
   }
 
   // Creates an internal node with optional children.
   auto& attachInternalNode(Ptr<InternalNode> p) {
     adjust();
-    // Setup node basic info.
-    bindNodeRoot(*p, root);
-    setNodeId(*p, ++nextNodeId);
     // Append to stack's top as a child, and replace the top.
     auto parent = stack.top();
     stack.push(p.get());
     parent->Append(std::move(p));
     // resets level.
     level = 1;
-    return static_cast<D&>(*this);
+    return *static_cast<D*>(this);
   }
 
   // make a new node onto this tree, returns the unique_ptr.
@@ -1140,12 +1152,11 @@ class Builder : _InternalBuilderBase {
   Ptr<T> make(Args... args) {
     auto p = std::make_unique<T>(std::forward<Args>(args)...);
     bindNodeRoot(*p, root);
-    setNodeId(*p, nextNodeId++);
     return p;
   };
 
  public:
-  Builder() : level(1), nextNodeId(0), root(nullptr) {}
+  Builder() : level(1), root(nullptr) {}
   ~Builder() {}
 
   // Increases indent level to append node.
@@ -1412,11 +1423,8 @@ class Builder : _InternalBuilderBase {
   //      ._().Subtree(std::move(subtree))
   //      .End();
   auto& Subtree(RootNode&& subtree) {
-    // Resets root and id in sub tree recursively.
-    Node::TraversalCallback f = [&](Node& node) {
-      bindNodeRoot(node, root);
-      setNodeId(node, nextNodeId++);
-    };
+    // Resets root in sub tree recursively.
+    Node::TraversalCallback f = [&](Node& node) { bindNodeRoot(node, root); };
     subtree.Traverse(f);
     // move to the tree
     return C<RootNode>(std::move(subtree));

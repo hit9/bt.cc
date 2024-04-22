@@ -40,6 +40,10 @@ struct Blackboard {
   int customDecoratorCounter = 0;
 };
 
+struct Entity {
+  bt::TreeBlob blob;
+};
+
 class A : public bt::Action {
  public:
   void OnEnter(const bt::Context& ctx) override {

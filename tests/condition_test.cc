@@ -17,6 +17,9 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindBlob(e.blob);
+
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->shouldC == false);
 
@@ -25,8 +28,10 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   // A should not started.
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->statusA == bt::Status::UNDEFINED);
+  root.ClearBlob();
 
   // Tick#2: Make C true.
+  root.BindBlob(e.blob);
   bb->shouldC = true;
   root.Tick(ctx);
   // A should started running.
@@ -34,12 +39,16 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   REQUIRE(bb->statusA == bt::Status::RUNNING);
   // The whole tree should running.
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.ClearBlob();
 
   // Tick#3: Make A Success.
+  root.BindBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
   root.Tick(ctx);
   // The whole tree should Success.
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+
+  root.ClearBlob();
 }
 
 TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
@@ -56,6 +65,9 @@ TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindBlob(e.blob);
+
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->shouldC == false);
 
@@ -73,6 +85,8 @@ TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
   REQUIRE(bb->statusA == bt::Status::RUNNING);
   // The whole tree should running.
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+
+  root.ClearBlob();
 }
 
 TEST_CASE("Condition/3", "[simplest condition - if]") {
@@ -89,6 +103,9 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindBlob(e.blob);
+
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->shouldC == false);
 
@@ -105,6 +122,7 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->statusA == bt::Status::RUNNING);
   // The whole tree should running.
+  REQUIRE(static_cast<bt::NodeBlob*>(root.GetNodeBlob())->running);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#2: Make C false.
@@ -115,6 +133,8 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
   REQUIRE(bb->statusA == bt::Status::RUNNING);
   // The whole tree should failure.
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.ClearBlob();
 }
 
 TEST_CASE("Condition/4", "[simplest condition - and]") {
@@ -132,6 +152,9 @@ TEST_CASE("Condition/4", "[simplest condition - and]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindBlob(e.blob);
+
   // Tick#1
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
@@ -148,6 +171,8 @@ TEST_CASE("Condition/4", "[simplest condition - and]") {
   root.Tick(ctx);
   // The whole tree should Success
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+
+  root.ClearBlob();
 }
 
 TEST_CASE("Condition/5", "[simplest condition - or]") {
@@ -164,6 +189,9 @@ TEST_CASE("Condition/5", "[simplest condition - or]") {
     .End()
     ;
   // clang-format on
+
+  Entity e;
+  root.BindBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -187,6 +215,8 @@ TEST_CASE("Condition/5", "[simplest condition - or]") {
   root.Tick(ctx);
   // The whole tree should Success
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+
+  root.ClearBlob();
 }
 
 TEST_CASE("Condition/6", "[simplest condition - not]") {
@@ -202,6 +232,9 @@ TEST_CASE("Condition/6", "[simplest condition - not]") {
     ;
   // clang-format on
 
+  Entity e;
+  root.BindBlob(e.blob);
+
   // Tick#1
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
@@ -210,4 +243,6 @@ TEST_CASE("Condition/6", "[simplest condition - not]") {
   bb->shouldC = true;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.ClearBlob();
 }
