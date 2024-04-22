@@ -174,19 +174,16 @@ class TreeBlob {
   template <TNodeBlob B>
   B* Allocate(NodeId id) {
     auto offset = buffer.size();
+    buffer.resize(offset + sizeof(B), 0);
     m[id] = offset;
-    buffer.resize(offset + sizeof(B));
-    std::fill(buffer.begin() + offset, buffer.end(), 0);
-    return new (buffer.data() + offset) B();
+    return new (&buffer[offset]) B;
   }
 
   // Returns the pointer to the blob buffer for a node by providing the node id.
   template <TNodeBlob B>
   B* Get(NodeId id) const {
     if (m.find(id) == m.end()) return nullptr;
-    assert(buffer.data() != nullptr);
-    auto p = const_cast<uint8_t*>(buffer.data() + m.at(id));
-    return reinterpret_cast<B*>(p);
+    return reinterpret_cast<B*>(const_cast<uint8_t*>(&buffer[m.at(id)]));
   }
 };
 
