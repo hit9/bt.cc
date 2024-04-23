@@ -1,3 +1,8 @@
+0.3.0
+-----
+
+* 2024-04-23: Separate entity-related stateful data and behaviors (and structure of them)
+
 0.2.3
 -----
 
