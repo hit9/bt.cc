@@ -137,10 +137,9 @@ struct Context {
 
 // NodeBlob is the base class to store node's internal entity-related data and states.
 struct NodeBlob {
-  bool running;       // is still running?
-  Status lastStatus;  // status of last execution.
-  ull lastSeq;        // seq of last execution.
-  NodeBlob() : running(false), lastStatus(Status::UNDEFINED), lastSeq(0) {}
+  bool running = false;                   // is still running?
+  Status lastStatus = Status::UNDEFINED;  // status of last execution.
+  ull lastSeq = 0;                        // seq of last execution.
 };
 
 // Concept TNodeBlob for all classes derived from NodeBlob.
@@ -163,12 +162,12 @@ class TreeBlob {
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
   template <TNodeBlob B>
-  B* GetOrAllocate(const NodeId id) {
+  B* Make(const NodeId id) {
     auto it = m.find(id);
     if (it != m.end()) return static_cast<B*>((it->second).get());
     auto p = std::make_unique<B>();
     auto rp = p.get();
-    m[id] = std::move(p);
+    m.insert({id, std::move(p)});
     return rp;
   }
 };
@@ -184,12 +183,12 @@ class IRootNode {
   virtual TreeBlob* GetTreeBlob(void) const = 0;
 };
 
-// Global node id incrementer.
-static NodeId nextNodeId = 0;
-
 // The most base class of all behavior nodes.
 class Node {
  private:
+  // Global node id incrementer.
+  static NodeId nextNodeId;
+
   std::string name;
 
  protected:
@@ -203,7 +202,8 @@ class Node {
     assert(root != nullptr);
     auto b = root->GetTreeBlob();
     assert(b != nullptr);
-    return b->GetOrAllocate<B>(id);  // allocate, or get if exist
+    // allocate, or get if exist
+    return b->Make<B>(id);
   }
 
   // Internal method to visualize tree.
@@ -228,7 +228,10 @@ class Node {
   friend class _InternalBuilderBase;
 
  public:
-  Node(const std::string& name = "Node") : name(name), id(++nextNodeId), root(nullptr) {}
+  Node(const std::string& name = "Node") : name(name), root(nullptr) {
+    static NodeId nextNodeId = 0;
+    id = ++nextNodeId;
+  }
   virtual ~Node() = default;
   // Returns the id of this node.
   NodeId Id() const { return id; }
@@ -246,6 +249,7 @@ class Node {
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
     auto b = GetNodeBlob();
+    std::cout << id << " " << name << " isrunning:" << b->running << std::endl;
     // First run of current round.
     if (!b->running) OnEnter(ctx);
     b->running = true;
@@ -831,7 +835,7 @@ class RepeatNode : public DecoratorNode {
     if (status == Status::RUNNING) return Status::RUNNING;
     if (status == Status::FAILURE) return Status::FAILURE;
     // Count success until n times, -1 will never stop.
-    if (++getNodeBlob<Blob>()->cnt == n) return Status::SUCCESS;
+    if (++(getNodeBlob<Blob>()->cnt) == n) return Status::SUCCESS;
     // Otherwise, it's still running.
     return Status::RUNNING;
   }
@@ -939,14 +943,12 @@ class RetryNode : public DecoratorNode {
 
   Status Update(const Context& ctx) override {
     auto b = getNodeBlob<Blob>();
-    const auto cnt = b->cnt;
-    const auto a = b->lastRetryAt;
 
-    if (maxRetries != -1 && cnt > maxRetries) return Status::FAILURE;
+    if (maxRetries != -1 && b->cnt > maxRetries) return Status::FAILURE;
 
     // If has failures before, and retry timepoint isn't arriving.
     auto now = Clock::now();
-    if (cnt > 0 && now < a + interval) return Status::RUNNING;
+    if (b->cnt > 0 && now < b->lastRetryAt + interval) return Status::RUNNING;
 
     // Time to run/retry.
     auto status = child->Tick(ctx);
@@ -1052,7 +1054,7 @@ class Builder : public _InternalBuilderBase {
  private:
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
-  IRootNode* root;
+  IRootNode* root = nullptr;
 
   // Validate node.
   void validate(Node* node) {
