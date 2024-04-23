@@ -979,7 +979,7 @@ class RootNode : public SingleNode, public IRootNode {
   TreeBlob* blob = nullptr;
 
  public:
-  RootNode(const std::string& name = "Root") : SingleNode(name) { root = this; }
+  RootNode(const std::string& name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
 
   //////////////////////////
@@ -1110,6 +1110,7 @@ class Builder : public _InternalBuilderBase {
     stack.push(&r);
     root = &r;
     setNodeId(r, getNextNodeId());
+    bindNodeRoot(r,root);
   }
 
   // Creates a leaf node.
