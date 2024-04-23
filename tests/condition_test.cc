@@ -250,3 +250,42 @@ TEST_CASE("Condition/6", "[simplest condition - not]") {
 
   root.UnbindTreeBlob();
 }
+
+TEST_CASE("Condition/7", "[simplest condition - not2]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+
+  // clang-format off
+    root
+    .Sequence()
+    ._().Not<C>()
+    ._().Action<A>()
+    .End()
+    ;
+  // clang-format on
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
+
+  REQUIRE(!bb->shouldC);
+
+  // Tick#1
+  root.Tick(ctx);
+  REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  REQUIRE(bb->counterA == 1);
+
+  // Tick#2: Make A Success.
+  bb->shouldA = bt::Status::SUCCESS;
+  root.Tick(ctx);
+  REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  REQUIRE(bb->counterA == 2);
+
+  // Tick#3: Make C true.
+  bb->shouldC = true;
+  root.Tick(ctx);
+  REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+  REQUIRE(bb->counterA == 2);  // not ticked
+
+  root.UnbindTreeBlob();
+}

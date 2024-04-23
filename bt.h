@@ -1300,7 +1300,7 @@ class Builder : public _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& Not(ConditionArgs... args) {
-    return C<InvertNode>("Not", make<Condition>(std::forward<ConditionArgs>(args)...));
+    return C<InvertNode>("Not", make<Condition>(false, std::forward<ConditionArgs>(args)...));
   }
 
   // Repeat creates a RepeatNode.
