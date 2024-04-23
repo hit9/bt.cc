@@ -1,8 +1,7 @@
 #include <any>
 #include <catch2/catch_test_macros.hpp>
-#include <iostream>
 #include <memory>
-#include <string>
+#include <string_view>
 #include <unordered_set>
 
 #include "bt.h"
@@ -12,7 +11,7 @@ TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
   // CounterDecorator counts how many times the decorated nodes' ticking was executed.
   class CounterDecorator : public bt::DecoratorNode {
    public:
-    CounterDecorator(const std::string& name = "CounterDecorator") : bt::DecoratorNode(name) {}
+    CounterDecorator(std::string_view name = "CounterDecorator") : bt::DecoratorNode(name) {}
     bt::Status Update(const bt::Context& ctx) override {
       auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
       bb->customDecoratorCounter++;
@@ -23,7 +22,7 @@ TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
   // Extend the builder.
   class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
    public:
-    MyTree(const std::string& name = "Root") : bt::RootNode(name) { bindRoot(*this); }
+    MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder() { bindRoot(*this); }
     auto& Counter() { return C<CounterDecorator>(); }
   };
 
