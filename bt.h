@@ -83,7 +83,6 @@
 #include <thread>       // for this_thread::sleep_for
 #include <type_traits>  // for is_base_of_v
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace bt {
@@ -200,7 +199,6 @@ class Node {
   std::string_view name;
 
  protected:
-  // auto-increment id in its tree, starts from 1
   NodeId id = 0;
   // holding a pointer to the root.
   IRootNode* root = nullptr;
@@ -234,7 +232,7 @@ class Node {
   friend class SingleNode;
   friend class CompositeNode;
 
-  // friend with _InternalBuilderBase to access member root;
+  // friend with _InternalBuilderBase to access member root and id;
   friend class _InternalBuilderBase;
 
  public:
@@ -499,6 +497,10 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // Prepare priorities of considerable children on every tick.
   // p[i] stands for i'th child's priority.
   // Since p will be refreshed on each tick, so it's stateless.
+  // Although only considerable children's priorities are refreshed,
+  // and the q only picks considerable children, but p and q are still stateless with entities.
+  // p and q are consistent with respect to "which child nodes to consider".
+  // If we change the blob binding, the new tick won't be affected by previous blob.
   std::vector<unsigned int> p;
   // Refresh priorities for considerable children.
   void refreshp(const Context& ctx) {
@@ -1298,7 +1300,7 @@ class Builder : public _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& Not(ConditionArgs... args) {
-    return C<InvertNode>(false, "Not", make<Condition>(std::forward<ConditionArgs>(args)...));
+    return C<InvertNode>("Not", make<Condition>(std::forward<ConditionArgs>(args)...));
   }
 
   // Repeat creates a RepeatNode.
