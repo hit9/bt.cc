@@ -981,7 +981,7 @@ class RootNode : public SingleNode, public IRootNode {
   // Current binding tree blob.
   TreeBlob* blob = nullptr;
   // Number of nodes on this tree, including the root itself.
-  int n = 1;
+  int n = 0;
 
   friend class _InternalBuilderBase;  // for access to n;
 
@@ -1070,14 +1070,11 @@ class Builder : public _InternalBuilderBase {
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
   RootNode* root = nullptr;
-
   // Node id incrementer for a tree.
-  static NodeId nextNodeId;
+  // unique inside this builder instance.
+  NodeId nextNodeId = 0;
 
-  NodeId getNextNodeId() {
-    static NodeId nextNodeId = 0;
-    return ++nextNodeId;
-  }
+  NodeId getNextNodeId() { return ++nextNodeId; }
 
   // Validate node.
   void validate(Node* node) {
