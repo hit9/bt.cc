@@ -5,7 +5,7 @@
 
 [中文说明](README.zh.md)
 
-AA lightweight behavior tree library that separates data and behavior.
+A lightweight behavior tree library that separates data and behavior.
 
 Requires at least C++20.
 
@@ -17,12 +17,13 @@ Just copy the header file `bt.h` and include it.
 
 ## Features
 
-**Suitable for: multiple entities sharing a single set of behaviors**.
-
 1. Nodes store no data states, behaviors and data are separated.
+
+   **Suitable for: multiple entities sharing a same set of behaviors**.
+
 2. Builds a behavior tree in tree structure codes, concise and expressive,
    and supports to extend the builder.
-3. Built-in multiple decorators, and supports custom decoration nodes,
+3. Built-in multiple decorators, and supports custom decorator definition.
 4. Supports composite nodes with priority child nodes, stateful compositors, and random selector.
 
 
@@ -492,7 +493,7 @@ Reference: <span id="ref"></span>
   Once a subtree is `moved` onto another tree, the subtree itself is completely useless,
   all its resources are belong to the parent tree.
 
-  If you want to clone a tree for multiple instances, to duplicate behaviors purpose,
+  If you want to clone a tree for multiple instances, for duplicating behaviors purpose,
   you could make a factory function:
 
   ```cpp
