@@ -78,7 +78,7 @@ int main(void) {
       root.BindTreeBlob(entity.blob);
       ++ctx.seq;
       root.Tick(ctx);
-      root.Visualize(ctx.seq); // debug visualize
+      root.Visualize(ctx.seq);  // debug visualize
       root.UnbindTreeBlob();
     }
     std::this_thread::sleep_for(30ms);
