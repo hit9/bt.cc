@@ -1,5 +1,6 @@
 #include <any>
 #include <catch2/catch_test_macros.hpp>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -100,4 +101,45 @@ TEST_CASE("Builder/2", "[node id increment]") {
     ids.insert(node.Id());
   };
   root.Traverse(f);
+}
+
+TEST_CASE("Builder/3", "[node count]") {
+  auto st = [&]() {  // n: 4
+    bt::Tree subtree("Subtree");
+    // clang-format off
+      subtree
+        .Sequence()
+        ._().Action<A>()
+        ._().Action<B>()
+        .End()
+      ;
+    // clang-format on
+    return subtree;
+  };
+
+  bt::Tree root;
+
+  // clang-format off
+  root // 1, => total 18
+    .Sequence() // 1
+    ._().Switch() // 1
+    ._()._().Case<C>() // 2
+    ._()._()._().Action<A>() // 1
+    ._()._().Case<C>() // 2
+    ._()._()._().Sequence() // 1
+    ._()._()._()._().Action<A>() // 1
+    ._()._()._()._().Action<B>() // 1
+    ._().Parallel() // 1
+    ._()._().Action<A>() // 1
+    ._()._().Action<B>() // 1
+    ._().Subtree(st()) // 4
+    .End()
+    ;
+  // clang-format on
+  REQUIRE(st().NumNodes() == 4);
+  REQUIRE(root.NumNodes() == 18);
+
+  // All id should <= n;
+  bt::Node::TraversalCallback cb1 = [&](bt::Node& node) { REQUIRE(node.Id() <= root.NumNodes()); };
+  root.Traverse(cb1);
 }

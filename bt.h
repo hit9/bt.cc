@@ -1054,12 +1054,17 @@ class RootNode : public SingleNode, public IRootNode {
 
 // A internal proxy base class to setup Node's internal bindings.
 class _InternalBuilderBase {
+ private:
+  // Node id incrementer for a tree.
+  // unique inside this builder instance.
+  NodeId nextNodeId = 0;
+
  protected:
-  void bindNodeRoot(Node& node, RootNode* root) {
+  void onNodeAttach(Node& node, RootNode* root) {
     node.root = root;
     root->n++;
+    node.id = ++nextNodeId;
   }
-  void setNodeId(Node& node, NodeId id) { node.id = id; }
 };
 
 // Builder helps to build a tree.
@@ -1070,12 +1075,6 @@ class Builder : public _InternalBuilderBase {
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
   RootNode* root = nullptr;
-  // Node id incrementer for a tree.
-  // unique inside this builder instance.
-  NodeId nextNodeId = 0;
-
-  NodeId getNextNodeId() { return ++nextNodeId; }
-
   // Validate node.
   void validate(Node* node) {
     auto e = node->Validate();
@@ -1117,8 +1116,7 @@ class Builder : public _InternalBuilderBase {
   void bindRoot(RootNode& r) {
     stack.push(&r);
     root = &r;
-    setNodeId(r, getNextNodeId());
-    bindNodeRoot(r, root);
+    onNodeAttach(r, root);
   }
 
   // Creates a leaf node.
@@ -1147,10 +1145,9 @@ class Builder : public _InternalBuilderBase {
   // make a new node onto this tree, returns the unique_ptr.
   // Any node creation should use this function.
   template <TNode T, typename... Args>
-  Ptr<T> make(Args... args) {
+  Ptr<T> make(bool skipActtach, Args... args) {
     auto p = std::make_unique<T>(std::forward<Args>(args)...);
-    bindNodeRoot(*p, root);
-    setNodeId(*p, getNextNodeId());
+    if (!skipActtach) onNodeAttach(*p, root);
     return p;
   };
 
@@ -1173,7 +1170,7 @@ class Builder : public _InternalBuilderBase {
   // General creators.
   ///////////////////////////////////
 
-  // C is a function to attach an arbitrary Node.
+  // C is a function to attach an arbitrary new Node.
   // It can be used to attach custom node implementation.
   // Code exapmle::
   //    root
@@ -1184,9 +1181,18 @@ class Builder : public _InternalBuilderBase {
   template <TNode T, typename... Args>
   auto& C(Args... args) {
     if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
-      return attachLeafNode(make<T>(std::forward<Args>(args)...));
+      return attachLeafNode(make<T>(false, std::forward<Args>(args)...));
     else  // InternalNode.
-      return attachInternalNode(make<T>(std::forward<Args>(args)...));
+      return attachInternalNode(make<T>(false, std::forward<Args>(args)...));
+  }
+
+  // Attach a node through move, rarely used.
+  template <TNode T>
+  auto& M(T&& inst) {
+    if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
+      return attachLeafNode(make<T>(true, std::move(inst)));
+    else  // InternalNode.
+      return attachInternalNode(make<T>(true, std::move(inst)));
   }
 
   ///////////////////////////////////
@@ -1292,7 +1298,7 @@ class Builder : public _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& Not(ConditionArgs... args) {
-    return C<InvertNode>("Not", make<Condition>(std::forward<ConditionArgs>(args)...));
+    return C<InvertNode>(false, "Not", make<Condition>(std::forward<ConditionArgs>(args)...));
   }
 
   // Repeat creates a RepeatNode.
@@ -1366,7 +1372,7 @@ class Builder : public _InternalBuilderBase {
   //   .End();
   template <TCondition Condition, typename... ConditionArgs>
   auto& If(ConditionArgs&&... args) {
-    auto condition = make<Condition>(std::forward<ConditionArgs>(args)...);
+    auto condition = make<Condition>(false, std::forward<ConditionArgs>(args)...);
     return C<ConditionalRunNode>(std::move(condition), "If");
   }
 
@@ -1398,7 +1404,7 @@ class Builder : public _InternalBuilderBase {
   // Alias to If, for working alongs with Switch.
   template <TCondition Condition, typename... ConditionArgs>
   auto& Case(ConditionArgs&&... args) {
-    auto condition = make<Condition>(std::forward<ConditionArgs>(args)...);
+    auto condition = make<Condition>(false, std::forward<ConditionArgs>(args)...);
     return C<ConditionalRunNode>(std::move(condition), "Case");
   }
 
@@ -1425,13 +1431,10 @@ class Builder : public _InternalBuilderBase {
   //      .End();
   auto& Subtree(RootNode&& subtree) {
     // Resets root in sub tree recursively.
-    Node::TraversalCallback f = [&](Node& node) {
-      bindNodeRoot(node, root);
-      setNodeId(node, getNextNodeId());
-    };
+    Node::TraversalCallback f = [&](Node& node) { onNodeAttach(node, root); };
     subtree.Traverse(f);
     // move to the tree
-    return C<RootNode>(std::move(subtree));
+    return M<RootNode>( std::move(subtree));
   }
 };
 
