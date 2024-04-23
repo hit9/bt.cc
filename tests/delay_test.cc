@@ -11,8 +11,6 @@ TEST_CASE("Delay/1", "[simple delay]") {
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
 
-  Entity e;
-
   // clang-format off
     root
     .Delay(100ms)
@@ -21,6 +19,9 @@ TEST_CASE("Delay/1", "[simple delay]") {
     ;
   // clang-format on
 
+  Entity e;
+
+  REQUIRE(bb->counterA == 0);
   // Tick#1: A is not started.
   root.BindTreeBlob(e.blob);
   root.Tick(ctx);

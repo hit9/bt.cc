@@ -22,6 +22,7 @@ TEST_CASE("Blob/1", "[simple tree blob test]") {
 
   auto q = blob.GetOrAllocate<CustomNodeBlob>(2);
   REQUIRE(q != nullptr);
+  REQUIRE(!q->running);
   auto p3 = blob.GetOrAllocate<CustomNodeBlob>(2);
   REQUIRE(p3 == q);
   REQUIRE(p3->x == 0);
