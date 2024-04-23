@@ -82,7 +82,6 @@
 #include <string_view>
 #include <thread>       // for this_thread::sleep_for
 #include <type_traits>  // for is_base_of_v
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -155,9 +154,8 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 // One tree blob for one entity.
 class TreeBlob {
  private:
-  // NodeId => {Blob pointer, exist}
-  using P = std::pair<std::unique_ptr<NodeBlob>, bool>;
-  std::vector<P> m;
+  std::vector<std::unique_ptr<NodeBlob>> m;  // NodeId => Blob pointer.
+  std::vector<bool> exist; // NodeId => exist, dynamic
 
  public:
   TreeBlob() {}
@@ -167,15 +165,15 @@ class TreeBlob {
   template <TNodeBlob B>
   B* Make(const NodeId id) {
     if (id < m.size()) {
-      if (m[id].second) return static_cast<B*>(m[id].first.get());
+      if (exist[id]) return static_cast<B*>(m[id].get());
     } else {
-      auto sz = m.size();
       m.resize(id + 1);
-      while (sz < m.size()) m[sz++].second = false;
+      exist.resize(id + 1, false);
     }
     auto p = std::make_unique<B>();
     auto rp = p.get();
-    m[id] = {std::move(p), true};
+    m[id] = std::move(p);
+    exist[id] = true;
     return rp;
   }
 };
@@ -1110,7 +1108,7 @@ class Builder : public _InternalBuilderBase {
     stack.push(&r);
     root = &r;
     setNodeId(r, getNextNodeId());
-    bindNodeRoot(r,root);
+    bindNodeRoot(r, root);
   }
 
   // Creates a leaf node.
