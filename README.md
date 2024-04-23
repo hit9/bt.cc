@@ -5,17 +5,26 @@
 
 [中文说明](README.zh.md)
 
-A simple lightweight behavior tree library.
+AA lightweight behavior tree library that separates data and behavior.
 
 Requires at least C++20.
 
 ![](misc/visualization.jpg)
 
-**Unstable now !**
-
 ## Installation
 
 Just copy the header file `bt.h` and include it.
+
+## Features
+
+**Suitable for: multiple entities sharing a single set of behaviors**.
+
+1. Nodes store no data states, behaviors and data are separated.
+2. Builds a behavior tree in tree structure codes, concise and expressive,
+   and supports to extend the builder.
+3. Built-in multiple decorators, and supports custom decoration nodes,
+4. Supports composite nodes with priority child nodes, stateful compositors, and random selector.
+
 
 ## The Big Picture
 
@@ -24,6 +33,10 @@ Code overview to structure a behavior tree in C++:
 * Horizontally from left to right represents the relationship from parent node to child node.
 * Vertically, the sibling relationship, from top to bottom, prioritizes from high to low (by default).
 * In a depth-first way, prioritize recursively ticking all descendant nodes.
+* Behaviors and entity-related data are separated, the tree stores behaviors and structure of them,
+  the blob stores entity-related stateful data.
+
+In the behaviors module (system):
 
 ```cpp
 // Build the tree.
@@ -40,12 +53,34 @@ root
  ._()._()._().Action<E>()
  .End()
 ;
+```
 
+In the entities module:
+
+```cpp
+struct Entity {
+  // TreeBlob holds all the entity-related stateful data.
+  bt::TreeBlob blob;
+};
+```
+
+In the tick loop:
+
+```cpp
 bt::Context ctx;
 
-// In the tick loop.
-++ctx.seq;
-root.Tick(ctx);
+// In the ticking loop.
+while(...) {
+  // for each blob
+  for (auto& e : entities) {
+    // Bind the data blob for some entity.
+    root.BindTreeBlob(e.blob);
+    ++ctx.seq;
+    root.Tick(ctx)
+    // Unbind the data blob
+    root.UnbindTreeBlob();
+  }
+}
 ```
 
 ## Manual
@@ -59,6 +94,7 @@ Reference: <span id="ref"></span>
 - [Node Classification](#classes)
 - Leaf Nodes:
   - [Action](#action)
+    - [Stateful Action](#node-blob)
   - [Condition](#condition)
 - Composite Nodes:
   - [Sequence](#sequence)
@@ -109,6 +145,7 @@ Reference: <span id="ref"></span>
    .End();
   ```
 
+  It's important to note that the behavior tree stores only tree structure information, without any entity related states and data.
 
 * Execution status enums <span id="status"></span> <a href="#ref">[↑]</a>:
 
@@ -155,6 +192,32 @@ Reference: <span id="ref"></span>
   ```cpp
   .Action<A>()
   ```
+
+  To define a stateful action node, that is the node depends on entity-related stateful data.
+  We can define a `NodeBlob` struct at first:        <span id="node-blob"></span> <a href="#ref">[↑]</a>:
+
+  ```cpp
+  struct ANodeBlob : NodeBlob {
+    // data fields storing entity related data.
+    // It's recommended to set a initial value for each field.
+  };
+  ```
+
+  And then overrides the interface `GetNodeBlob`:
+
+  ```cpp
+  class A : public bt::Action {
+   public:
+    NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
+    // Use getNodeBlob<ANodeBlob>() to access the pointer to this's node's data blob.
+    bt::Status Update(const bt::Context& ctx) override {
+        ANodeBlob* b = getNodeBlob<ANodeBlob>();
+        b->data = 1; // example
+    }
+  };
+  ```
+
+  For other node types, are all the same way to define entity-related stateful node classes.
 
 * **Condition**  <span id="condition"></span> <a href="#ref">[↑]</a>
 
@@ -315,6 +378,8 @@ Reference: <span id="ref"></span>
   ._().Action<B>()
   ```
 
+  The stateful data for stateful compositors are all stored in their `NodeBlob` structs.
+
 * **Decorators** <span id="decorators"></span> <a href="#ref">[↑]</a>
 
   * `If` executes its child node only if given condition turns `true`. <span id="if"></span> <a href="#ref">[↑]</a>
@@ -408,6 +473,9 @@ Reference: <span id="ref"></span>
     };
     ```
 
+    It's a common case that a decorator node need to manage some stateful data, if they are entity-related,
+    we can define a `NodeBlob` for this decorator class to work together, checkout the section above: [stateful action node](#node-blob).
+
 * **Sub Tree** <span id="subtree"></span> <a href="#ref">[↑]</a>
 
   A behavior tree can be used as another behavior tree's child:
@@ -421,6 +489,33 @@ Reference: <span id="ref"></span>
   ._().Subtree<A>(std::move(subtree));
   ```
 
+  Once a subtree is `moved` onto another tree, the subtree itself is completely useless,
+  all its resources are belong to the parent tree.
+
+  If you want to clone a tree for multiple instances, to duplicate behaviors purpose,
+  you could make a factory function:
+
+  ```cpp
+  auto Walk = [&](int poi) {
+    bt::Tree subtree("Walk");
+    // clang-format off
+      subtree
+        .Sequence()
+        ._().Action<Movement>(poi)
+        ._().Action<Standby>()
+        .End()
+      ;
+    // clang-format on
+    return subtree;
+  };
+
+  root.
+    .RandomSelector()
+    ._().Subtree(Walk(point1))
+    ._().Subtree(Walk(point2))
+    .End();
+  ```
+
 * **The tick `Context`** <span id="context"></span> <a href="#ref">[↑]</a>
 
   ```cpp
@@ -430,6 +525,8 @@ Reference: <span id="ref"></span>
     std::any data; // user data.
   }
   ```
+
+  A main purpose of the `Context` struct is, able to access enviroment/world data in the behavior classes.
 
 * **Hook Methods**  <span id="hooks"></span> <a href="#ref">[↑]</a>
 
@@ -474,9 +571,11 @@ Reference: <span id="ref"></span>
   In fact, if there's no need for non-programmer usage, behavior trees and blackboards don't require a serialization mechanism.
   In such cases, using a plain `struct` as the blackboard is a simple and fast approach.
 
+  When there's one behavior tree for multiple entities, blackboard could be a "world" instance or a reference accessable to entities in the world.
+
   ```cpp
   struct Blackboard {
-      // TODO: fields.
+      World* world;
   };
 
   // Pass a pointer to blackboard to the tick context.
@@ -507,7 +606,7 @@ Reference: <span id="ref"></span>
   // Supposes that we need to add a custom decorator.
   class MyCustomMethodNode : public bt::DecoratorNode {
    public:
-    MyCustomMethodNode(const std::string& name, ..) : bt::DecoratorNode(name) {}
+    MyCustomMethodNode(std::string_view& name, ..) : bt::DecoratorNode(name) {}
     // Implements the Update function.
     bt::Status Update(const bt::Context& ctx) override {
       // Propagates ticking to the child.
@@ -520,9 +619,9 @@ Reference: <span id="ref"></span>
   class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
    public:
     // Bind the builder to this tree inside the construct function.
-    MyTree(std::string name = "Root") : bt::RootNode(name) { bindRoot(*this); }
+    MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder() { bindRoot(*this); }
     // Implements the custom builder method.
-    // C is the method to creates a custom Node.
+    // C is the method to creates a custom Node to attach to the tree.
     auto& MyCustomMethod(...) { return C<MyCustomMethodNode>(...); }
   };
 
@@ -553,7 +652,7 @@ Reference: <span id="ref"></span>
   root
     .Parallel()
     ._().Action<C>()
-    ._().OnSignal("a.*")
+    ._().OnSignal("a.*")  // once signal not matched here，ticking stop to propagate downward
     ._()._().Parallel()
     ._()._()._().OnSignal("a.a")
     ._()._()._()._().Action<A>()

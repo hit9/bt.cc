@@ -3,7 +3,7 @@
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
 
-一个简单的、轻量的行为树库。
+一个轻量的、数据和行为分离的行为树库。
 
 需要至少 C++20
 
@@ -13,12 +13,25 @@
 
 只需要拷贝走头文件 `bt.h`
 
+## 特点
+
+**适合：多个实体共享一套行为树的情形**。
+
+1. 节点本身不存储数据状态，行为和实体的数据是分离的。
+2. 用树状的代码结构来组织一颗行为树，简洁直观，同时支持自定义扩展构建器。
+3. 自带多种装饰器节点，支持自定义装饰器节点。
+4. 支持带优先级的组合节点、带状态的组合节点 和 随机选择器。
+
+
 ## 代码总览
 
 用 C++ 代码来组织一颗行为树，总体来看如下：
 
 * 横向自左向右是父节点到子节点
 * 纵向兄弟关系、从上到下执行顺序 (默认的)
+* 行为和实体数据是分离的，树存储行为及其结构，blob 存储实体相关的状态数据
+
+在负责行为的模块（系统）中：
 
 ```cpp
 // 组织一颗行为树
@@ -35,12 +48,34 @@ root
  ._()._()._().Action<E>()
  .End()
 ;
+```
 
+在负责实体/组件数据的模块中：
+
+```cpp
+struct Entity {
+  // TreeBlob 存储行为树中所有和实体相关的状态数据
+  bt::TreeBlob blob;
+};
+```
+
+在 Tick 循环中：
+
+```cpp
 bt::Context ctx;
 
 // Tick 主循环中
-++ctx.seq;
-root.Tick(ctx);
+while(...) {
+  // 遍历每个实体的 blob 数据块
+  for (auto& e : entities) {
+    // 绑定一个实体的数据块
+    root.BindTreeBlob(e.blob);
+    ++ctx.seq;
+    root.Tick(ctx)
+    // 解绑
+    root.UnbindTreeBlob();
+  }
+}
 ```
 
 ## 参考手册
@@ -52,6 +87,7 @@ root.Tick(ctx);
 - [节点分类](#classes)
 - 叶子节点:
   - [动作节点 Action](#action)
+    - [带实体状态的节点](#node-blob)
   - [条件节点 Condition](#condition)
 - 组合节点:
   - [顺序节点 Sequence](#sequence)
@@ -102,6 +138,8 @@ root.Tick(ctx);
    .End();
   ```
 
+  重要的一点是，行为树本身只存储树的结构信息、不含任何和实体相关的数据。
+
 * 执行状态码 <span id="status"></span> <a href="#a">[↑]</a>:
 
   ```cpp
@@ -147,6 +185,30 @@ root.Tick(ctx);
   ```cpp
   .Action<A>()
   ```
+
+  如果要实现一个带实体状态的行为节点，可以先定义一个 `NodeBlob` 结构：      <span id="node-blob"></span> <a href="#ref">[↑]</a>:
+
+  ```cpp
+  struct ANodeBlob : NodeBlob {
+    // 数据字段, 建议加上默认值
+  };
+  ```
+
+  然后，实现接口 `GetNodeBlob`:
+
+  ```cpp
+  class A : public bt::Action {
+   public:
+    NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
+    // 在这个类的方法中，可以用 getNodeBlob<ANodeBlob>() 来获取数据快的指针, 来查询和修改实体相关的数据。
+    bt::Status Update(const bt::Context& ctx) override {
+        ANodeBlob* b = getNodeBlob<ANodeBlob>();
+        b->data = 1; // 示例
+    }
+  };
+  ```
+
+  对于其他节点来说，要实现一个和实体相关的状态化的节点，都是如法炮制的。
 
 * **Condition**  <span id="condition"></span> <a href="#a">[↑]</a>
 
@@ -304,6 +366,9 @@ root.Tick(ctx);
   ._().Action<A>()
   ._().Action<B>()
   ```
+
+  有状态的组合节点的状态数据都存储在了 `NodeBlob` 中。
+
 * **Decorators** <span id="decorators"></span> <a href="#a">[↑]</a>
 
   * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#a">[↑]</a>
@@ -396,6 +461,9 @@ root.Tick(ctx);
     };
     ```
 
+    一些装饰节点需要利用状态化的数据，如果是实体相关的（也就是非行为树结构的数据），那么可以定义一个 `NodeBlob` 来搭配使用。
+    方法和 [上面所讲的带状态的 Action 节点](#node-blob) 一样。
+
 * **子树**  <span id="subtree"></span> <a href="#a">[↑]</a>
 
   一个行为树可以挂载到另一颗行为树上，作为子树存在：
@@ -409,6 +477,32 @@ root.Tick(ctx);
   ._().Subtree<A>(std::move(subtree));
   ```
 
+  一旦一个子树挂载到另外一颗树上时，它本身就没有什么作用了，因为它的所有数据和资源都已经属于新的父树了。
+
+  如果你想要把一颗树复制多份，达到把一套行为做出来几个副本的效果，那么可以使用一个函数来构造子树：
+
+
+  ```cpp
+  auto Walk = [&](int poi) {
+    bt::Tree subtree("Walk");
+    // clang-format off
+      subtree
+        .Sequence()
+        ._().Action<Movement>(poi)
+        ._().Action<Standby>()
+        .End()
+      ;
+    // clang-format on
+    return subtree;
+  };
+
+  root.
+    .RandomSelector()
+    ._().Subtree(Walk(point1))
+    ._().Subtree(Walk(point2))
+    .End();
+  ```
+
 * **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#a">[↑]</a>
 
   这个结构体会从根节点一路传递到每个被执行到的节点：
@@ -420,6 +514,8 @@ root.Tick(ctx);
     std::any data; // 用户数据，比如可以存放一个指向黑板的指针
   }
   ```
+
+  上下文结构体的主要作用，是可以在行为内部接触外部数据，比如世界中的环境信息。
 
 
 * **钩子函数**  <span id="hooks"></span> <a href="#a">[↑]</a>
@@ -458,9 +554,11 @@ root.Tick(ctx);
 
   实际上，如果不面向非开发人员的话，行为树和黑板是不需要序列化机制的，也就是说，可以直接使用一个 `struct` 来作为黑板，简单而高效：
 
+  当一颗行为树面向多个实体时，也就是说，多个实体、一套行为的时候，黑板可以是一个「世界」、或者可以访问到世界中的所有实体的一个句柄。
+
   ```cpp
   struct Blackboard {
-      // TODO: fields.
+      World* world;
   };
 
   // 把黑板的指针放入 tick context 结构体
@@ -492,7 +590,7 @@ root.Tick(ctx);
   // 先定义一个 Node class
   class MyCustomMethodNode : public bt::DecoratorNode {
    public:
-    MyCustomMethodNode(const std::string& name, ..) : bt::DecoratorNode(name) {}
+    MyCustomMethodNode(std::string_veiw name, ..) : bt::DecoratorNode(name) {}
     // 实现核心的 Update 方法
     bt::Status Update(const bt::Context& ctx) override {
       // 向下传递 tick 到子节点
@@ -505,7 +603,7 @@ root.Tick(ctx);
   class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
    public:
     // 在构造函数中注意绑定到 builder
-    MyTree(std::string name = "Root") : bt::RootNode(name) { bindRoot(*this); }
+    MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder()  { bindRoot(*this); }
     // 实现自定义方法 MyCustomMethod 来创建一个 MyCustomMethodNode
     // C 是一个通用的创建节点的方法
     auto& MyCustomMethod(...) { return C<MyCustomMethodNode>(...); }
@@ -537,7 +635,7 @@ root.Tick(ctx);
   root
     .Parallel()
     ._().Action<C>()
-    ._().OnSignal("a.*")
+    ._().OnSignal("a.*")    // 一旦这里没匹配到信号，就不会向下 tick 了
     ._()._().Parallel()
     ._()._()._().OnSignal("a.a")
     ._()._()._()._().Action<A>()
