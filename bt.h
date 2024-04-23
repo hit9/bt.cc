@@ -11,7 +11,7 @@
 // 1. Nodes store no data states, behaviors and data are separated.
 // 2. Builds a behavior tree in tree structure codes, concise and expressive,
 //    and supports to extend the builder.
-// 3. Built-in multiple decorative nodes, and supports custom decoration nodes,
+// 3. Built-in multiple decorators, and supports custom decoration nodes,
 // 4. Supports composite nodes with priority child nodes, and random selector.
 //
 // Code Example
@@ -51,7 +51,7 @@
 //
 //   Node
 //    | InternalNode
-//    |   | SinleNode
+//    |   | SingleNode
 //    |   |  | RootNode
 //    |   |  | DecoratorNode
 //    |   | CompositeNode
@@ -69,8 +69,8 @@
 
 #include <algorithm>  // for max, min
 #include <any>
-#include <cassert>
-#include <chrono>  // for milliseconds, high_resolution_clock
+#include <cassert>  // for NDEBUG mode
+#include <chrono>   // for milliseconds, high_resolution_clock
 #include <functional>
 #include <iostream>  // for cout, flush
 #include <memory>    // for unique_ptr
@@ -249,7 +249,6 @@ class Node {
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
     auto b = GetNodeBlob();
-    std::cout << id << " " << name << " isrunning:" << b->running << std::endl;
     // First run of current round.
     if (!b->running) OnEnter(ctx);
     b->running = true;
