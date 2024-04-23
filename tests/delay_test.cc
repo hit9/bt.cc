@@ -19,15 +19,22 @@ TEST_CASE("Delay/1", "[simple delay]") {
     ;
   // clang-format on
 
+  Entity e;
+
+  REQUIRE(bb->counterA == 0);
   // Tick#1: A is not started.
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(bb->counterA == 0);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 
   // 100ms later
   std::this_thread::sleep_for(100ms);
 
   // Tick#2: A is started.
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
+  root.UnbindTreeBlob();
 }

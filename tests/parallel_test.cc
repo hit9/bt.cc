@@ -16,10 +16,13 @@ TEST_CASE("Parallel/1", "[all success]") {
     ;
   // clang-format on
 
+  Entity e;
+
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
+  root.BindTreeBlob(e.blob);
   root.Tick(ctx);
   // both A and B should RUNNING
   REQUIRE(bb->counterA == 1);
@@ -28,8 +31,10 @@ TEST_CASE("Parallel/1", "[all success]") {
   REQUIRE(bb->statusB == bt::Status::RUNNING);
   // The whole tree should RUNNING
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 
   // Tick#2: Makes A SUCCESS.
+  root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
   root.Tick(ctx);
   // A should SUCCESS, and b should still running
@@ -39,8 +44,10 @@ TEST_CASE("Parallel/1", "[all success]") {
   REQUIRE(bb->statusB == bt::Status::RUNNING);
   // The whole tree should RUNNING
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 
   // Tick#3: Makes B success.
+  root.BindTreeBlob(e.blob);
   bb->shouldB = bt::Status::SUCCESS;
   root.Tick(ctx);
 
@@ -50,6 +57,7 @@ TEST_CASE("Parallel/1", "[all success]") {
   REQUIRE(bb->statusB == bt::Status::SUCCESS);
   // The whole tree should SUCCESS
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
@@ -67,6 +75,10 @@ TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
+
+  Entity e;
+
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -99,6 +111,8 @@ TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
   REQUIRE(bb->statusB == bt::Status::FAILURE);
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
@@ -116,6 +130,9 @@ TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -137,6 +154,8 @@ TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
   REQUIRE(bb->statusB == bt::Status::RUNNING);
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Parallel/4", "[all failure]") {
@@ -154,6 +173,9 @@ TEST_CASE("Parallel/4", "[all failure]") {
 
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   root.Tick(ctx);
@@ -176,6 +198,8 @@ TEST_CASE("Parallel/4", "[all failure]") {
   REQUIRE(bb->statusB == bt::Status::FAILURE);
   // The whole tree should FAILURE
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("Parallel/5", "[priority partial]") {
@@ -190,6 +214,9 @@ TEST_CASE("Parallel/5", "[priority partial]") {
     .End()
     ;
   // clang-format on
+
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
@@ -214,4 +241,6 @@ TEST_CASE("Parallel/5", "[priority partial]") {
   REQUIRE(bb->statusG == bt::Status::FAILURE);
   REQUIRE(bb->statusH == bt::Status::SUCCESS);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+
+  root.UnbindTreeBlob();
 }

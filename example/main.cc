@@ -1,6 +1,6 @@
 #include <chrono>
 #include <cstdlib>
-#include <string>
+#include <iostream>
 
 #include "bt.h"
 using namespace std::chrono_literals;
@@ -27,6 +27,11 @@ class C : public bt::ConditionNode {
  public:
   std::string_view Name() const override { return "C"; }
   bool Check(const bt::Context& ctx) override { return std::rand() % 10 > 5; }
+};
+
+// Entity
+struct Entity {
+  bt::TreeBlob blob;
 };
 
 int main(void) {
@@ -64,7 +69,20 @@ int main(void) {
     ;
   // clang-format on
 
+  std::vector<Entity> entities(10);
+
   bt::Context ctx;
-  root.TickForever(ctx, 300ms, true);
+
+  while (true) {
+    for (auto& entity : entities) {
+      root.BindTreeBlob(entity.blob);
+      ++ctx.seq;
+      root.Tick(ctx);
+      root.Visualize(ctx.seq);  // debug visualize
+      root.UnbindTreeBlob();
+    }
+    std::this_thread::sleep_for(30ms);
+  }
+
   return 0;
 }

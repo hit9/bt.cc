@@ -20,6 +20,8 @@ TEST_CASE("RandomSelector/1", "[simple random selector]") {
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
 
+  Entity e;
+  root.BindTreeBlob(e.blob);
   // Tick#1
   bb->shouldPriorityI = 0;
   bb->shouldPriorityH = 1;
@@ -29,6 +31,7 @@ TEST_CASE("RandomSelector/1", "[simple random selector]") {
   REQUIRE(bb->counterH == 100);
   // The whole tree should RUNNING
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 }
 
 TEST_CASE("RandomSelector/2", "[simple random selector - equal weights]") {
@@ -46,6 +49,8 @@ TEST_CASE("RandomSelector/2", "[simple random selector - equal weights]") {
 
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
+  Entity e;
+  root.BindTreeBlob(e.blob);
 
   // Tick#1
   bb->shouldPriorityI = 1;
@@ -55,4 +60,5 @@ TEST_CASE("RandomSelector/2", "[simple random selector - equal weights]") {
   REQUIRE(abs(bb->counterI - bb->counterH) < 3000);  // error < 30%?
   // The whole tree should RUNNING
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+  root.UnbindTreeBlob();
 }
