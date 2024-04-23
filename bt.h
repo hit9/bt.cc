@@ -84,6 +84,7 @@
 #include <type_traits>  // for is_base_of_v
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace bt {
@@ -154,7 +155,9 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 // One tree blob for one entity.
 class TreeBlob {
  private:
-  std::unordered_map<NodeId, std::unique_ptr<NodeBlob>> m;
+  // NodeId => {Blob pointer, exist}
+  using P = std::pair<std::unique_ptr<NodeBlob>, bool>;
+  std::vector<P> m;
 
  public:
   TreeBlob() {}
@@ -163,11 +166,16 @@ class TreeBlob {
   // Allocates if not exist.
   template <TNodeBlob B>
   B* Make(const NodeId id) {
-    auto it = m.find(id);
-    if (it != m.end()) return static_cast<B*>((it->second).get());
+    if (id < m.size()) {
+      if (m[id].second) return static_cast<B*>(m[id].first.get());
+    } else {
+      auto sz = m.size();
+      m.resize(id + 1);
+      while (sz < m.size()) m[sz++].second = false;
+    }
     auto p = std::make_unique<B>();
     auto rp = p.get();
-    m.insert({id, std::move(p)});
+    m[id] = {std::move(p), true};
     return rp;
   }
 };
@@ -186,14 +194,13 @@ class IRootNode {
 // The most base class of all behavior nodes.
 class Node {
  private:
-  // Global node id incrementer.
-  static NodeId nextNodeId;
-
   std::string name;
 
  protected:
-  NodeId id;
-  IRootNode* root;  // holding a pointer to the root.
+  // auto-increment id in its tree, starts from 1
+  NodeId id = 0;
+  // holding a pointer to the root.
+  IRootNode* root = nullptr;
 
   // Internal helper method to return the raw pointer to the node blob.
   template <TNodeBlob B>
@@ -228,10 +235,7 @@ class Node {
   friend class _InternalBuilderBase;
 
  public:
-  Node(const std::string& name = "Node") : name(name), root(nullptr) {
-    static NodeId nextNodeId = 0;
-    id = ++nextNodeId;
-  }
+  Node(const std::string& name = "Node") : name(name) {}
   virtual ~Node() = default;
   // Returns the id of this node.
   NodeId Id() const { return id; }
@@ -1044,6 +1048,7 @@ class RootNode : public SingleNode, public IRootNode {
 class _InternalBuilderBase {
  protected:
   void bindNodeRoot(Node& node, IRootNode* root) { node.root = root; }
+  void setNodeId(Node& node, NodeId id) { node.id = id; }
 };
 
 // Builder helps to build a tree.
@@ -1054,6 +1059,14 @@ class Builder : public _InternalBuilderBase {
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
   IRootNode* root = nullptr;
+
+  // Node id incrementer for a tree.
+  static NodeId nextNodeId;
+
+  NodeId getNextNodeId() {
+    static NodeId nextNodeId = 0;
+    return ++nextNodeId;
+  }
 
   // Validate node.
   void validate(Node* node) {
@@ -1127,6 +1140,7 @@ class Builder : public _InternalBuilderBase {
   Ptr<T> make(Args... args) {
     auto p = std::make_unique<T>(std::forward<Args>(args)...);
     bindNodeRoot(*p, root);
+    setNodeId(*p, getNextNodeId());
     return p;
   };
 
@@ -1401,7 +1415,10 @@ class Builder : public _InternalBuilderBase {
   //      .End();
   auto& Subtree(RootNode&& subtree) {
     // Resets root in sub tree recursively.
-    Node::TraversalCallback f = [&](Node& node) { bindNodeRoot(node, root); };
+    Node::TraversalCallback f = [&](Node& node) {
+      bindNodeRoot(node, root);
+      setNodeId(node, getNextNodeId());
+    };
     subtree.Traverse(f);
     // move to the tree
     return C<RootNode>(std::move(subtree));
