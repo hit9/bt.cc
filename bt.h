@@ -154,8 +154,8 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 // One tree blob for one entity.
 class TreeBlob {
  private:
-  std::vector<std::unique_ptr<NodeBlob>> m;  // NodeId => Blob pointer.
-  std::vector<bool> exist; // NodeId => exist, dynamic
+  std::vector<std::unique_ptr<NodeBlob>> m;  // NodeId-1 => Blob pointer.
+  std::vector<bool> exist;                   // NodeId-1 => exist, dynamic
 
  public:
   TreeBlob() {}
@@ -163,17 +163,20 @@ class TreeBlob {
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
   template <TNodeBlob B>
-  B* Make(const NodeId id) {
-    if (id < m.size()) {
-      if (exist[id]) return static_cast<B*>(m[id].get());
+  B* Make(const NodeId id, std::size_t cap = 0) {
+    // optimization: pre allocate memory.
+    if (cap && m.capacity() < cap) m.reserve(cap);
+    auto offset = id - 1, sz = id;
+    if (sz <= m.size()) {
+      if (exist[offset]) return static_cast<B*>(m[offset].get());
     } else {
-      m.resize(id + 1);
-      exist.resize(id + 1, false);
+      m.resize(sz);
+      exist.resize(sz, false);
     }
     auto p = std::make_unique<B>();
     auto rp = p.get();
-    m[id] = std::move(p);
-    exist[id] = true;
+    m[offset] = std::move(p);
+    exist[offset] = true;
     return rp;
   }
 };
@@ -187,6 +190,8 @@ class IRootNode {
  public:
   // Returns the current binding TreeBlob's pointer.
   virtual TreeBlob* GetTreeBlob(void) const = 0;
+  // Returns the total number of nodes built on this tree.
+  virtual int NumNodes() const = 0;
 };
 
 // The most base class of all behavior nodes.
@@ -208,7 +213,7 @@ class Node {
     auto b = root->GetTreeBlob();
     assert(b != nullptr);
     // allocate, or get if exist
-    return b->Make<B>(id);
+    return b->Make<B>(id, root->NumNodes());
   }
 
   // Internal method to visualize tree.
@@ -975,10 +980,15 @@ class RootNode : public SingleNode, public IRootNode {
  protected:
   // Current binding tree blob.
   TreeBlob* blob = nullptr;
+  // Number of nodes on this tree, including the root itself.
+  int n = 1;
+
+  friend class _InternalBuilderBase;  // for access to n;
 
  public:
   RootNode(const std::string& name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
+  int NumNodes() const override final { return n; }
 
   //////////////////////////
   /// Blob Apis
@@ -1045,7 +1055,10 @@ class RootNode : public SingleNode, public IRootNode {
 // A internal proxy base class to setup Node's internal bindings.
 class _InternalBuilderBase {
  protected:
-  void bindNodeRoot(Node& node, IRootNode* root) { node.root = root; }
+  void bindNodeRoot(Node& node, RootNode* root) {
+    node.root = root;
+    root->n++;
+  }
   void setNodeId(Node& node, NodeId id) { node.id = id; }
 };
 
@@ -1056,7 +1069,7 @@ class Builder : public _InternalBuilderBase {
  private:
   std::stack<InternalNode*> stack;
   int level;  // indent level to insert new node, starts from 1.
-  IRootNode* root = nullptr;
+  RootNode* root = nullptr;
 
   // Node id incrementer for a tree.
   static NodeId nextNodeId;
