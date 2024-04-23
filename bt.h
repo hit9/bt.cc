@@ -197,7 +197,7 @@ class IRootNode {
 // The most base class of all behavior nodes.
 class Node {
  private:
-  std::string name;
+  std::string_view name;
 
  protected:
   // auto-increment id in its tree, starts from 1
@@ -238,7 +238,7 @@ class Node {
   friend class _InternalBuilderBase;
 
  public:
-  Node(const std::string& name = "Node") : name(name) {}
+  Node(std::string_view name = "Node") : name(name) {}
   virtual ~Node() = default;
   // Returns the id of this node.
   NodeId Id() const { return id; }
@@ -328,7 +328,7 @@ using PtrList = std::vector<Ptr<T>>;
 // LeafNode is a class contains no children.
 class LeafNode : public Node {
  public:
-  LeafNode(const std::string& name = "LeafNode") : Node(name) {}
+  LeafNode(std::string_view name = "LeafNode") : Node(name) {}
 };
 
 // Concept TLeafNode for all classes derived from LeafNode.
@@ -346,7 +346,7 @@ concept TLeafNode = std::is_base_of_v<LeafNode, T>;
 class ConditionNode : public LeafNode {
  public:
   using Checker = std::function<bool(const Context&)>;
-  ConditionNode(Checker checker = nullptr, const std::string& name = "Condition")
+  ConditionNode(Checker checker = nullptr, std::string_view name = "Condition")
       : LeafNode(name), checker(checker) {}
   Status Update(const Context& ctx) override { return Check(ctx) ? Status::SUCCESS : Status::FAILURE; }
 
@@ -370,7 +370,7 @@ concept TCondition = std::is_base_of_v<ConditionNode, T>;
 // ActionNode contains no children, it just runs a task.
 class ActionNode : public LeafNode {
  public:
-  ActionNode(const std::string& name = "Action") : LeafNode(name) {}
+  ActionNode(std::string_view name = "Action") : LeafNode(name) {}
 
   // Subclasses must implement function Update().
 };
@@ -387,7 +387,7 @@ concept TAction = std::is_base_of_v<ActionNode, T>;
 // InternalNode can have children nodes.
 class InternalNode : public Node {
  public:
-  InternalNode(const std::string& name = "InternalNode") : Node(name) {}
+  InternalNode(std::string_view name = "InternalNode") : Node(name) {}
   // Append a child to this node.
   virtual void Append(Ptr<Node> node) = 0;
 };
@@ -413,7 +413,7 @@ class SingleNode : public InternalNode {
   }
 
  public:
-  SingleNode(const std::string& name = "SingleNode", Ptr<Node> child = nullptr)
+  SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
   void Traverse(TraversalCallback& cb) override {
     child->Traverse(cb);
@@ -451,7 +451,7 @@ class CompositeNode : public InternalNode {
   }
 
  public:
-  CompositeNode(const std::string& name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
+  CompositeNode(std::string_view name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
   void Traverse(TraversalCallback& cb) override {
@@ -567,7 +567,7 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
 // SequenceNode runs children one by one, and succeeds only if all children succeed.
 class SequenceNode final : public _InternalSequenceNodeBase {
  public:
-  SequenceNode(const std::string& name = "Sequence", PtrList<Node>&& cs = {})
+  SequenceNode(std::string_view name = "Sequence", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -578,7 +578,7 @@ class StatefulSequenceNode final : public _InternalStatefulCompositeNode, public
   void onChildSuccess(const int i) override { skip(i); }
 
  public:
-  StatefulSequenceNode(const std::string& name = "Sequence*", PtrList<Node>&& cs = {})
+  StatefulSequenceNode(std::string_view name = "Sequence*", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -611,7 +611,7 @@ class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode 
 // SelectorNode succeeds if any child succeeds.
 class SelectorNode final : public _InternalSelectorNodeBase {
  public:
-  SelectorNode(const std::string& name = "Selector", PtrList<Node>&& cs = {})
+  SelectorNode(std::string_view name = "Selector", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -622,7 +622,7 @@ class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _Inte
   void onChildFailure(const int i) override { skip(i); }
 
  public:
-  StatefulSelectorNode(const std::string& name = "Selector*", PtrList<Node>&& cs = {})
+  StatefulSelectorNode(std::string_view name = "Selector*", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -688,7 +688,7 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
 // RandomSelectorNode selects children via weighted random selection.
 class RandomSelectorNode final : public _InternalRandomSelectorNodeBase {
  public:
-  RandomSelectorNode(const std::string& name = "RandomSelector", PtrList<Node>&& cs = {})
+  RandomSelectorNode(std::string_view name = "RandomSelector", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -700,7 +700,7 @@ class StatefulRandomSelectorNode final : virtual public _InternalStatefulComposi
   void onChildFailure(const int i) override { skip(i); }
 
  public:
-  StatefulRandomSelectorNode(const std::string& name = "RandomSelector*", PtrList<Node>&& cs = {})
+  StatefulRandomSelectorNode(std::string_view name = "RandomSelector*", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -739,7 +739,7 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
 // parallelly.
 class ParallelNode final : public _InternalParallelNodeBase {
  public:
-  ParallelNode(const std::string& name = "Parallel", PtrList<Node>&& cs = {})
+  ParallelNode(std::string_view name = "Parallel", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -750,7 +750,7 @@ class StatefulParallelNode final : public _InternalStatefulCompositeNode, public
   void onChildSuccess(const int i) override { skip(i); }
 
  public:
-  StatefulParallelNode(const std::string& name = "Parallel*", PtrList<Node>&& cs = {})
+  StatefulParallelNode(std::string_view name = "Parallel*", PtrList<Node>&& cs = {})
       : CompositeNode(name, std::move(cs)), _InternalPriorityCompositeNode() {}
 };
 
@@ -761,7 +761,7 @@ class StatefulParallelNode final : public _InternalStatefulCompositeNode, public
 // DecoratorNode decorates a single child node.
 class DecoratorNode : public SingleNode {
  public:
-  DecoratorNode(const std::string& name = "Decorator", Ptr<Node> child = nullptr)
+  DecoratorNode(std::string_view name = "Decorator", Ptr<Node> child = nullptr)
       : SingleNode(name, std::move(child)) {}
 
   // To create a custom DecoratorNode.
@@ -772,7 +772,7 @@ class DecoratorNode : public SingleNode {
 // InvertNode inverts its child's status.
 class InvertNode : public DecoratorNode {
  public:
-  InvertNode(const std::string& name = "Invert", Ptr<Node> child = nullptr)
+  InvertNode(std::string_view name = "Invert", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)) {}
 
   Status Update(const Context& ctx) override {
@@ -795,9 +795,9 @@ class ConditionalRunNode : public DecoratorNode {
   Ptr<ConditionNode> condition;
 
  public:
-  ConditionalRunNode(Ptr<ConditionNode> condition = nullptr, const std::string& name = "ConditionalRun",
+  ConditionalRunNode(Ptr<ConditionNode> condition = nullptr, std::string_view name = "ConditionalRun",
                      Ptr<Node> child = nullptr)
-      : DecoratorNode(name + '<' + std::string(condition->Name()) + '>', std::move(child)),
+      : DecoratorNode(std::string(name) + '<' + std::string(condition->Name()) + '>', std::move(child)),
         condition(std::move(condition)) {}
 
   void Traverse(TraversalCallback& cb) override {
@@ -826,7 +826,7 @@ class RepeatNode : public DecoratorNode {
   int n;
 
  public:
-  RepeatNode(int n, const std::string& name = "Repeat", Ptr<Node> child = nullptr)
+  RepeatNode(int n, std::string_view name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
@@ -865,7 +865,7 @@ class TimeoutNode : public DecoratorNode {
   std::chrono::milliseconds duration;
 
  public:
-  TimeoutNode(std::chrono::milliseconds d, const std::string& name = "Timeout", Ptr<Node> child = nullptr)
+  TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
@@ -895,7 +895,7 @@ class DelayNode : public DecoratorNode {
   std::chrono::milliseconds duration;
 
  public:
-  DelayNode(std::chrono::milliseconds duration, const std::string& name = "Delay", Ptr<Node> c = nullptr)
+  DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
@@ -931,7 +931,7 @@ class RetryNode : public DecoratorNode {
   std::chrono::milliseconds interval;
 
  public:
-  RetryNode(int maxRetries, std::chrono::milliseconds interval, const std::string& name = "Retry",
+  RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
 
@@ -986,7 +986,7 @@ class RootNode : public SingleNode, public IRootNode {
   friend class _InternalBuilderBase;  // for access to n;
 
  public:
-  RootNode(const std::string& name = "Root") : SingleNode(name) {}
+  RootNode(std::string_view name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
   int NumNodes() const override final { return n; }
 
@@ -1434,7 +1434,7 @@ class Builder : public _InternalBuilderBase {
     Node::TraversalCallback f = [&](Node& node) { onNodeAttach(node, root); };
     subtree.Traverse(f);
     // move to the tree
-    return M<RootNode>( std::move(subtree));
+    return M<RootNode>(std::move(subtree));
   }
 };
 
@@ -1446,7 +1446,7 @@ class Builder : public _InternalBuilderBase {
 // Please keep this class simple enough.
 class Tree : public RootNode, public Builder<Tree> {
  public:
-  Tree(std::string name = "Root") : RootNode(name), Builder() { bindRoot(*this); }
+  Tree(std::string_view name = "Root") : RootNode(name), Builder() { bindRoot(*this); }
 };
 
 }  // namespace bt
