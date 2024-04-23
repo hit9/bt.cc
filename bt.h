@@ -1109,6 +1109,7 @@ class Builder : public _InternalBuilderBase {
   void bindRoot(RootNode& r) {
     stack.push(&r);
     root = &r;
+    setNodeId(r, getNextNodeId());
   }
 
   // Creates a leaf node.
