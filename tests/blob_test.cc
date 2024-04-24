@@ -1,19 +1,21 @@
 #include <catch2/catch_test_macros.hpp>
+#include <functional>
 
 #include "bt.h"
 #include "types.h"
 
 TEST_CASE("Blob/1", "[simple tree blob test]") {
   bt::TreeBlob blob;
+  std::function<void(bt::NodeBlob*)> cb = nullptr;
 
   // Allocate one
-  auto p0 = blob.Make<bt::NodeBlob>(1);
+  auto p0 = blob.Make<bt::NodeBlob>(1, nullptr);
   REQUIRE(p0 != nullptr);
-  auto p1 = blob.Make<bt::NodeBlob>(1);
+  auto p1 = blob.Make<bt::NodeBlob>(1, nullptr);
   REQUIRE(p1 == p0);
   REQUIRE(p1->lastStatus == bt::Status::UNDEFINED);
   p1->lastStatus = bt::Status::RUNNING;
-  auto p2 = blob.Make<bt::NodeBlob>(1);
+  auto p2 = blob.Make<bt::NodeBlob>(1, nullptr);
   REQUIRE(p2->lastStatus == bt::Status::RUNNING);
 
   // Allocate another.
@@ -21,19 +23,19 @@ TEST_CASE("Blob/1", "[simple tree blob test]") {
     int x;
   };
 
-  auto q = blob.Make<CustomNodeBlob>(2);
+  auto q = blob.Make<CustomNodeBlob>(2, nullptr);
   REQUIRE(q != nullptr);
   REQUIRE(!q->running);
-  auto p3 = blob.Make<CustomNodeBlob>(2);
+  auto p3 = blob.Make<CustomNodeBlob>(2, nullptr);
   REQUIRE(p3 == q);
   REQUIRE(p3->x == 0);
   REQUIRE(p3->lastStatus == bt::Status::UNDEFINED);
   p3->x = 1;
   p3->lastStatus = bt::Status::RUNNING;
-  auto p4 = blob.Make<CustomNodeBlob>(2);
+  auto p4 = blob.Make<CustomNodeBlob>(2, nullptr);
   REQUIRE(p4->x == 1);
   REQUIRE(p4->lastStatus == bt::Status::RUNNING);
-  auto p5 = static_cast<bt::NodeBlob*>(blob.Make<CustomNodeBlob>(2));
+  auto p5 = static_cast<bt::NodeBlob*>(blob.Make<CustomNodeBlob>(2, nullptr));
   REQUIRE(p5->lastStatus == bt::Status::RUNNING);
 }
 

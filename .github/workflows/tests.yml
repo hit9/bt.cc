@@ -58,11 +58,15 @@ jobs:
 
     - name: Build Tests
       working-directory: ${{runner.workspace}}/build/tests
-      run: make
+      run: make bt_tests
 
     - name: Run Tests
       working-directory: ${{runner.workspace}}/build
       run: ctest --test-dir ./tests --output-on-failure
+
+    - name: Build benchmark
+      working-directory: ${{runner.workspace}}/build/tests
+      run: make bt_benchmark
 
     - name: Run Benchmark
       working-directory: ${{runner.workspace}}/build

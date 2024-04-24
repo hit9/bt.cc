@@ -62,7 +62,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.3.0
+// Version: 0.3.1
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -82,7 +82,6 @@
 #include <string_view>
 #include <thread>       // for this_thread::sleep_for
 #include <type_traits>  // for is_base_of_v
-#include <unordered_set>
 #include <vector>
 
 namespace bt {
@@ -161,8 +160,9 @@ class TreeBlob {
 
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
+  // Parameter cb is an optional function to be called after the blob is first allocated.
   template <TNodeBlob B>
-  B* Make(const NodeId id, std::size_t cap = 0) {
+  B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0) {
     // optimization: pre allocate memory.
     if (cap && m.capacity() < cap) m.reserve(cap);
     auto offset = id - 1, sz = id;
@@ -176,6 +176,7 @@ class TreeBlob {
     auto rp = p.get();
     m[offset] = std::move(p);
     exist[offset] = true;
+    if (cb != nullptr) cb(rp);
     return rp;
   }
 };
@@ -210,8 +211,9 @@ class Node {
     assert(root != nullptr);
     auto b = root->GetTreeBlob();
     assert(b != nullptr);
+    const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
     // allocate, or get if exist
-    return b->Make<B>(id, root->NumNodes());
+    return b->Make<B>(id, cb, root->NumNodes());
   }
 
   // Internal method to visualize tree.
@@ -306,6 +308,9 @@ class Node {
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
   virtual unsigned int Priority(const Context& ctx) const { return 1; }
+
+  // Hook function to be called on a blob's first allocation.
+  virtual void OnBlobAllocated(NodeBlob* blob) const {}
 };
 
 // Concept TNode for all classes derived from Node.
@@ -431,6 +436,8 @@ class CompositeNode : public InternalNode {
  protected:
   PtrList<Node> children;
 
+  // Should we consider partial children (not all) every tick?
+  virtual bool isParatialConsidered() const { return false; }
   // Should we consider i'th child during this round?
   virtual bool considerable(int i) const { return true; }
   // Internal hook function to be called after a child goes success.
@@ -474,8 +481,8 @@ class CompositeNode : public InternalNode {
 ///////////////////////////////////////////////////////////////
 
 struct _InternalStatefulCompositeNodeBlob : NodeBlob {
-  // stores the index of children already succeeded or failed in this round.
-  std::unordered_set<int> skipTable;
+  // st[i] => should we skip considering children at index i ?
+  std::vector<bool> st;
 };
 
 // Always skip children that already succeeded or failure during current round.
@@ -483,12 +490,95 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   using Blob = _InternalStatefulCompositeNodeBlob;
 
  protected:
-  bool considerable(int i) const override { return !(getNodeBlob<Blob>()->skipTable.contains(i)); }
-  void skip(const int i) { getNodeBlob<Blob>()->skipTable.insert(i); }
+  bool isParatialConsidered() const override { return true; }
+  bool considerable(int i) const override { return !(getNodeBlob<Blob>()->st[i]); }
+  void skip(const int i) { getNodeBlob<Blob>()->st[i] = true; }
 
  public:
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
-  void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<Blob>()->skipTable.clear(); }
+  void OnTerminate(const Context& ctx, Status status) override {
+    auto& t = getNodeBlob<Blob>()->st;
+    std::fill(t.begin(), t.end(), false);
+  }
+  void OnBlobAllocated(NodeBlob* blob) const override {
+    auto ptr = static_cast<Blob*>(blob);
+    ptr->st.resize(children.size(), false);
+  }
+};
+
+// _MixedQueueHelper is a helper queue wrapper for _InternalPriorityCompositeNode .
+// It decides which underlying queue to use for current tick. Wraps a simple queue
+// and priority queue.
+class _MixedQueueHelper {
+  using Cmp = std::function<bool(const int, const int)>;
+
+  // hacking a private priority_queue for the stl missing `reserve` and `clear` method.
+  template <typename T, typename Container = std::vector<T>>
+  class _priority_queue : public std::priority_queue<T, Container, Cmp> {
+   public:
+    _priority_queue() : std::priority_queue<T, Container, Cmp>() {}
+    _priority_queue(Cmp cmp) : std::priority_queue<T, Container, Cmp>(cmp) {}
+    void reserve(std::size_t n) { this->c.reserve(n); }
+    void clear() { this->c.clear(); }
+  };
+
+ private:
+  // use a pre-allocated vector instead of a std::queue
+  // The q1 will be pushed all and then poped all, so a simple vector is enough,
+  // and neither needs a circular queue.
+  // And here we use a pointer, allowing temporarily replace q1's container from
+  // outside existing container.
+  std::vector<int>* q1;
+  std::vector<int> q1Container;
+  int q1Front = 0;
+
+  _priority_queue<int, std::vector<int>> q2;
+
+  bool use1;  // using q1? otherwise q2
+
+ public:
+  _MixedQueueHelper() {}
+  _MixedQueueHelper(Cmp cmp, const std::size_t n) {
+    // reserve capacity for q1.
+    q1Container.reserve(n);
+    q1 = &q1Container;
+    // reserve capacity for q2.
+    decltype(q2) _q2(cmp);
+    q2.swap(_q2);
+    q2.reserve(n);
+  }
+  void setflag(bool u1) { use1 = u1; }
+  int pop() {
+    if (use1) return (*q1)[q1Front++];
+    int v = q2.top();
+    q2.pop();
+    return v;
+  }
+  void push(int v) {
+    if (use1) {
+      if (q1 != &q1Container) throw std::runtime_error("bt: cant push on outside q1 container");
+      return q1->push_back(v);
+    }
+    q2.push(v);
+  }
+  bool empty() const {
+    if (use1) return q1Front == q1->size();
+    return q2.empty();
+  }
+  void clear() {
+    if (use1) {
+      if (q1 != &q1Container) throw std::runtime_error("bt: cant clear on outside q1 container");
+      q1->resize(0);
+      q1Front = 0;
+      return;
+    }
+    q2.clear();
+  }
+  void setQ1Container(std::vector<int>* c) {
+    q1 = c;
+    q1Front = 0;
+  }
+  void resetQ1Container(void) { q1 = &q1Container; }
 };
 
 // Priority related CompositeNode.
@@ -497,44 +587,81 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // Prepare priorities of considerable children on every tick.
   // p[i] stands for i'th child's priority.
   // Since p will be refreshed on each tick, so it's stateless.
+  std::vector<unsigned int> p;
+
+  // q contains a simple queue and a simple queue, depending on:
+  // if priorities of considerable children are all equal in this tick.
+  _MixedQueueHelper q;
+
+  // Are all priorities of considerable children equal on this tick?
+  // Refreshed by function refresh on every tick.
+  bool areAllEqual;
+
+  // simpleQ1Container contains [0...n-1]
+  // Used as a temp container for q1 for "non-stateful && non-priorities" compositors.
+  std::vector<int> simpleQ1Container;
+
   // Although only considerable children's priorities are refreshed,
   // and the q only picks considerable children, but p and q are still stateless with entities.
   // p and q are consistent with respect to "which child nodes to consider".
   // If we change the blob binding, the new tick won't be affected by previous blob.
-  std::vector<unsigned int> p;
+
   // Refresh priorities for considerable children.
-  void refreshp(const Context& ctx) {
-    if (p.size() < children.size()) p.resize(children.size());
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) p[i] = children[i]->Priority(ctx);
+  void refresh(const Context& ctx) {
+    areAllEqual = true;
+    // v is the first valid priority value.
+    unsigned int v = 0;
+
+    for (int i = 0; i < children.size(); i++) {
+      if (!considerable(i)) continue;
+      p[i] = children[i]->Priority(ctx);
+      if (!v) v = p[i];
+      if (v != p[i]) areAllEqual = false;
+    }
   }
 
-  // Compare priorities between children, where a and b are indexes.
-  // q is cleared on each tick, so it's also stateless.
-  std::priority_queue<int, std::vector<int>, std::function<bool(const int, const int)>> q;
+  void enqueue() {
+    // if all priorities are equal, use q1 O(N)
+    // otherwise, use q2 O(n*logn)
+    q.setflag(areAllEqual);
 
-  // update is an internal method to propagates tick() to chilren in the q.
+    // We have to consider all children, and all priorities are equal,
+    // then, we should just use a pre-exist vector to avoid a O(n) copy to q1.
+    if ((!isParatialConsidered()) && areAllEqual) {
+      q.setQ1Container(&simpleQ1Container);
+      return;  // no need to perform enqueue
+    }
+
+    q.resetQ1Container();
+
+    // Clear and enqueue.
+    q.clear();
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) q.push(i);
+  }
+
+  // update is an internal method to propagates tick() to children in the q1/q2.
   // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
 
  public:
-  _InternalPriorityCompositeNode() {
+  _InternalPriorityCompositeNode() {}
+
+  void OnBuild() override {
+    // pre-allocate capacity for p.
+    p.resize(children.size());
+    // initialize simpleQ1Container;
+    for (int i = 0; i < children.size(); i++) simpleQ1Container.push_back(i);
+    // Compare priorities between children, where a and b are indexes.
     // priority from large to smaller, so use `less`: pa < pb
     // order: from small to larger, so use `greater`: a > b
     auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
-    // swap in the real comparator
-    decltype(q) q1(cmp);
-    q.swap(q1);
+    q = _MixedQueueHelper(cmp, children.size());
   }
 
   Status Update(const Context& ctx) override {
-    // clear q
-    while (q.size()) q.pop();
-    // refresh priorities
-    refreshp(ctx);
-    // enqueue
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) q.push(i);
+    refresh(ctx);
+    enqueue();
     // propagates ticks
     return update(ctx);
   }
@@ -548,9 +675,8 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // propagates ticks, one by one sequentially.
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (!q.empty()) {
+      auto i = q.pop();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // F if any child F.
@@ -592,9 +718,8 @@ class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // select a success children.
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (!q.empty()) {
+      auto i = q.pop();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // S if any child S.
@@ -682,7 +807,7 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
 
  public:
   Status Update(const Context& ctx) override {
-    refreshp(ctx);
+    refresh(ctx);
     return update(ctx);
   }
 };
@@ -714,9 +839,8 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
   Status update(const Context& ctx) override {
     // Propagates tick to all considerable children.
     int cntFailure = 0, cntSuccess = 0, total = 0;
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (!q.empty()) {
+      auto i = q.pop();
       auto status = children[i]->Tick(ctx);
       total++;
       if (status == Status::FAILURE) {
@@ -1205,16 +1329,16 @@ class Builder : public _InternalBuilderBase {
   // it succeeds only if all children succeed.
   auto& Sequence() { return C<SequenceNode>("Sequence"); }
 
-  // A StatefulSequenceNode behaves like a sequence node, executes its children sequentially, succeeds if all
-  // children succeed, fails if any child fails. What's the difference is, a StatefulSequenceNode skips the
-  // succeeded children instead of always starting from the first child.
+  // A StatefulSequenceNode behaves like a sequence node, executes its children sequentially, succeeds if
+  // all children succeed, fails if any child fails. What's the difference is, a StatefulSequenceNode skips
+  // the succeeded children instead of always starting from the first child.
   auto& StatefulSequence() { return C<StatefulSequenceNode>("Sequence*"); }
 
   // A SelectorNode succeeds if any child succeeds, fails only if all children fail.
   auto& Selector() { return C<SelectorNode>("Selector"); }
 
-  // A StatefulSelectorNode behaves like a selector node, executes its children sequentially, succeeds if any
-  // child succeeds, fails if all child fail. What's the difference is, a StatefulSelectorNode skips the
+  // A StatefulSelectorNode behaves like a selector node, executes its children sequentially, succeeds if
+  // any child succeeds, fails if all child fail. What's the difference is, a StatefulSelectorNode skips the
   // failure children instead of always starting from the first child.
   auto& StatefulSelector() { return C<StatefulSelectorNode>("Selector*"); }
 
@@ -1223,16 +1347,16 @@ class Builder : public _InternalBuilderBase {
   auto& Parallel() { return C<ParallelNode>("Parallel"); }
 
   // A StatefulParallelNode behaves like a parallel node, executes its children parallelly, succeeds if all
-  // succeed, fails if all child fail. What's the difference is, a StatefulParallelNode will skip the "already
-  // success" children instead of executing every child all the time.
+  // succeed, fails if all child fail. What's the difference is, a StatefulParallelNode will skip the
+  // "already success" children instead of executing every child all the time.
   auto& StatefulParallel() { return C<StatefulParallelNode>("Parallel*"); }
 
   // A RandomSelectorNode determines a child via weighted random selection.
   // It continues to randomly select a child, propagating tick, until some child succeeds.
   auto& RandomSelector() { return C<RandomSelectorNode>("RandomSelector"); }
 
-  // A StatefulRandomSelector behaves like a random selector node, the difference is, a StatefulRandomSelector
-  // will skip already failed children during a round.
+  // A StatefulRandomSelector behaves like a random selector node, the difference is, a
+  // StatefulRandomSelector will skip already failed children during a round.
   auto& StatefulRandomSelector() { return C<StatefulRandomSelectorNode>("RandomSelector*"); }
 
   ///////////////////////////////////
