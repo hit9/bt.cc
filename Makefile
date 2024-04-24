@@ -36,7 +36,10 @@ build-example-onsignal:
 	cd build/example/onsignal && make
 
 build-test:
-	cd build/tests && make
+	cd build/tests && make bt_tests
+
+build-benchmark:
+	cd build/tests && make bt_benchmark
 
 run-example: build-example
 	./build/example/bt_example
@@ -47,7 +50,7 @@ run-example-onsignal: build-example-onsignal
 run-tests: build-test
 	ctest --test-dir ./build/tests --output-on-failure
 
-run-benchmark: build-test
+run-benchmark: build-benchmark
 	./build/tests/bt_benchmark
 
 clean:
