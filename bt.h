@@ -162,7 +162,7 @@ class TreeBlob {
   // Allocates if not exist.
   // Parameter cb is an optional function to be called after the blob is first allocated.
   template <TNodeBlob B>
-  B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, std::size_t cap = 0) {
+  B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0) {
     // optimization: pre allocate memory.
     if (cap && m.capacity() < cap) m.reserve(cap);
     auto offset = id - 1, sz = id;
@@ -436,8 +436,7 @@ class CompositeNode : public InternalNode {
  protected:
   PtrList<Node> children;
 
-  // should we consider partial children (not all) every tick?
-  // This's the precondition for the following considerable calls.
+  // Should we consider partial children (not all) every tick?
   virtual bool isParatialConsidered() const { return false; }
   // Should we consider i'th child during this round?
   virtual bool considerable(int i) const { return true; }
@@ -482,7 +481,7 @@ class CompositeNode : public InternalNode {
 ///////////////////////////////////////////////////////////////
 
 struct _InternalStatefulCompositeNodeBlob : NodeBlob {
-  // st[i] => should we skip index i ?
+  // st[i] => should we skip considering children at index i ?
   std::vector<bool> st;
 };
 
@@ -513,62 +512,72 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
 class _MixedQueueHelper {
   using Cmp = std::function<bool(const int, const int)>;
 
+  template <typename T, typename Container = std::vector<T>>
+  class _priority_queue : public std::priority_queue<T, Container, Cmp> {
+   public:
+    _priority_queue() : std::priority_queue<T, Container, Cmp>() {}
+    _priority_queue(Cmp cmp) : std::priority_queue<T, Container, Cmp>(cmp) {}
+    void reserve(std::size_t n) { this->c.reserve(n); }
+    void clear() { this->c.clear(); }
+  };
+
  private:
   // use a pre-allocated vector instead of a std::queue
   // The q1 will be pushed all and then poped all, so a simple vector is enough,
   // and neither needs a circular queue.
-  // And here we use a pointer, allows outside to temporarily replace q1's container.
+  // And here we use a pointer, allowing temporarily replace q1's container from
+  // outside existing container.
   std::vector<int>* q1;
-  std::vector<int> q1_container;
-  int q1_front = 0;
-  std::priority_queue<int, std::vector<int>, Cmp> q2;
-  bool use1;  // using which?
+  std::vector<int> q1Container;
+  int q1Front = 0;
+
+  _priority_queue<int, std::vector<int>> q2;
+
+  bool use1;  // using q1? otherwise q2
+
  public:
   _MixedQueueHelper() {}
-  _MixedQueueHelper(Cmp cmp, int n) {
+  _MixedQueueHelper(Cmp cmp, const int n) {
     // reserve capacity for q1.
-    q1_container.reserve(n);
-    q1 = &q1_container;
+    q1Container.reserve(n);
+    q1 = &q1Container;
     // reserve capacity for q2.
-    std::vector<int> q2_container;
-    q2_container.reserve(n);
-    decltype(q2) _q2(cmp, std::move(q2_container));
+    decltype(q2) _q2(cmp);
     q2.swap(_q2);
+    q2.reserve(n);
   }
   void setflag(bool u1) { use1 = u1; }
   int pop() {
-    if (use1) return (*q1)[q1_front++];
+    if (use1) return (*q1)[q1Front++];
     int v = q2.top();
     q2.pop();
     return v;
   }
   void push(int v) {
     if (use1) {
-      if (q1 != &q1_container) throw std::runtime_error("bt: cant push on outside q1 container");
+      if (q1 != &q1Container) throw std::runtime_error("bt: cant push on outside q1 container");
       return q1->push_back(v);
     }
     q2.push(v);
   }
   bool empty() const {
-    if (use1) return q1_front == q1->size();
+    if (use1) return q1Front == q1->size();
     return q2.empty();
   }
-
   void clear() {
     if (use1) {
-      if (q1 != &q1_container) throw std::runtime_error("bt: cant clear on outside q1 container");
+      if (q1 != &q1Container) throw std::runtime_error("bt: cant clear on outside q1 container");
       q1->resize(0);
-      q1_front = 0;
+      q1Front = 0;
       return;
     }
-    while (q2.size()) q2.pop();
+    q2.clear();
   }
-
-  void set_q1_container(std::vector<int>* c) {
+  void setQ1Container(std::vector<int>* c) {
     q1 = c;
-    q1_front = 0;
+    q1Front = 0;
   }
-  void reset_q1_container(void) { q1 = &q1_container; }
+  void resetQ1Container(void) { q1 = &q1Container; }
 };
 
 // Priority related CompositeNode.
@@ -579,18 +588,17 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // Since p will be refreshed on each tick, so it's stateless.
   std::vector<unsigned int> p;
 
-  // Are all priorities of considerable children equal on this tick?
-  // Refreshed by function refresh on every tick.
-  bool isAllPrioritiesEqual;
-
   // q contains a simple queue and a simple queue, depending on:
-  // if priorities of considerable children are all equal
-  // in this tick. The flag (using which q) is maintained by refresh function.
+  // if priorities of considerable children are all equal in this tick.
   _MixedQueueHelper q;
 
-  // _simple_q1_container contains [0...n-1]
-  // Used as a temp container for q1 when "non-stateful & non-priorities" compositors.
-  std::vector<int> _simple_q1_container;
+  // Are all priorities of considerable children equal on this tick?
+  // Refreshed by function refresh on every tick.
+  bool areAllEqual;
+
+  // simpleQ1Container contains [0...n-1]
+  // Used as a temp container for q1 for "non-stateful && non-priorities" compositors.
+  std::vector<int> simpleQ1Container;
 
   // Although only considerable children's priorities are refreshed,
   // and the q only picks considerable children, but p and q are still stateless with entities.
@@ -599,31 +607,29 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
   // Refresh priorities for considerable children.
   void refresh(const Context& ctx) {
-    isAllPrioritiesEqual = true;
+    areAllEqual = true;
     // v is the first valid priority value.
     unsigned int v = 0;
 
     for (int i = 0; i < children.size(); i++) {
       if (!considerable(i)) continue;
       p[i] = children[i]->Priority(ctx);
-      if (v == 0)  // first seen a valid value
-        v = p[i];
-      else if (v != p[i])  // meets a different value
-        isAllPrioritiesEqual = false;
+      if (!v) v = p[i];
+      if (v != p[i]) areAllEqual = false;
     }
   }
 
   void enqueue() {
-    q.reset_q1_container();
+    q.resetQ1Container();
 
     // if all priorities are equal, use q1 O(N)
     // otherwise, use q2 O(n*logn)
-    q.setflag(isAllPrioritiesEqual);
+    q.setflag(areAllEqual);
 
     // We have to consider all children, and all priorities are equal,
     // then, we should just use a pre-exist vector to avoid a copy to q1.
-    if ((!isParatialConsidered()) && isAllPrioritiesEqual) {
-      q.set_q1_container(&_simple_q1_container);
+    if ((!isParatialConsidered()) && areAllEqual) {
+      q.setQ1Container(&simpleQ1Container);
       return;  // no need to perform enqueue
     }
 
@@ -643,8 +649,8 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   void OnBuild() override {
     // pre-allocate capacity for p.
     p.resize(children.size());
-    // initialize _simple_q1_container;
-    for (int i = 0; i < children.size(); i++) _simple_q1_container.push_back(i);
+    // initialize simpleQ1Container;
+    for (int i = 0; i < children.size(); i++) simpleQ1Container.push_back(i);
     // Compare priorities between children, where a and b are indexes.
     // priority from large to smaller, so use `less`: pa < pb
     // order: from small to larger, so use `greater`: a > b
