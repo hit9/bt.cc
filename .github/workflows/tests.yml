@@ -58,7 +58,7 @@ jobs:
 
     - name: Build Tests
       working-directory: ${{runner.workspace}}/build/tests
-      run: make build-test
+      run: make bt_tests
 
     - name: Run Tests
       working-directory: ${{runner.workspace}}/build
@@ -66,7 +66,7 @@ jobs:
 
     - name: Build benchmark
       working-directory: ${{runner.workspace}}/build/tests
-      run: make build-benchmark
+      run: make bt_benchmark
 
     - name: Run Benchmark
       working-directory: ${{runner.workspace}}/build
