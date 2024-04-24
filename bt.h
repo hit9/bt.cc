@@ -505,8 +505,8 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
 
 // Priority related CompositeNode.
 class _InternalPriorityCompositeNode : virtual public CompositeNode {
-    // Q decides which underlying queue to use for current tick.
-    // Wraps a simple queue and priority queue.
+  // Q decides which underlying queue to use for current tick.
+  // Wraps a simple queue and priority queue.
   class Q {
     using Cmp = std::function<bool(const int, const int)>;
 
@@ -587,6 +587,13 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
     q.setflag(isAllEqual);
   }
 
+  void enqueue() {
+    q.clear();
+    // enqueue
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) q.push(i);
+  }
+
   // update is an internal method to propagates tick() to children in the q1/q2.
   // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
@@ -606,10 +613,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
   Status Update(const Context& ctx) override {
     refresh(ctx);
-    q.clear();
-    // enqueue
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) q.push(i);
+    enqueue();
     // propagates ticks
     return update(ctx);
   }
