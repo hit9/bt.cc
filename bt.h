@@ -564,7 +564,10 @@ class _MixedQueueHelper {
     while (q2.size()) q2.pop();
   }
 
-  void set_q1_container(std::vector<int>* c) { q1 = c; q1_front = 0; }
+  void set_q1_container(std::vector<int>* c) {
+    q1 = c;
+    q1_front = 0;
+  }
   void reset_q1_container(void) { q1 = &q1_container; }
 };
 
