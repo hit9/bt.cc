@@ -493,98 +493,78 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
 
 // Priority related CompositeNode.
 class _InternalPriorityCompositeNode : virtual public CompositeNode {
+  class Q {
+    using Cmp = std::function<bool(const int, const int)>;
+
+   private:
+    std::queue<int> q1;
+    std::priority_queue<int, std::vector<int>, Cmp> q2;
+    bool use1;  // using which?
+
+   public:
+    Cmp cmp;
+    Q() {}
+    Q(Cmp cmp) : cmp(cmp) {}
+    void setflag(bool u1) { use1 = u1; }
+    int top() const {
+      if (use1) return q1.front();
+      return q2.top();
+    }
+    void pop() {
+      if (use1) return q1.pop();
+      q2.pop();
+    }
+    void push(int v) {
+      if (use1) return q1.push(v);
+      q2.push(v);
+    }
+    bool empty() const { return size() == 0; }
+    std::size_t size() const {
+      if (use1) return q1.size();
+      return q2.size();
+    }
+    void clear() {
+      if (use1) {
+        decltype(q1) _q1;
+        q1.swap(_q1);
+      } else {
+        decltype(q2) _q2(cmp);
+        q2.swap(_q2);
+      }
+    }
+  };
+
  protected:
   // Prepare priorities of considerable children on every tick.
   // p[i] stands for i'th child's priority.
   // Since p will be refreshed on each tick, so it's stateless.
+  std::vector<unsigned int> p;
+  // Q is a simple queue or a simple queue, depending on: if priorities of considerable children are all equal
+  // in this tick. The flag (using which q) is maintained by refresh function.
+  Q q;
+
   // Although only considerable children's priorities are refreshed,
   // and the q1/q2 only picks considerable children, but p and q1/q2 are still stateless with entities.
   // p and q1/q2 are consistent with respect to "which child nodes to consider".
   // If we change the blob binding, the new tick won't be affected by previous blob.
-  std::vector<unsigned int> p;
-
-  // For this tick, is all considerable children has equal priority value?
-  // It's maintained by refreshp function.
-  bool isPriorityEqual = false;
 
   // Refresh priorities for considerable children.
-  void refreshp(const Context& ctx) {
-    isPriorityEqual = true;
-
+  void refresh(const Context& ctx) {
+    bool isAllEqual = true;
     // v is the first valid priority value.
     unsigned int v = 0;
 
-    for (int i = 0; i < children.size(); i++)
+    for (int i = 0; i < children.size(); i++) {
       if (considerable(i)) {
         p[i] = children[i]->Priority(ctx);
         if (v == 0)  // first seen a valid value
           v = p[i];
         else if (v != p[i])  // meets a different value
-          isPriorityEqual = false;
+          isAllEqual = false;
       }
-  }
-
-  /////////////////////////////
-  /// Case#1: Equal Priority
-  /////////////////////////////
-
-  // Iterate children by order to avoid priority when their priorities are all equal..
-  std::queue<int> q1;
-
-  int nextChildCase1() {
-    if (q1.empty()) return -1;
-    int i = q1.front();
-    q1.pop();
-    return i;
-  }
-
-  Status updateCase1(const Context& ctx) {
-    decltype(q1) q;
-    q1.swap(q);
-    // enqueue
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) q1.push(i);
-    // propagates ticks
-    return update(ctx);
-  }
-
-  /////////////////////////////////////
-  /// Case#2: Priority Queue
-  /////////////////////////////////////
-
-  // priority from large to smaller, so use `less`: pa < pb
-  // order: from small to larger, so use `greater`: a > b
-  std::function<bool(const int, const int)> q2cmp;
-
-  // Compare priorities between children, where a and b are indexes.
-  // q2 is cleared on each tick, so it's also stateless.
-  std::priority_queue<int, std::vector<int>, decltype(q2cmp)> q2;
-
-  int nextChildCase2() {
-    if (q2.empty()) return -1;  // end;
-    auto i = q2.top();
-    q2.pop();
-    return i;
-  }
-
-  Status updateCase2(const Context& ctx) {
-    decltype(q2) q(q2cmp);
-    q2.swap(q);
-    // enqueue
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) q2.push(i);
-    // propagates ticks
-    return update(ctx);
-  }
-
-  /////////////////////////////////////
-  /// Cases Integration
-  /////////////////////////////////////
-
-  // internal method to get next child's index to propagate ticking.
-  int nextChild() {
-    if (isPriorityEqual) return nextChildCase1();
-    return nextChildCase2();
+    }
+    // Sets which q to use.
+    q.setflag(isAllEqual);
   }
 
   // update is an internal method to propagates tick() to children in the q1/q2.
@@ -593,16 +573,22 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
  public:
   _InternalPriorityCompositeNode() {
-    q2cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
+    // Compare priorities between children, where a and b are indexes.
+    // priority from large to smaller, so use `less`: pa < pb
+    // order: from small to larger, so use `greater`: a > b
+    q = Q([&](const int a, const int b) { return p[a] < p[b] || a > b; });
   }
 
   void OnBuild() override { p.resize(children.size()); }
 
   Status Update(const Context& ctx) override {
-    // refresh priorities
-    refreshp(ctx);
-    if (isPriorityEqual) return updateCase1(ctx);
-    return updateCase2(ctx);
+    refresh(ctx);
+    q.clear();
+    // enqueue
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) q.push(i);
+    // propagates ticks
+    return update(ctx);
   }
 };
 
@@ -614,9 +600,9 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // propagates ticks, one by one sequentially.
-    while (true) {
-      auto i = nextChild();
-      if (i == -1) break;
+    while (q.size()) {
+      auto i = q.top();
+      q.pop();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // F if any child F.
@@ -658,9 +644,9 @@ class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // select a success children.
-    while (true) {
-      auto i = nextChild();
-      if (i == -1) break;
+    while (q.size()) {
+      auto i = q.top();
+      q.pop();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // S if any child S.
@@ -748,7 +734,7 @@ class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityComposit
 
  public:
   Status Update(const Context& ctx) override {
-    refreshp(ctx);
+    refresh(ctx);
     return update(ctx);
   }
 };
@@ -780,9 +766,9 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
   Status update(const Context& ctx) override {
     // Propagates tick to all considerable children.
     int cntFailure = 0, cntSuccess = 0, total = 0;
-    while (true) {
-      auto i = nextChild();
-      if (i == -1) break;
+    while (q.size()) {
+      auto i = q.top();
+      q.pop();
       auto status = children[i]->Tick(ctx);
       total++;
       if (status == Status::FAILURE) {
