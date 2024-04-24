@@ -498,45 +498,111 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // p[i] stands for i'th child's priority.
   // Since p will be refreshed on each tick, so it's stateless.
   // Although only considerable children's priorities are refreshed,
-  // and the q only picks considerable children, but p and q are still stateless with entities.
-  // p and q are consistent with respect to "which child nodes to consider".
+  // and the q1/q2 only picks considerable children, but p and q1/q2 are still stateless with entities.
+  // p and q1/q2 are consistent with respect to "which child nodes to consider".
   // If we change the blob binding, the new tick won't be affected by previous blob.
   std::vector<unsigned int> p;
+
+  // For this tick, is all considerable children has equal priority value?
+  // It's maintained by refreshp function.
+  bool isPriorityEqual = false;
+
   // Refresh priorities for considerable children.
   void refreshp(const Context& ctx) {
-    if (p.size() < children.size()) p.resize(children.size());
+    isPriorityEqual = true;
+
+    // v is the first valid priority value.
+    unsigned int v = 0;
+
     for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) p[i] = children[i]->Priority(ctx);
+      if (considerable(i)) {
+        p[i] = children[i]->Priority(ctx);
+        if (v == 0)  // first seen a valid value
+          v = p[i];
+        else if (v != p[i])  // meets a different value
+          isPriorityEqual = false;
+      }
   }
 
-  // Compare priorities between children, where a and b are indexes.
-  // q is cleared on each tick, so it's also stateless.
-  std::priority_queue<int, std::vector<int>, std::function<bool(const int, const int)>> q;
+  /////////////////////////////
+  /// Case#1: Equal Priority
+  /////////////////////////////
 
-  // update is an internal method to propagates tick() to chilren in the q.
+  // Iterate children by order to avoid priority when their priorities are all equal..
+  std::queue<int> q1;
+
+  int nextChildCase1() {
+    if (q1.empty()) return -1;
+    int i = q1.front();
+    q1.pop();
+    return i;
+  }
+
+  Status updateCase1(const Context& ctx) {
+    decltype(q1) q;
+    q1.swap(q);
+    // enqueue
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) q1.push(i);
+    // propagates ticks
+    return update(ctx);
+  }
+
+  /////////////////////////////////////
+  /// Case#2: Priority Queue
+  /////////////////////////////////////
+
+  // priority from large to smaller, so use `less`: pa < pb
+  // order: from small to larger, so use `greater`: a > b
+  std::function<bool(const int, const int)> q2cmp;
+
+  // Compare priorities between children, where a and b are indexes.
+  // q2 is cleared on each tick, so it's also stateless.
+  std::priority_queue<int, std::vector<int>, decltype(q2cmp)> q2;
+
+  int nextChildCase2() {
+    if (q2.empty()) return -1;  // end;
+    auto i = q2.top();
+    q2.pop();
+    return i;
+  }
+
+  Status updateCase2(const Context& ctx) {
+    decltype(q2) q(q2cmp);
+    q2.swap(q);
+    // enqueue
+    for (int i = 0; i < children.size(); i++)
+      if (considerable(i)) q2.push(i);
+    // propagates ticks
+    return update(ctx);
+  }
+
+  /////////////////////////////////////
+  /// Cases Integration
+  /////////////////////////////////////
+
+  // internal method to get next child's index to propagate ticking.
+  int nextChild() {
+    if (isPriorityEqual) return nextChildCase1();
+    return nextChildCase2();
+  }
+
+  // update is an internal method to propagates tick() to children in the q1/q2.
   // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
 
  public:
   _InternalPriorityCompositeNode() {
-    // priority from large to smaller, so use `less`: pa < pb
-    // order: from small to larger, so use `greater`: a > b
-    auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
-    // swap in the real comparator
-    decltype(q) q1(cmp);
-    q.swap(q1);
+    q2cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
   }
 
+  void OnBuild() override { p.resize(children.size()); }
+
   Status Update(const Context& ctx) override {
-    // clear q
-    while (q.size()) q.pop();
     // refresh priorities
     refreshp(ctx);
-    // enqueue
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) q.push(i);
-    // propagates ticks
-    return update(ctx);
+    if (isPriorityEqual) return updateCase1(ctx);
+    return updateCase2(ctx);
   }
 };
 
@@ -548,9 +614,9 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // propagates ticks, one by one sequentially.
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (true) {
+      auto i = nextChild();
+      if (i == -1) break;
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // F if any child F.
@@ -592,9 +658,9 @@ class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // select a success children.
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (true) {
+      auto i = nextChild();
+      if (i == -1) break;
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // S if any child S.
@@ -714,9 +780,9 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
   Status update(const Context& ctx) override {
     // Propagates tick to all considerable children.
     int cntFailure = 0, cntSuccess = 0, total = 0;
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (true) {
+      auto i = nextChild();
+      if (i == -1) break;
       auto status = children[i]->Tick(ctx);
       total++;
       if (status == Status::FAILURE) {
@@ -1205,16 +1271,16 @@ class Builder : public _InternalBuilderBase {
   // it succeeds only if all children succeed.
   auto& Sequence() { return C<SequenceNode>("Sequence"); }
 
-  // A StatefulSequenceNode behaves like a sequence node, executes its children sequentially, succeeds if all
-  // children succeed, fails if any child fails. What's the difference is, a StatefulSequenceNode skips the
-  // succeeded children instead of always starting from the first child.
+  // A StatefulSequenceNode behaves like a sequence node, executes its children sequentially, succeeds if
+  // all children succeed, fails if any child fails. What's the difference is, a StatefulSequenceNode skips
+  // the succeeded children instead of always starting from the first child.
   auto& StatefulSequence() { return C<StatefulSequenceNode>("Sequence*"); }
 
   // A SelectorNode succeeds if any child succeeds, fails only if all children fail.
   auto& Selector() { return C<SelectorNode>("Selector"); }
 
-  // A StatefulSelectorNode behaves like a selector node, executes its children sequentially, succeeds if any
-  // child succeeds, fails if all child fail. What's the difference is, a StatefulSelectorNode skips the
+  // A StatefulSelectorNode behaves like a selector node, executes its children sequentially, succeeds if
+  // any child succeeds, fails if all child fail. What's the difference is, a StatefulSelectorNode skips the
   // failure children instead of always starting from the first child.
   auto& StatefulSelector() { return C<StatefulSelectorNode>("Selector*"); }
 
@@ -1223,16 +1289,16 @@ class Builder : public _InternalBuilderBase {
   auto& Parallel() { return C<ParallelNode>("Parallel"); }
 
   // A StatefulParallelNode behaves like a parallel node, executes its children parallelly, succeeds if all
-  // succeed, fails if all child fail. What's the difference is, a StatefulParallelNode will skip the "already
-  // success" children instead of executing every child all the time.
+  // succeed, fails if all child fail. What's the difference is, a StatefulParallelNode will skip the
+  // "already success" children instead of executing every child all the time.
   auto& StatefulParallel() { return C<StatefulParallelNode>("Parallel*"); }
 
   // A RandomSelectorNode determines a child via weighted random selection.
   // It continues to randomly select a child, propagating tick, until some child succeeds.
   auto& RandomSelector() { return C<RandomSelectorNode>("RandomSelector"); }
 
-  // A StatefulRandomSelector behaves like a random selector node, the difference is, a StatefulRandomSelector
-  // will skip already failed children during a round.
+  // A StatefulRandomSelector behaves like a random selector node, the difference is, a
+  // StatefulRandomSelector will skip already failed children during a round.
   auto& StatefulRandomSelector() { return C<StatefulRandomSelectorNode>("RandomSelector*"); }
 
   ///////////////////////////////////
