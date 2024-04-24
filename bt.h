@@ -161,8 +161,9 @@ class TreeBlob {
 
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
+  // Parameter cb is an optional function to be called after the blob is first allocated.
   template <TNodeBlob B>
-  B* Make(const NodeId id, std::size_t cap = 0) {
+  B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, std::size_t cap = 0) {
     // optimization: pre allocate memory.
     if (cap && m.capacity() < cap) m.reserve(cap);
     auto offset = id - 1, sz = id;
@@ -176,6 +177,7 @@ class TreeBlob {
     auto rp = p.get();
     m[offset] = std::move(p);
     exist[offset] = true;
+    if (cb != nullptr) cb(rp);
     return rp;
   }
 };
@@ -211,7 +213,8 @@ class Node {
     auto b = root->GetTreeBlob();
     assert(b != nullptr);
     // allocate, or get if exist
-    return b->Make<B>(id, root->NumNodes());
+    const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
+    return b->Make<B>(id, cb, root->NumNodes());
   }
 
   // Internal method to visualize tree.
@@ -306,6 +309,9 @@ class Node {
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
   virtual unsigned int Priority(const Context& ctx) const { return 1; }
+
+  // Hook function to be called on a blob's first allocation.
+  virtual void OnBlobAllocated(NodeBlob* blob) const {}
 };
 
 // Concept TNode for all classes derived from Node.
@@ -474,8 +480,8 @@ class CompositeNode : public InternalNode {
 ///////////////////////////////////////////////////////////////
 
 struct _InternalStatefulCompositeNodeBlob : NodeBlob {
-  // stores the index of children already succeeded or failed in this round.
-  std::unordered_set<int> skipTable;
+  // st[i] => should we skip index i ?
+  std::vector<bool> st;
 };
 
 // Always skip children that already succeeded or failure during current round.
@@ -483,12 +489,19 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   using Blob = _InternalStatefulCompositeNodeBlob;
 
  protected:
-  bool considerable(int i) const override { return !(getNodeBlob<Blob>()->skipTable.contains(i)); }
-  void skip(const int i) { getNodeBlob<Blob>()->skipTable.insert(i); }
+  bool considerable(int i) const override { return !(getNodeBlob<Blob>()->st[i]); }
+  void skip(const int i) { getNodeBlob<Blob>()->st[i] = true; }
 
  public:
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
-  void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<Blob>()->skipTable.clear(); }
+  void OnTerminate(const Context& ctx, Status status) override {
+    auto& t = getNodeBlob<Blob>()->st;
+    std::fill(t.begin(), t.end(), false);
+  }
+  void OnBlobAllocated(NodeBlob* blob) const override {
+    auto ptr = static_cast<Blob*>(blob);
+    ptr->st.resize(children.size(), false);
+  }
 };
 
 // Priority related CompositeNode.
@@ -544,8 +557,8 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   Q q;
 
   // Although only considerable children's priorities are refreshed,
-  // and the q1/q2 only picks considerable children, but p and q1/q2 are still stateless with entities.
-  // p and q1/q2 are consistent with respect to "which child nodes to consider".
+  // and the q only picks considerable children, but p and q are still stateless with entities.
+  // p and q are consistent with respect to "which child nodes to consider".
   // If we change the blob binding, the new tick won't be affected by previous blob.
 
   // Refresh priorities for considerable children.
