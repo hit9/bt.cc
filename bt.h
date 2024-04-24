@@ -82,7 +82,6 @@
 #include <string_view>
 #include <thread>       // for this_thread::sleep_for
 #include <type_traits>  // for is_base_of_v
-#include <unordered_set>
 #include <vector>
 
 namespace bt {
@@ -510,40 +509,46 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
     using Cmp = std::function<bool(const int, const int)>;
 
    private:
-    std::queue<int> q1;
+    // use a pre-allocated vector instead of a std::queue
+    // The q1 will be pushed all and then poped all, so a simple vector is enough,
+    // and neither needs circular queue.
+    std::vector<int> q1;
+    int q1_front = 0;
     std::priority_queue<int, std::vector<int>, Cmp> q2;
     bool use1;  // using which?
-
    public:
-    Cmp cmp;
     Q() {}
-    Q(Cmp cmp) : cmp(cmp) {}
-    void setflag(bool u1) { use1 = u1; }
-    int top() const {
-      if (use1) return q1.front();
-      return q2.top();
+    Q(Cmp cmp, int n) {
+      // reserve capacity for q1 and q2.
+      q1.reserve(n);
+    std::vector<int> q2_container;
+      q2_container.reserve(n);
+      decltype(q2) _q2(cmp, std::move(q2_container));
+      q2.swap(_q2);
     }
-    void pop() {
-      if (use1) return q1.pop();
+    void setflag(bool u1) { use1 = u1; }
+    int pop() {
+      if (use1) return q1[q1_front++];
+      int v = q2.top();
       q2.pop();
+      return v;
     }
     void push(int v) {
-      if (use1) return q1.push(v);
+      if (use1) return q1.push_back(v);
       q2.push(v);
     }
-    bool empty() const { return size() == 0; }
-    std::size_t size() const {
-      if (use1) return q1.size();
-      return q2.size();
+    bool empty() const {
+      if (use1) return q1_front == q1.size();
+      return q2.empty();
     }
+
     void clear() {
       if (use1) {
-        decltype(q1) _q1;
-        q1.swap(_q1);
-      } else {
-        decltype(q2) _q2(cmp);
-        q2.swap(_q2);
+        q1.resize(0);
+        q1_front = 0;
+        return;
       }
+      while (q2.size()) q2.pop();
     }
   };
 
@@ -585,14 +590,17 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   virtual Status update(const Context& ctx) = 0;
 
  public:
-  _InternalPriorityCompositeNode() {
+  _InternalPriorityCompositeNode() {}
+
+  void OnBuild() override {
+    // pre-allocate capacity.
+    p.resize(children.size());
     // Compare priorities between children, where a and b are indexes.
     // priority from large to smaller, so use `less`: pa < pb
     // order: from small to larger, so use `greater`: a > b
-    q = Q([&](const int a, const int b) { return p[a] < p[b] || a > b; });
+    auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
+    q = Q(cmp, children.size());
   }
-
-  void OnBuild() override { p.resize(children.size()); }
 
   Status Update(const Context& ctx) override {
     refresh(ctx);
@@ -613,9 +621,8 @@ class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // propagates ticks, one by one sequentially.
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (!q.empty()) {
+      auto i = q.pop();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // F if any child F.
@@ -657,9 +664,8 @@ class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode 
  protected:
   Status update(const Context& ctx) override {
     // select a success children.
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (!q.empty()) {
+      auto i = q.pop();
       auto status = children[i]->Tick(ctx);
       if (status == Status::RUNNING) return Status::RUNNING;
       // S if any child S.
@@ -779,9 +785,8 @@ class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode 
   Status update(const Context& ctx) override {
     // Propagates tick to all considerable children.
     int cntFailure = 0, cntSuccess = 0, total = 0;
-    while (q.size()) {
-      auto i = q.top();
-      q.pop();
+    while (!q.empty()) {
+      auto i = q.pop();
       auto status = children[i]->Tick(ctx);
       total++;
       if (status == Status::FAILURE) {
