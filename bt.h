@@ -505,13 +505,15 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
 
 // Priority related CompositeNode.
 class _InternalPriorityCompositeNode : virtual public CompositeNode {
+    // Q decides which underlying queue to use for current tick.
+    // Wraps a simple queue and priority queue.
   class Q {
     using Cmp = std::function<bool(const int, const int)>;
 
    private:
     // use a pre-allocated vector instead of a std::queue
     // The q1 will be pushed all and then poped all, so a simple vector is enough,
-    // and neither needs circular queue.
+    // and neither needs a circular queue.
     std::vector<int> q1;
     int q1_front = 0;
     std::priority_queue<int, std::vector<int>, Cmp> q2;
@@ -521,7 +523,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
     Q(Cmp cmp, int n) {
       // reserve capacity for q1 and q2.
       q1.reserve(n);
-    std::vector<int> q2_container;
+      std::vector<int> q2_container;
       q2_container.reserve(n);
       decltype(q2) _q2(cmp, std::move(q2_container));
       q2.swap(_q2);
