@@ -104,10 +104,10 @@ Reference: <span id="ref"></span>
   - [RandomSelector](#random-selector)
   - [Priority](#priority)
   - [Stateful Composite nodes](#stateful)
+  - [Switch Case](#switchcase)
 - [Decorators](#decorators)
   - [If](#if)
   - [Invert](#invert)
-  - [Switch Case](#switchcase)
   - [Repeat](#repeat)
   - [Timeout](#timeout)
   - [Delay](#delay)
@@ -381,6 +381,19 @@ Reference: <span id="ref"></span>
 
   The stateful data for stateful compositors are all stored in their `NodeBlob` structs.
 
+* `Switch/Case` are just syntax sugar based on `Selector` and `If`: <span id="switchcase"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+  // Only one case will success, or all fail.
+  // Cases will be tested sequentially from top to bottom, one fails and then another.
+
+  .Switch()
+  ._().Case<ConditionX>()
+  ._()._().Action<TaskX>()
+  ._().Case<ConditionY>()
+  ._()._().Action<TaskY>()
+  ```
+
 * **Decorators** <span id="decorators"></span> <a href="#ref">[↑]</a>
 
   * `If` executes its child node only if given condition turns `true`. <span id="if"></span> <a href="#ref">[↑]</a>
@@ -402,18 +415,6 @@ Reference: <span id="ref"></span>
     //   FAILURE => SUCCESS
     ```
 
-  * `Switch/Case` are just syntax sugar based on `Selector` and `If`: <span id="switchcase"></span> <a href="#ref">[↑]</a>
-
-    ```cpp
-    // Only one case will success, or all fail.
-    // Cases will be tested sequentially from top to bottom, one fails and then another.
-
-    .Switch()
-    ._().Case<ConditionX>()
-    ._()._().Action<TaskX>()
-    ._().Case<ConditionY>()
-    ._()._().Action<TaskY>()
-    ```
 
   * `Repeat(n)` (alias `Loop`) repeats its child node' execution for exactly `n` times, it fails immediately if its child fails. <span id="repeat"></span> <a href="#ref">[↑]</a>
 

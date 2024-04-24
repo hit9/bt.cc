@@ -98,10 +98,10 @@ while(...) {
   - [随机选择节点 RandomSelector](#random-selector)
   - [优先级](#priority)
   - [有状态的组合节点](#stateful)
+  - [Switch Case](#switchcase)
 - [装饰器 Decorators](#decorators)
   - [If](#if)
   - [Invert 反转](#invert)
-  - [Switch Case](#switchcase)
   - [Repeat 重复](#repeat)
   - [Timeout 超时](#timeout)
   - [Delay 延时](#delay)
@@ -371,6 +371,20 @@ while(...) {
 
   有状态的组合节点的状态数据都存储在了 `NodeBlob` 中。
 
+* `Switch/Case` 是基于 `Selector` 和 `If` 的一种语法糖：  <span id="switchcase"></span> <a href="#a">[↑]</a>
+
+  ```cpp
+  // 只有一个 case 会成功，或者全部失败。
+  // 每个 case 会从上到下的顺序被依次测试，一旦一个失败了，则开始测试下一个。
+
+  .Switch()
+  ._().Case<ConditionX>()
+  ._()._().Action<TaskX>()
+  ._().Case<ConditionY>()
+  ._()._().Action<TaskY>()
+  ```
+
+
 * **Decorators** <span id="decorators"></span> <a href="#a">[↑]</a>
 
   * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#a">[↑]</a>
@@ -390,19 +404,6 @@ while(...) {
     //   RUNNING => RUNNING
     //   SUCCESS => FAILURE
     //   FAILURE => SUCCESS
-    ```
-
-  * `Switch/Case` 是基于 `Selector` 和 `If` 的一种语法糖：  <span id="switchcase"></span> <a href="#a">[↑]</a>
-
-    ```cpp
-    // 只有一个 case 会成功，或者全部失败。
-    // 每个 case 会从上到下的顺序被依次测试，一旦一个失败了，则开始测试下一个。
-
-    .Switch()
-    ._().Case<ConditionX>()
-    ._()._().Action<TaskX>()
-    ._().Case<ConditionY>()
-    ._()._().Action<TaskY>()
     ```
 
   * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。  <span id="repeat"></span> <a href="#a">[↑]</a>
