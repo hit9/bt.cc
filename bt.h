@@ -62,7 +62,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.3.0
+// Version: 0.3.1
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -211,8 +211,8 @@ class Node {
     assert(root != nullptr);
     auto b = root->GetTreeBlob();
     assert(b != nullptr);
-    // allocate, or get if exist
     const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
+    // allocate, or get if exist
     return b->Make<B>(id, cb, root->NumNodes());
   }
 
@@ -512,6 +512,7 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
 class _MixedQueueHelper {
   using Cmp = std::function<bool(const int, const int)>;
 
+  // hacking a private priority_queue for the stl missing `reserve` and `clear` method.
   template <typename T, typename Container = std::vector<T>>
   class _priority_queue : public std::priority_queue<T, Container, Cmp> {
    public:
@@ -537,7 +538,7 @@ class _MixedQueueHelper {
 
  public:
   _MixedQueueHelper() {}
-  _MixedQueueHelper(Cmp cmp, const int n) {
+  _MixedQueueHelper(Cmp cmp, const std::size_t n) {
     // reserve capacity for q1.
     q1Container.reserve(n);
     q1 = &q1Container;
@@ -620,18 +621,18 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   }
 
   void enqueue() {
-    q.resetQ1Container();
-
     // if all priorities are equal, use q1 O(N)
     // otherwise, use q2 O(n*logn)
     q.setflag(areAllEqual);
 
     // We have to consider all children, and all priorities are equal,
-    // then, we should just use a pre-exist vector to avoid a copy to q1.
+    // then, we should just use a pre-exist vector to avoid a O(n) copy to q1.
     if ((!isParatialConsidered()) && areAllEqual) {
       q.setQ1Container(&simpleQ1Container);
       return;  // no need to perform enqueue
     }
+
+    q.resetQ1Container();
 
     // Clear and enqueue.
     q.clear();
