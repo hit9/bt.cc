@@ -186,19 +186,19 @@ class ITreeBlob {
 };
 
 // FixedTreeBlob is just a continuous buffer, implements ITreeBlob.
-template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob >
+template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
 class FixedTreeBlob final : public ITreeBlob {
  private:
   unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
 
  protected:
-   void* allocate(const std::size_t idx, std::size_t size) override{
+  void* allocate(const std::size_t idx, std::size_t size) override {
     buf[idx][0] = true;
     return get(idx);
   };
-   bool exist(const std::size_t idx)override { return static_cast<bool>(buf[idx][0]); };
-   void* get(const std::size_t idx)override { return &buf[idx][1]; };
-   void reserve(const std::size_t cap)override{};
+  bool exist(const std::size_t idx) override { return static_cast<bool>(buf[idx][0]); };
+  void* get(const std::size_t idx) override { return &buf[idx][1]; };
+  void reserve(const std::size_t cap) override{};
 
  public:
   FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
@@ -211,7 +211,7 @@ class DynamicTreeBlob final : public ITreeBlob {
   std::vector<bool> e;                              // index => exist, dynamic
 
  protected:
-   void* allocate(const std::size_t idx, std::size_t size) override{
+  void* allocate(const std::size_t idx, std::size_t size) override {
     if (m.size() <= idx) {
       m.resize(idx + 1);
       e.resize(idx + 1, false);
@@ -222,9 +222,9 @@ class DynamicTreeBlob final : public ITreeBlob {
     e[idx] = true;
     return rp;
   };
-   bool exist(const std::size_t idx) override{ return e.size() > idx && e[idx]; };
-   void* get(const std::size_t idx)override { return m[idx].get(); };
-   void reserve(const std::size_t cap)override {
+  bool exist(const std::size_t idx) override { return e.size() > idx && e[idx]; };
+  void* get(const std::size_t idx) override { return m[idx].get(); };
+  void reserve(const std::size_t cap) override {
     if (m.capacity() < cap) {
       m.reserve(cap);
       e.reserve(cap);
@@ -541,7 +541,6 @@ struct _InternalStatefulCompositeNodeBlob : NodeBlob {
 
 // Always skip children that already succeeded or failure during current round.
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
-  using Blob = _InternalStatefulCompositeNodeBlob;
 
  protected:
   bool isParatialConsidered() const override { return true; }
@@ -549,6 +548,7 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   void skip(const int i) { getNodeBlob<Blob>()->st[i] = true; }
 
  public:
+  using Blob = _InternalStatefulCompositeNodeBlob;
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
   void OnTerminate(const Context& ctx, Status status) override {
     auto& t = getNodeBlob<Blob>()->st;
@@ -999,13 +999,13 @@ struct RepeatNodeBlob : NodeBlob {
 // RepeatNode repeats its child for exactly n times.
 // Fails immediately if its child fails.
 class RepeatNode : public DecoratorNode {
-  using Blob = RepeatNodeBlob;
 
  protected:
   // Times to repeat, -1 for forever, 0 for immediately success.
   int n;
 
  public:
+  using Blob = RepeatNodeBlob;
   RepeatNode(int n, std::string_view name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
@@ -1039,12 +1039,12 @@ struct TimeoutNodeBlob : NodeBlob {
 // Timeout runs its child for at most given duration, fails on timeout.
 template <typename Clock = std::chrono::high_resolution_clock>
 class TimeoutNode : public DecoratorNode {
-  using Blob = TimeoutNodeBlob<Clock>;
 
  protected:
   std::chrono::milliseconds duration;
 
  public:
+  using Blob = TimeoutNodeBlob<Clock>;
   TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
@@ -1068,13 +1068,13 @@ struct DelayNodeBlob : NodeBlob {
 // DelayNode runs its child node after given duration.
 template <typename Clock = std::chrono::high_resolution_clock>
 class DelayNode : public DecoratorNode {
-  using Blob = DelayNodeBlob<Clock>;
 
  protected:
   // Duration to wait.
   std::chrono::milliseconds duration;
 
  public:
+  using Blob = DelayNodeBlob<Clock>;
   DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
@@ -1102,7 +1102,6 @@ struct RetryNodeBlob : NodeBlob {
 // RetryNode retries its child node on failure.
 template <typename Clock = std::chrono::high_resolution_clock>
 class RetryNode : public DecoratorNode {
-  using Blob = RetryNodeBlob<Clock>;
 
  protected:
   // Max retry times, -1 for unlimited.
@@ -1111,6 +1110,7 @@ class RetryNode : public DecoratorNode {
   std::chrono::milliseconds interval;
 
  public:
+  using Blob = RetryNodeBlob<Clock>;
   RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
