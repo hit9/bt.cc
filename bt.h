@@ -30,7 +30,10 @@
 // Prepares a TreeBlob, e.g. for each entity:
 //
 //   // A TreeBlob holds all the internal state data.
-//   bt::TreeBlob blob;
+//   bt::DynamicTreeBlob blob;
+//
+//   // Or use a fixed size tree blob:
+//   bt::FixedTreeBlob<8, 64> blob;
 //
 // Run ticking:
 //
@@ -71,6 +74,7 @@
 #include <any>
 #include <cassert>  // for NDEBUG mode
 #include <chrono>   // for milliseconds, high_resolution_clock
+#include <cstring>  // for memset
 #include <functional>
 #include <iostream>  // for cout, flush
 #include <memory>    // for unique_ptr
@@ -148,38 +152,89 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 /// TreeBlob
 ////////////////////////////
 
-// A TreeBlob stores the entity-related states data for all nodes in a tree.
+// ITreeBlob is an internal interface base class for FixedTreeBlob and DynamicTreeBlob.
+// TreeBlob stores the entity-related states data for all nodes in a tree.
 // One tree blob for one entity.
-class TreeBlob {
- private:
-  std::vector<std::unique_ptr<NodeBlob>> m;  // NodeId-1 => Blob pointer.
-  std::vector<bool> exist;                   // NodeId-1 => exist, dynamic
+class ITreeBlob {
+ protected:
+  // allocates memory for given index, returns the pointer to the node blob.
+  virtual void* allocate(const std::size_t idx, std::size_t size) = 0;
+  // returns true if a index already allocated memory.
+  virtual bool exist(const std::size_t idx) = 0;
+  // get the blob's pointer for the given index.
+  // returns nullptr if not exist.
+  virtual void* get(const std::size_t idx) = 0;
+  // pre-reserve enough capacity if need.
+  virtual void reserve(const std::size_t cap) = 0;
 
  public:
-  TreeBlob() {}
-
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
   // Parameter cb is an optional function to be called after the blob is first allocated.
   template <TNodeBlob B>
   B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0) {
-    // optimization: pre allocate memory.
-    if (cap && m.capacity() < cap) m.reserve(cap);
-    auto offset = id - 1, sz = id;
-    if (sz <= m.size()) {
-      if (exist[offset]) return static_cast<B*>(m[offset].get());
-    } else {
-      m.resize(sz);
-      exist.resize(sz, false);
-    }
-    auto p = std::make_unique<B>();
-    auto rp = p.get();
-    m[offset] = std::move(p);
-    exist[offset] = true;
-    if (cb != nullptr) cb(rp);
-    return rp;
+    if (cap) reserve(cap);
+    std::size_t idx = id - 1;
+    if (exist(idx)) return static_cast<B*>(get(idx));
+    auto p = static_cast<B*>(allocate(idx, sizeof(B)));
+    new (p) B();  // call constructor
+    if (cb != nullptr) cb(p);
+    return p;
   }
 };
+
+// FixedTreeBlob is just a continuous buffer, implements ITreeBlob.
+template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+class FixedTreeBlob final : public ITreeBlob {
+ private:
+  unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
+
+ protected:
+  virtual void* allocate(const std::size_t idx, std::size_t size) {
+    buf[idx][0] = true;
+    return get(idx);
+  };
+  virtual bool exist(const std::size_t idx) { return static_cast<bool>(buf[idx][0]); };
+  virtual void* get(const std::size_t idx) { return &buf[idx][1]; };
+  virtual void reserve(const std::size_t cap){};
+
+ public:
+  FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
+};
+
+// DynamicTreeBlob contains dynamic allocated unique pointers, implements ITreeBlob.
+class DynamicTreeBlob final : public ITreeBlob {
+ private:
+  std::vector<std::unique_ptr<unsigned char[]>> m;  // index => blob pointer.
+  std::vector<bool> e;                              // index => exist, dynamic
+
+ protected:
+  virtual void* allocate(const std::size_t idx, std::size_t size) {
+    if (m.size() <= idx) {
+      m.resize(idx + 1);
+      e.resize(idx + 1, false);
+    }
+    auto p = std::make_unique_for_overwrite<unsigned char[]>(size);
+    auto rp = p.get();
+    m[idx] = std::move(p);
+    e[idx] = true;
+    return rp;
+  };
+  virtual bool exist(const std::size_t idx) { return e.size() > idx && e[idx]; };
+  virtual void* get(const std::size_t idx) { return m[idx].get(); };
+  virtual void reserve(const std::size_t cap) {
+    if (m.capacity() < cap) {
+      m.reserve(cap);
+      e.reserve(cap);
+    };
+  }
+
+ public:
+  DynamicTreeBlob() {}
+};
+
+// By default, a DynamicTreeBlob names TreeBlob.
+using TreeBlob = DynamicTreeBlob;
 
 ////////////////////////////
 /// Node
@@ -189,7 +244,7 @@ class TreeBlob {
 class IRootNode {
  public:
   // Returns the current binding TreeBlob's pointer.
-  virtual TreeBlob* GetTreeBlob(void) const = 0;
+  virtual ITreeBlob* GetTreeBlob(void) const = 0;
   // Returns the total number of nodes built on this tree.
   virtual int NumNodes() const = 0;
 };
@@ -1105,7 +1160,7 @@ class RetryNode : public DecoratorNode {
 class RootNode : public SingleNode, public IRootNode {
  protected:
   // Current binding tree blob.
-  TreeBlob* blob = nullptr;
+  ITreeBlob* blob = nullptr;
   // Number of nodes on this tree, including the root itself.
   int n = 0;
 
@@ -1121,9 +1176,9 @@ class RootNode : public SingleNode, public IRootNode {
   //////////////////////////
 
   // Binds a tree blob.
-  void BindTreeBlob(TreeBlob& b) { blob = &b; }
+  void BindTreeBlob(ITreeBlob& b) { blob = &b; }
   // Returns current tree blob.
-  TreeBlob* GetTreeBlob(void) const override { return blob; }
+  ITreeBlob* GetTreeBlob(void) const override { return blob; }
   // Unbind current tree blob.
   void UnbindTreeBlob() { blob = nullptr; }
 
