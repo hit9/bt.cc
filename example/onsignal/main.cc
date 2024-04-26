@@ -104,7 +104,7 @@ class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
 int main(void) {
   MyTree root("Root");
 
-  bt::TreeBlob blob;
+  bt::DynamicTreeBlob blob;
 
   // clang-format off
   root

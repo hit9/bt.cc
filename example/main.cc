@@ -31,7 +31,7 @@ class C : public bt::ConditionNode {
 
 // Entity
 struct Entity {
-  bt::TreeBlob blob;
+  bt::DynamicTreeBlob blob;
 };
 
 int main(void) {

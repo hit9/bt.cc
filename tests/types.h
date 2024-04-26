@@ -44,6 +44,10 @@ struct Entity {
   bt::TreeBlob blob;
 };
 
+struct EntityFixedBlob {
+  bt::FixedTreeBlob<7100, 48> blob;
+};
+
 class A : public bt::Action {
  public:
   void OnEnter(const bt::Context& ctx) override {

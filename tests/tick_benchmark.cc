@@ -92,3 +92,21 @@ TEST_CASE("Tick/3", "[simple traversal benchmark - stateful ]") {
     root.UnbindTreeBlob();
   };
 }
+
+TEST_CASE("Tick/4", "[simple traversal benchmark - fixed blob ]") {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  build(root);
+  EntityFixedBlob e;
+  bb->shouldA = bt::Status::SUCCESS;
+  bb->shouldB = bt::Status::SUCCESS;
+  bb->shouldG = bt::Status::SUCCESS;
+  bb->shouldH = bt::Status::SUCCESS;
+  bb->shouldI = bt::Status::SUCCESS;
+  BENCHMARK("bench tick without priorities - fixed blob ") {
+    root.BindTreeBlob(e.blob);
+    root.Tick(ctx);
+    root.UnbindTreeBlob();
+  };
+}
