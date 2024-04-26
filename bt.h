@@ -13,6 +13,7 @@
 //    and supports to extend the builder.
 // 3. Built-in multiple decorators, and supports custom decoration nodes,
 // 4. Supports composite nodes with priority child nodes, and random selector.
+// 5. Also supports continuous memory storage: fixed size blob and node pool.
 //
 // Code Example
 // ~~~~~~~~~~~~
@@ -153,7 +154,7 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 ////////////////////////////
 
 // ITreeBlob is an internal interface base class for FixedTreeBlob and DynamicTreeBlob.
-// TreeBlob stores the entity-related states data for all nodes in a tree.
+// A TreeBlob stores the entity-related states data for all nodes in a tree.
 // One tree blob for one entity.
 class ITreeBlob {
  protected:
@@ -168,6 +169,7 @@ class ITreeBlob {
   virtual void reserve(const std::size_t cap) = 0;
 
  public:
+  virtual ~ITreeBlob() {}
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
   // Parameter cb is an optional function to be called after the blob is first allocated.
@@ -184,7 +186,7 @@ class ITreeBlob {
 };
 
 // FixedTreeBlob is just a continuous buffer, implements ITreeBlob.
-template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob >
 class FixedTreeBlob final : public ITreeBlob {
  private:
   unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
@@ -232,9 +234,6 @@ class DynamicTreeBlob final : public ITreeBlob {
  public:
   DynamicTreeBlob() {}
 };
-
-// By default, a DynamicTreeBlob names TreeBlob.
-using TreeBlob = DynamicTreeBlob;
 
 ////////////////////////////
 /// Node

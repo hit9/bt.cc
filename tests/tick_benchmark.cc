@@ -98,7 +98,7 @@ TEST_CASE("Tick/4", "[simple traversal benchmark - fixed blob ]") {
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   build(root);
-  EntityFixedBlob e;
+  EntityFixedBlob<6002, sizeof(bt::NodeBlob)> e;
   bb->shouldA = bt::Status::SUCCESS;
   bb->shouldB = bt::Status::SUCCESS;
   bb->shouldG = bt::Status::SUCCESS;

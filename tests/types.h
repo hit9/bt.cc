@@ -44,8 +44,9 @@ struct Entity {
   bt::TreeBlob blob;
 };
 
+template <std::size_t N, std::size_t M>
 struct EntityFixedBlob {
-  bt::FixedTreeBlob<7100, 48> blob;
+  bt::FixedTreeBlob<N, M> blob;
 };
 
 class A : public bt::Action {
