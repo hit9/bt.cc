@@ -5,7 +5,7 @@
 #include "types.h"
 
 TEST_CASE("Blob/1", "[simple tree blob test]") {
-  bt::TreeBlob blob;
+  bt::DynamicTreeBlob blob;
   std::function<void(bt::NodeBlob*)> cb = nullptr;
 
   // Allocate one

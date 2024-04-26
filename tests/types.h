@@ -41,7 +41,7 @@ struct Blackboard {
 };
 
 struct Entity {
-  bt::TreeBlob blob;
+  bt::DynamicTreeBlob blob;
 };
 
 template <std::size_t N, std::size_t M>
