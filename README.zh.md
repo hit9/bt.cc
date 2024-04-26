@@ -3,6 +3,8 @@
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
 
+**在版本 1.0.0 之前可能会不稳定 !**
+
 一个轻量的、数据和行为分离的行为树库。
 
 需要至少 C++20

@@ -3,6 +3,8 @@
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
 
+**May unstable before version 1.0.0!**
+
 [中文说明](README.zh.md)
 
 A lightweight behavior tree library that separates data and behavior.
