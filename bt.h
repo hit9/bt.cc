@@ -192,13 +192,13 @@ class FixedTreeBlob final : public ITreeBlob {
   unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
 
  protected:
-  virtual void* allocate(const std::size_t idx, std::size_t size) {
+   void* allocate(const std::size_t idx, std::size_t size) override{
     buf[idx][0] = true;
     return get(idx);
   };
-  virtual bool exist(const std::size_t idx) { return static_cast<bool>(buf[idx][0]); };
-  virtual void* get(const std::size_t idx) { return &buf[idx][1]; };
-  virtual void reserve(const std::size_t cap){};
+   bool exist(const std::size_t idx)override { return static_cast<bool>(buf[idx][0]); };
+   void* get(const std::size_t idx)override { return &buf[idx][1]; };
+   void reserve(const std::size_t cap)override{};
 
  public:
   FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
@@ -211,7 +211,7 @@ class DynamicTreeBlob final : public ITreeBlob {
   std::vector<bool> e;                              // index => exist, dynamic
 
  protected:
-  virtual void* allocate(const std::size_t idx, std::size_t size) {
+   void* allocate(const std::size_t idx, std::size_t size) override{
     if (m.size() <= idx) {
       m.resize(idx + 1);
       e.resize(idx + 1, false);
@@ -222,9 +222,9 @@ class DynamicTreeBlob final : public ITreeBlob {
     e[idx] = true;
     return rp;
   };
-  virtual bool exist(const std::size_t idx) { return e.size() > idx && e[idx]; };
-  virtual void* get(const std::size_t idx) { return m[idx].get(); };
-  virtual void reserve(const std::size_t cap) {
+   bool exist(const std::size_t idx) override{ return e.size() > idx && e[idx]; };
+   void* get(const std::size_t idx)override { return m[idx].get(); };
+   void reserve(const std::size_t cap)override {
     if (m.capacity() < cap) {
       m.reserve(cap);
       e.reserve(cap);
