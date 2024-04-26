@@ -164,7 +164,10 @@ class TreeBlob {
   template <TNodeBlob B>
   B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0) {
     // optimization: pre allocate memory.
-    if (cap && m.capacity() < cap) m.reserve(cap);
+    if (cap && m.capacity() < cap) {
+      m.reserve(cap);
+      exist.reserve(cap);
+    }
     auto offset = id - 1, sz = id;
     if (sz <= m.size()) {
       if (exist[offset]) return static_cast<B*>(m[offset].get());
