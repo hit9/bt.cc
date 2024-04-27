@@ -34,7 +34,7 @@ TEMPLATE_TEST_CASE("Hook/2", "[hook OnEnter]", Entity, (EntityFixedBlob<16>)) {
   // clang-format off
     root
     .Parallel()
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on
@@ -54,7 +54,7 @@ TEMPLATE_TEST_CASE("Hook/3", "[hook OnTerminate]", Entity, (EntityFixedBlob<16>)
   // clang-format off
     root
     .Parallel()
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on

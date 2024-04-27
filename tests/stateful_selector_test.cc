@@ -12,9 +12,9 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
   // clang-format off
     root
     .StatefulSelector()
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<E>()
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<E>()
     .End()
     ;
   // clang-format on
@@ -103,9 +103,9 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
   // clang-format off
     root
     .StatefulSelector()
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<E>()
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<E>()
     .End()
     ;
   // clang-format on
@@ -194,9 +194,9 @@ TEMPLATE_TEST_CASE("StatefulSelector/3", "[priority statefule selector final suc
   // clang-format off
     root
     .StatefulSelector()
-    ._().template Action<G>()
-    ._().template Action<H>()
-    ._().template Action<I>()
+    ._().Action<G>()
+    ._().Action<H>()
+    ._().Action<I>()
     .End()
     ;
   // clang-format on

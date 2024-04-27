@@ -16,7 +16,7 @@ TEMPLATE_TEST_CASE("Timeout/1", "[simple timeout success]", Entity,
   // clang-format off
     root
     .Timeout(100ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on
@@ -45,7 +45,7 @@ TEMPLATE_TEST_CASE("Timeout/2", "[simple timeout failure]", Entity,
   // clang-format off
     root
     .Timeout(100ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on
@@ -74,7 +74,7 @@ TEMPLATE_TEST_CASE("Timeout/3", "[simple timeout timedout]", Entity,
   // clang-format off
     root
     .Timeout(100ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on

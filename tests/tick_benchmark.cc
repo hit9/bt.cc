@@ -11,11 +11,11 @@ void build(bt::Tree& root) {
   for (int i = 0; i < 1000; i++) {
     // clang-format off
     root
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<G>()
-    ._().template Action<H>()
-    ._().template Action<I>();
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<G>()
+    ._().Action<H>()
+    ._().Action<I>();
     // clang-format on
   }
   root.End();
@@ -27,11 +27,11 @@ void buildStateful(bt::Tree& root) {
   for (int i = 0; i < 1000; i++) {
     // clang-format off
     root
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<G>()
-    ._().template Action<H>()
-    ._().template Action<I>();
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<G>()
+    ._().Action<H>()
+    ._().Action<I>();
     // clang-format on
   }
   root.End();

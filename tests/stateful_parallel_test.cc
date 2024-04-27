@@ -12,9 +12,9 @@ TEMPLATE_TEST_CASE("StatefulParallel/1", "[all success]", Entity,
   // clang-format off
     root
     .StatefulParallel()
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<E>()
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<E>()
     .End()
     ;
   // clang-format on
@@ -102,9 +102,9 @@ TEMPLATE_TEST_CASE("StatefulParallel/2", "[final failure]", Entity,
   // clang-format off
     root
     .StatefulParallel()
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<E>()
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<E>()
     .End()
     ;
   // clang-format on

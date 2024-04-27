@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <thread>
 
@@ -6,7 +7,8 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Delay/1", "[simple delay]") {
+TEMPLATE_TEST_CASE("Delay/1", "[simple delay]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::DelayNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -19,7 +21,7 @@ TEST_CASE("Delay/1", "[simple delay]") {
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   REQUIRE(bb->counterA == 0);
   // Tick#1: A is not started.

@@ -16,7 +16,7 @@ TEMPLATE_TEST_CASE("Retry/1", "[simple retry success]", Entity,
   // clang-format off
     root
     .Retry(3, 30ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on
@@ -46,7 +46,7 @@ TEMPLATE_TEST_CASE("Retry/2", "[simple retry final failure]", Entity,
   // clang-format off
     root
     .Retry(3, 30ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on
@@ -92,7 +92,7 @@ TEMPLATE_TEST_CASE("Retry/3", "[simple retry final success ]", Entity,
   // clang-format off
     root
     .Retry(3, 30ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on
@@ -127,7 +127,7 @@ TEMPLATE_TEST_CASE("Retry/4", "[simple retry forever ]", Entity,
   // clang-format off
     root
     .RetryForever(1ms)
-    ._().template Action<A>()
+    ._().Action<A>()
     .End()
     ;
   // clang-format on

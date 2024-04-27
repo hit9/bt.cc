@@ -12,9 +12,9 @@ TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
   // clang-format off
     root
     .StatefulSequence()
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<E>()
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<E>()
     .End()
     ;
   // clang-format on
@@ -99,9 +99,9 @@ TEMPLATE_TEST_CASE("StatefulSequence/2", "[paritial failure]", Entity,
   // clang-format off
     root
     .StatefulSequence()
-    ._().template Action<A>()
-    ._().template Action<B>()
-    ._().template Action<E>()
+    ._().Action<A>()
+    ._().Action<B>()
+    ._().Action<E>()
     .End()
     ;
   // clang-format on
@@ -163,9 +163,9 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
   // clang-format off
     root
     .StatefulSequence()
-    ._().template Action<G>()
-    ._().template Action<H>()
-    ._().template Action<I>()
+    ._().Action<G>()
+    ._().Action<H>()
+    ._().Action<I>()
     .End()
     ;
   // clang-format on

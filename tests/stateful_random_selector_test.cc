@@ -12,8 +12,8 @@ TEMPLATE_TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector
   // clang-format off
     root
     .StatefulRandomSelector()
-    ._().template Action<H>()
-    ._().template Action<I>()
+    ._().Action<H>()
+    ._().Action<I>()
     .End()
     ;
   // clang-format on

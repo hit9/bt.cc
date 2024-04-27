@@ -14,9 +14,9 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
   // clang-format off
   subtree
   .Sequence()
-  ._().template Action<A>()
-  ._().template If<C>()
-  ._()._().template Action<B>()
+  ._().Action<A>()
+  ._().If<C>()
+  ._()._().Action<B>()
   .End()
   ;
   // clang-format on
@@ -24,7 +24,7 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
   // clang-format off
   root
   .Selector()
-  ._().template Action<E>()
+  ._().Action<E>()
   ._().Subtree(std::move(subtree))
   .End()
   ;

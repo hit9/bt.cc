@@ -13,11 +13,11 @@ TEMPLATE_TEST_CASE("Repeat/1", "[simple repeat]", Entity,
   // clang-format off
     root
     .Parallel()
-    ._().template Action<E>()
+    ._().Action<E>()
     ._().Repeat(2)
     ._()._().Sequence()
-    ._()._()._().template Action<A>()
-    ._()._()._().template Action<B>()
+    ._()._()._().Action<A>()
+    ._()._()._().Action<B>()
     .End()
     ;
   // clang-format on

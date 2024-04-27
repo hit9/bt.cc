@@ -35,9 +35,9 @@ TEMPLATE_TEST_CASE("Builder/1", "[extend a custom decorator to builder]", Entity
   root
   .Sequence()
   ._().Counter()
-  ._()._().template Action<A>()
+  ._()._().Action<A>()
   ._().Counter()
-  ._()._().template Action<B>()
+  ._()._().Action<B>()
   .End()
   ;
   // clang-format on
