@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <thread>
 
@@ -6,7 +7,8 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Timeout/1", "[simple timeout success]") {
+TEMPLATE_TEST_CASE("Timeout/1", "[simple timeout success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -14,12 +16,12 @@ TEST_CASE("Timeout/1", "[simple timeout success]") {
   // clang-format off
     root
     .Timeout(100ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
   root.Tick(ctx);
@@ -34,7 +36,8 @@ TEST_CASE("Timeout/1", "[simple timeout success]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Timeout/2", "[simple timeout failure]") {
+TEMPLATE_TEST_CASE("Timeout/2", "[simple timeout failure]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -42,12 +45,12 @@ TEST_CASE("Timeout/2", "[simple timeout failure]") {
   // clang-format off
     root
     .Timeout(100ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
   root.Tick(ctx);
@@ -62,7 +65,8 @@ TEST_CASE("Timeout/2", "[simple timeout failure]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Timeout/3", "[simple timeout timedout]") {
+TEMPLATE_TEST_CASE("Timeout/3", "[simple timeout timedout]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -70,12 +74,12 @@ TEST_CASE("Timeout/3", "[simple timeout timedout]") {
   // clang-format off
     root
     .Timeout(100ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
   root.Tick(ctx);

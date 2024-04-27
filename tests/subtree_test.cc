@@ -1,9 +1,10 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("SubTree/1", "[subtree test]") {
+TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -13,9 +14,9 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   // clang-format off
   subtree
   .Sequence()
-  ._().Action<A>()
+  ._().template Action<A>()
   ._().If<C>()
-  ._()._().Action<B>()
+  ._()._().template Action<B>()
   .End()
   ;
   // clang-format on
@@ -23,13 +24,13 @@ TEST_CASE("SubTree/1", "[subtree test]") {
   // clang-format off
   root
   .Selector()
-  ._().Action<E>()
+  ._().template Action<E>()
   ._().Subtree(std::move(subtree))
   .End()
   ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1: Make Action E Failure.

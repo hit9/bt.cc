@@ -1,10 +1,11 @@
-
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Repeat/1", "[simple repeat]") {
+TEMPLATE_TEST_CASE("Repeat/1", "[simple repeat]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::RepeatNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -12,15 +13,15 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
   // clang-format off
     root
     .Parallel()
-    ._().Action<E>()
+    ._().template Action<E>()
     ._().Repeat(2)
     ._()._().Sequence()
-    ._()._()._().Action<A>()
-    ._()._()._().Action<B>()
+    ._()._()._().template Action<A>()
+    ._()._()._().template Action<B>()
     .End()
     ;
   // clang-format on
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);

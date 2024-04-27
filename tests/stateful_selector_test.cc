@@ -1,23 +1,25 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("StatefulSelector/1", "[final success]") {
+TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSelectorNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulSelector()
-    ._().Action<A>()
-    ._().Action<B>()
-    ._().Action<E>()
+    ._().template Action<A>()
+    ._().template Action<B>()
+    ._().template Action<E>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -93,20 +95,21 @@ TEST_CASE("StatefulSelector/1", "[final success]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("StatefulSelector/2", "[final failure]") {
+TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSelectorNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulSelector()
-    ._().Action<A>()
-    ._().Action<B>()
-    ._().Action<E>()
+    ._().template Action<A>()
+    ._().template Action<B>()
+    ._().template Action<E>()
     .End()
     ;
   // clang-format on
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
@@ -183,20 +186,21 @@ TEST_CASE("StatefulSelector/2", "[final failure]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]") {
+TEMPLATE_TEST_CASE("StatefulSelector/3", "[priority statefule selector final success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSelectorNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulSelector()
-    ._().Action<G>()
-    ._().Action<H>()
-    ._().Action<I>()
+    ._().template Action<G>()
+    ._().template Action<H>()
+    ._().template Action<I>()
     .End()
     ;
   // clang-format on
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterG == 0);

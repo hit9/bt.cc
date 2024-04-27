@@ -1,18 +1,20 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("StatefulParallel/1", "[all success]") {
+TEMPLATE_TEST_CASE("StatefulParallel/1", "[all success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulParallelNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulParallel()
-    ._().Action<A>()
-    ._().Action<B>()
-    ._().Action<E>()
+    ._().template Action<A>()
+    ._().template Action<B>()
+    ._().template Action<E>()
     .End()
     ;
   // clang-format on
@@ -21,7 +23,7 @@ TEST_CASE("StatefulParallel/1", "[all success]") {
   REQUIRE(bb->counterB == 0);
   REQUIRE(bb->counterB == 0);
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1
@@ -92,21 +94,22 @@ TEST_CASE("StatefulParallel/1", "[all success]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("StatefulParallel/2", "[final failure]") {
+TEMPLATE_TEST_CASE("StatefulParallel/2", "[final failure]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulParallelNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulParallel()
-    ._().Action<A>()
-    ._().Action<B>()
-    ._().Action<E>()
+    ._().template Action<A>()
+    ._().template Action<B>()
+    ._().template Action<E>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);

@@ -1,4 +1,5 @@
 #include <any>
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <string_view>
@@ -7,25 +8,25 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
-  // CounterDecorator counts how many times the decorated nodes' ticking was executed.
-  class CounterDecorator : public bt::DecoratorNode {
-   public:
-    CounterDecorator(std::string_view name = "CounterDecorator") : bt::DecoratorNode(name) {}
-    bt::Status Update(const bt::Context& ctx) override {
-      auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
-      bb->customDecoratorCounter++;
-      return child->Update(ctx);
-    }
-  };
+// CounterDecorator counts how many times the decorated nodes' ticking was executed.
+class CounterDecorator : public bt::DecoratorNode {
+ public:
+  CounterDecorator(std::string_view name = "CounterDecorator") : bt::DecoratorNode(name) {}
+  bt::Status Update(const bt::Context& ctx) override {
+    auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
+    bb->customDecoratorCounter++;
+    return child->Update(ctx);
+  }
+};
 
-  // Extend the builder.
-  class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
-   public:
-    MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder() { bindRoot(*this); }
-    auto& Counter() { return C<CounterDecorator>(); }
-  };
+// Extend the builder.
+class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
+ public:
+  MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder() { bindRoot(*this); }
+  auto& Counter() { return C<CounterDecorator>(); }
+};
 
+TEMPLATE_TEST_CASE("Builder/1", "[extend a custom decorator to builder]", Entity, (EntityFixedBlob<32>)) {
   MyTree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -34,14 +35,14 @@ TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
   root
   .Sequence()
   ._().Counter()
-  ._()._().Action<A>()
+  ._()._().template Action<A>()
   ._().Counter()
-  ._()._().Action<B>()
+  ._()._().template Action<B>()
   .End()
   ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   // Tick#1
 

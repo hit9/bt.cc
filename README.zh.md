@@ -171,10 +171,10 @@ while(...) {
 
 * **Action**  <span id="action"></span> <a href="#a">[↑]</a>
 
-  要定义一个 `Action` 节点，只需要继承自 `bt::Action`，并实现方法 `Update`：
+  要定义一个 `Action` 节点，只需要继承自 `bt::ActionNode`，并实现方法 `Update`：
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     // TODO: 需要重载 Update 函数
     bt::Status Update(const bt::Context& ctx) override { }
@@ -201,7 +201,7 @@ while(...) {
   然后，实现接口 `GetNodeBlob`:
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
     // 在这个类的方法中，可以用 getNodeBlob<ANodeBlob>() 来获取数据快的指针, 来查询和修改实体相关的数据。
@@ -220,7 +220,7 @@ while(...) {
 
   条件节点也没有 `RUNNING` 的状态。
 
-  要定义一个「静态的」条件节点，可以继承自 `bt::Condition` 类，然后实现 `Check` 方法：
+  要定义一个「静态的」条件节点，可以继承自 `bt::ConditionNode` 类，然后实现 `Check` 方法：
 
   ```cpp
   class C : public bt::ConditionNode {
@@ -329,7 +329,7 @@ while(...) {
   每次要选择最高分的子节点来执行，因此 Node 类支持重载一个  Priority 的函数。
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     unsigned int Priority(const bt::Context& ctx) const override {
         // TODO, 返回一个正整数

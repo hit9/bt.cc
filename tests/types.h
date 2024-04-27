@@ -44,12 +44,12 @@ struct Entity {
   bt::DynamicTreeBlob blob;
 };
 
-template <std::size_t N, std::size_t M>
+template <std::size_t N, std::size_t M = sizeof(bt::NodeBlob)>
 struct EntityFixedBlob {
   bt::FixedTreeBlob<N, M> blob;
 };
 
-class A : public bt::Action {
+class A : public bt::ActionNode {
  public:
   void OnEnter(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -66,7 +66,7 @@ class A : public bt::Action {
   }
 };
 
-class B : public bt::Action {
+class B : public bt::ActionNode {
  public:
   bt::Status Update(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -75,7 +75,7 @@ class B : public bt::Action {
   }
 };
 
-class C : public bt::Condition {
+class C : public bt::ConditionNode {
  public:
   bool Check(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -83,7 +83,7 @@ class C : public bt::Condition {
   }
 };
 
-class D : public bt::Condition {
+class D : public bt::ConditionNode {
  public:
   bool Check(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -91,7 +91,7 @@ class D : public bt::Condition {
   }
 };
 
-class E : public bt::Action {
+class E : public bt::ActionNode {
  public:
   bt::Status Update(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -100,7 +100,7 @@ class E : public bt::Action {
   }
 };
 
-class F : public bt::Condition {
+class F : public bt::ConditionNode {
  public:
   bool Check(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -108,7 +108,7 @@ class F : public bt::Condition {
   }
 };
 
-class G : public bt::Action {
+class G : public bt::ActionNode {
  public:
   bt::Status Update(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -121,7 +121,7 @@ class G : public bt::Action {
   }
 };
 
-class H : public bt::Action {
+class H : public bt::ActionNode {
  public:
   bt::Status Update(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
@@ -134,7 +134,7 @@ class H : public bt::Action {
   }
 };
 
-class I : public bt::Action {
+class I : public bt::ActionNode {
  public:
   bt::Status Update(const bt::Context& ctx) override {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);

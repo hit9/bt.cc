@@ -1,24 +1,26 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector]") {
+TEMPLATE_TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulRandomSelectorNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulRandomSelector()
-    ._().Action<H>()
-    ._().Action<I>()
+    ._().template Action<H>()
+    ._().template Action<I>()
     .End()
     ;
   // clang-format on
 
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 0);
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1

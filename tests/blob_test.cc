@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <functional>
 
@@ -39,22 +40,23 @@ TEST_CASE("Blob/1", "[simple tree blob test]") {
   REQUIRE(p5->lastStatus == bt::Status::RUNNING);
 }
 
-TEST_CASE("Blob/2", "[multiple entites]") {
+TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSelectorNode::Blob)>)) {
   bt::Tree root;
 
   // clang-format off
   root
   .StatefulSelector()
-  ._().Action<A>()
-  ._().Action<B>()
-  ._().Action<E>()
+  ._().template Action<A>()
+  ._().template Action<B>()
+  ._().template Action<E>()
   .End();
   // clang-format on
 
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
 
-  Entity e1, e2, e3;
+  TestType e1, e2, e3;
 
   // e1: Tick#1
   root.BindTreeBlob(e1.blob);

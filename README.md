@@ -177,10 +177,10 @@ Reference: <span id="ref"></span>
 
 * **Action**  <span id="action"></span> <a href="#ref">[↑]</a>
 
-  Define a class that inherits from `bt::Action`, and implement the `Update` method:
+  Define a class that inherits from `bt::ActionNode`, and implement the `Update` method:
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     // TODO: Implements this
     bt::Status Update(const bt::Context& ctx) override { }
@@ -209,7 +209,7 @@ Reference: <span id="ref"></span>
   And then overrides the interface `GetNodeBlob`:
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
     // Use getNodeBlob<ANodeBlob>() to access the pointer to this's node's data blob.
@@ -228,7 +228,7 @@ Reference: <span id="ref"></span>
 
   And there's no `RUNNING` status for a condition node.
 
-  To implement a "static condition", just define a class derived from class `bt::Condition`, and implements the `Check` method:
+  To implement a "static condition", just define a class derived from class `bt::ConditionNode`, and implements the `Check` method:
 
   ```cpp
   class C : public bt::ConditionNode {
@@ -335,7 +335,7 @@ Reference: <span id="ref"></span>
   for such cases, the class `Node` supports overriding a `Priority` function.
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     unsigned int Priority(const bt::Context& ctx) const override {
         // TODO, returns a number > 0

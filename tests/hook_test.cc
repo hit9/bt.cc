@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
@@ -26,19 +27,19 @@ TEST_CASE("Hook/1", "[hook OnBuild]") {
   REQUIRE(onBuildCalled);
 }
 
-TEST_CASE("Hook/2", "[hook OnEnter]") {
+TEMPLATE_TEST_CASE("Hook/2", "[hook OnEnter]", Entity, (EntityFixedBlob<16>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .Parallel()
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   root.BindTreeBlob(e.blob);
   root.Tick(ctx);
@@ -46,19 +47,19 @@ TEST_CASE("Hook/2", "[hook OnEnter]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Hook/3", "[hook OnTerminate]") {
+TEMPLATE_TEST_CASE("Hook/3", "[hook OnTerminate]", Entity, (EntityFixedBlob<16>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .Parallel()
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   root.BindTreeBlob(e.blob);
   root.Tick(ctx);

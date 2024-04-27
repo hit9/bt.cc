@@ -1,23 +1,25 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("StatefulSequence/1", "[all success]") {
+TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSequenceNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulSequence()
-    ._().Action<A>()
-    ._().Action<B>()
-    ._().Action<E>()
+    ._().template Action<A>()
+    ._().template Action<B>()
+    ._().template Action<E>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -89,21 +91,22 @@ TEST_CASE("StatefulSequence/1", "[all success]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("StatefulSequence/2", "[paritial failure]") {
+TEMPLATE_TEST_CASE("StatefulSequence/2", "[paritial failure]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSequenceNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulSequence()
-    ._().Action<A>()
-    ._().Action<B>()
-    ._().Action<E>()
+    ._().template Action<A>()
+    ._().template Action<B>()
+    ._().template Action<E>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterB == 0);
@@ -152,20 +155,21 @@ TEST_CASE("StatefulSequence/2", "[paritial failure]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]") {
+TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSequenceNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
   // clang-format off
     root
     .StatefulSequence()
-    ._().Action<G>()
-    ._().Action<H>()
-    ._().Action<I>()
+    ._().template Action<G>()
+    ._().template Action<H>()
+    ._().template Action<I>()
     .End()
     ;
   // clang-format on
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   bb->shouldPriorityG = 1;

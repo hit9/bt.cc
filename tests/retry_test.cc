@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <thread>
 
@@ -6,7 +7,8 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Retry/1", "[simple retry success]") {
+TEMPLATE_TEST_CASE("Retry/1", "[simple retry success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -14,12 +16,11 @@ TEST_CASE("Retry/1", "[simple retry success]") {
   // clang-format off
     root
     .Retry(3, 30ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
-
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1
@@ -36,7 +37,8 @@ TEST_CASE("Retry/1", "[simple retry success]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Retry/2", "[simple retry final failure]") {
+TEMPLATE_TEST_CASE("Retry/2", "[simple retry final failure]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -44,12 +46,12 @@ TEST_CASE("Retry/2", "[simple retry final failure]") {
   // clang-format off
     root
     .Retry(3, 30ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1
@@ -81,7 +83,8 @@ TEST_CASE("Retry/2", "[simple retry final failure]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Retry/3", "[simple retry final success ]") {
+TEMPLATE_TEST_CASE("Retry/3", "[simple retry final success ]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -89,12 +92,11 @@ TEST_CASE("Retry/3", "[simple retry final success ]") {
   // clang-format off
     root
     .Retry(3, 30ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
-
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1
@@ -116,7 +118,8 @@ TEST_CASE("Retry/3", "[simple retry final success ]") {
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Retry/4", "[simple retry forever ]") {
+TEMPLATE_TEST_CASE("Retry/4", "[simple retry forever ]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -124,12 +127,12 @@ TEST_CASE("Retry/4", "[simple retry forever ]") {
   // clang-format off
     root
     .RetryForever(1ms)
-    ._().Action<A>()
+    ._().template Action<A>()
     .End()
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   // Tick#1
