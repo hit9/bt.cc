@@ -259,6 +259,8 @@ class Node {
   NodeId id = 0;
   // holding a pointer to the root.
   IRootNode* root = nullptr;
+  // size of this node, available after tree built.
+  std::size_t size = 0;
 
   // Internal helper method to return the raw pointer to the node blob.
   template <TNodeBlob B>
@@ -290,7 +292,7 @@ class Node {
   friend class SingleNode;
   friend class CompositeNode;
 
-  // friend with _InternalBuilderBase to access member root and id;
+  // friend with _InternalBuilderBase to access member root, size and id;
   friend class _InternalBuilderBase;
 
  public:
@@ -300,6 +302,8 @@ class Node {
   virtual ~Node() = default;
   // Returns the id of this node.
   NodeId Id() const { return id; }
+  // Returns the size of this node, available after tree built.
+  std::size_t Size() const { return size; }
 
   // Type of the callback function for node traversal.
   using TraversalCallback = std::function<void(Node&)>;
@@ -1267,12 +1271,14 @@ class _InternalBuilderBase {
   }
 
   void maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize, std::size_t blobSize) {
+    root->size = rootNodeSize;
     root->treeSize += rootNodeSize;
     root->maxSizeNode = rootNodeSize;
     root->maxSizeNodeBlob = blobSize;
   }
   template <TNode T>
   void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
+    node.size = sizeof(T);
     root->treeSize += sizeof(T);
     root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
     root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));

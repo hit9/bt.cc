@@ -3,6 +3,7 @@
 
 * Remove name `TreeBlob`, split into `DynamicTreeBlob` and `FixedTreeBlob`
 * Add api for tree: `TreeSize()`, `MaxSizeNode()`, `MaxSizeNodeBlob()`
+* Add api for node: `Size()`.
 
 0.3.1
 -----
