@@ -193,8 +193,8 @@ class FixedTreeBlob final : public ITreeBlob {
 
  protected:
   void* allocate(const std::size_t idx, std::size_t size) override {
-      if (idx >= NumNodes) throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
-      if (size > MaxSizeNodeBlob) throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
+    if (idx >= NumNodes) throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
+    if (size > MaxSizeNodeBlob) throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
     buf[idx][0] = true;
     return get(idx);
   };
@@ -1162,7 +1162,7 @@ class RootNode : public SingleNode, public IRootNode {
   // Number of nodes on this tree, including the root itself.
   int n = 0;
   // Size of this tree.
-  std::size_t size = 0;
+  std::size_t treeSize = 0;
   // MaxSizeNode is the max size of tree node.
   std::size_t maxSizeNode = 0;
   // MaxSizeNodeBlob is the max size of tree node blobs.
@@ -1194,7 +1194,7 @@ class RootNode : public SingleNode, public IRootNode {
   int NumNodes() const override final { return n; }
   // Returns the total size of the node classes in this tree.
   // Available once the tree is built.
-  std::size_t Size() const { return size; }
+  std::size_t TreeSize() const { return treeSize; }
   // Returns the max size of the node class in this tree.
   // Available once the tree is built.
   std::size_t MaxSizeNode() const { return maxSizeNode; }
@@ -1266,19 +1266,19 @@ class _InternalBuilderBase {
     node.id = ++nextNodeId;
   }
 
-  void maintainSizeInfoOnRootBind(RootNode* root, std::size_t size, std::size_t blobSize) {
-    root->size += size;
-    root->maxSizeNode = size;
+  void maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize, std::size_t blobSize) {
+    root->treeSize += rootNodeSize;
+    root->maxSizeNode = rootNodeSize;
     root->maxSizeNodeBlob = blobSize;
   }
   template <TNode T>
   void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
-    root->size += sizeof(T);
+    root->treeSize += sizeof(T);
     root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
     root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));
   }
   void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root) {
-    root->size += subtree.size;
+    root->treeSize += subtree.treeSize;
     root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
     root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, subtree.maxSizeNodeBlob);
   }
