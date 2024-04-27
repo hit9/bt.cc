@@ -326,6 +326,7 @@ class Node {
   // Type of the callback function for node traversal.
   using TraversalCallback = std::function<void(Node&)>;
   // Traverse the subtree of the current node recursively and execute the given function cb.
+  // Pre-Ordering: parent node are touched first, and then its children.
   virtual void Traverse(TraversalCallback& cb) { cb(*this); }
 
   // Main entry function, should be called on every tick.
@@ -489,8 +490,8 @@ class SingleNode : public InternalNode {
   SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
   void Traverse(TraversalCallback& cb) override {
-    child->Traverse(cb);
     Node::Traverse(cb);
+    child->Traverse(cb);
   }
   std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
   void Append(Ptr<Node> node) override { child = std::move(node); }
@@ -530,8 +531,8 @@ class CompositeNode : public InternalNode {
     children.swap(cs);
   }
   void Traverse(TraversalCallback& cb) override {
-    for (auto& child : children) child->Traverse(cb);
     Node::Traverse(cb);
+    for (auto& child : children) child->Traverse(cb);
   }
 
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
@@ -996,9 +997,9 @@ class ConditionalRunNode : public DecoratorNode {
         condition(std::move(condition)) {}
 
   void Traverse(TraversalCallback& cb) override {
+    Node::Traverse(cb);
     condition->Traverse(cb);
     child->Traverse(cb);
-    Node::Traverse(cb);
   }
   Status Update(const Context& ctx) override {
     if (condition->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
