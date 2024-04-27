@@ -47,9 +47,9 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   // clang-format off
   root
   .StatefulSelector()
-  ._().template Action<A>()
-  ._().template Action<B>()
-  ._().template Action<E>()
+  ._().Action<A>()
+  ._().Action<B>()
+  ._().Action<E>()
   .End();
   // clang-format on
 
