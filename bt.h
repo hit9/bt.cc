@@ -296,22 +296,35 @@ class Node {
   friend class _InternalBuilderBase;
 
  public:
+  // Every stateful Node class should declare its own Blob type member.
   using Blob = NodeBlob;
 
   Node(std::string_view name = "Node") : name(name) {}
   virtual ~Node() = default;
+
+  /////////////////////////////////////////
+  // Simple Getters
+  /////////////////////////////////////////
+
   // Returns the id of this node.
   NodeId Id() const { return id; }
   // Returns the size of this node, available after tree built.
   std::size_t Size() const { return size; }
-
-  // Type of the callback function for node traversal.
-  using TraversalCallback = std::function<void(Node&)>;
+  // Returns the name of this node.
+  virtual std::string_view Name() const { return name; }
+  // Returns last status of this node.
+  bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
 
   // Helps to access the node blob's pointer, which stores the entity-related data and states.
   // Any Node has a NodeBlob class should override this.
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
+  /////////////////////////////////////////
+  // API
+  /////////////////////////////////////////
+
+  // Type of the callback function for node traversal.
+  using TraversalCallback = std::function<void(Node&)>;
   // Traverse the subtree of the current node recursively and execute the given function cb.
   virtual void Traverse(TraversalCallback& cb) { cb(*this); }
 
@@ -333,15 +346,6 @@ class Node {
     }
     return status;
   }
-
-  // Returns the name of this node.
-  virtual std::string_view Name() const { return name; }
-  // Returns last status of this node.
-  bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
-
-  // Validate whether the node is builded correctly.
-  // Returns error message, empty string for good.
-  virtual std::string_view Validate() const { return ""; }
 
   /////////////////////////////////////////
   // Public Virtual Functions To Override
@@ -373,6 +377,10 @@ class Node {
 
   // Hook function to be called on a blob's first allocation.
   virtual void OnBlobAllocated(NodeBlob* blob) const {}
+
+  // Validate whether the node is builded correctly.
+  // Returns error message, empty string for good.
+  virtual std::string_view Validate() const { return ""; }
 };
 
 // Concept TNode for all classes derived from Node.
