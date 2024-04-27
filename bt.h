@@ -220,6 +220,7 @@ class DynamicTreeBlob final : public ITreeBlob {
     }
     auto p = std::make_unique_for_overwrite<unsigned char[]>(size);
     auto rp = p.get();
+    std::fill_n(rp, size, 0);
     m[idx] = std::move(p);
     e[idx] = true;
     return rp;
@@ -237,6 +238,27 @@ class DynamicTreeBlob final : public ITreeBlob {
   DynamicTreeBlob() {}
 };
 
+///////////////////////////////
+/// unique ptr deleter
+///////////////////////////////
+
+// NodeUniquePtrDeleter is a custom deleter for unique_ptr<Node>.
+template <typename T>
+struct NodeUniquePtrDeleter {
+  // should we skip delete the ptr from heap?
+  // for Node pointers managed in NodePool, is will set to true.
+  bool skip = false;
+  // Default constructor.
+  NodeUniquePtrDeleter(bool skip = false) : skip(skip) {}
+  // implicit conversion from other deleter,
+  // to support unique_ptr<D, NodeUniquePtrDeleter<D>> to unique_ptr<B, NodeUniquePtrDeleter<B>> conversion.
+  template <typename U>
+  NodeUniquePtrDeleter(const NodeUniquePtrDeleter<U>& other) : skip(other.skip) {}
+  void operator()(T* ptr) const noexcept {
+    if (!skip) delete ptr;
+  }
+};
+
 ////////////////////////////
 /// Node
 ////////////////////////////
@@ -250,10 +272,29 @@ class IRootNode {
   virtual int NumNodes() const = 0;
 };
 
+class Node;  // forward declaration.
+
+// Alias
+template <typename T>
+using Ptr = std::unique_ptr<T, NodeUniquePtrDeleter<T>>;
+
+static Ptr<Node> NullNodePtr = nullptr;
+
+template <typename T>
+using PtrList = std::vector<Ptr<T>>;
+
+// Type of the callback function for node traversal.
+// Parameters:
+//   currentNode is the reference to the node current walking.
+//   currentNodePtr is the reference to the unique_ptr holding the current node's pointer.
+//   it's NullNodePtr for a root node.
+using TraversalCallback = std::function<void(Node& currentNode, Ptr<Node>& currentNodePtr)>;
+static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
+
 // The most base class of all behavior nodes.
 class Node {
  private:
-  std::string_view name;
+  char _name[16];
 
  protected:
   NodeId id = 0;
@@ -299,7 +340,10 @@ class Node {
   // Every stateful Node class should declare its own Blob type member.
   using Blob = NodeBlob;
 
-  Node(std::string_view name = "Node") : name(name) {}
+  Node(std::string_view name = "Node") {
+    memset(_name, 0, 16);
+    memcpy(_name, name.data(), std::min(name.length(), std::size_t(15)));  // keeps trailling 0
+  }
   virtual ~Node() = default;
 
   /////////////////////////////////////////
@@ -311,7 +355,7 @@ class Node {
   // Returns the size of this node, available after tree built.
   std::size_t Size() const { return size; }
   // Returns the name of this node.
-  virtual std::string_view Name() const { return name; }
+  virtual std::string_view Name() const { return std::string_view(_name); }
   // Returns last status of this node.
   bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
 
@@ -323,11 +367,13 @@ class Node {
   // API
   /////////////////////////////////////////
 
-  // Type of the callback function for node traversal.
-  using TraversalCallback = std::function<void(Node&)>;
-  // Traverse the subtree of the current node recursively and execute the given function cb.
-  // Pre-Ordering: parent node are touched first, and then its children.
-  virtual void Traverse(TraversalCallback& cb) { cb(*this); }
+  // Traverse the subtree of the current node recursively and execute the given function callback functions.
+  // The callback function pre will be called pre-order, and the post will be called post-order.
+  // Pass NullTraversalCallback for empty callbacks.
+  virtual void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) {
+    pre(*this, ptr);
+    post(*this, ptr);
+  }
 
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
@@ -387,13 +433,6 @@ class Node {
 // Concept TNode for all classes derived from Node.
 template <typename T>
 concept TNode = std::is_base_of_v<Node, T>;
-
-// Alias
-template <typename T>
-using Ptr = std::unique_ptr<T>;
-
-template <typename T>
-using PtrList = std::vector<Ptr<T>>;
 
 ////////////////////////////
 /// Node > LeafNode
@@ -489,9 +528,10 @@ class SingleNode : public InternalNode {
  public:
   SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
-  void Traverse(TraversalCallback& cb) override {
-    Node::Traverse(cb);
-    child->Traverse(cb);
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
+    pre(*this, ptr);
+    if (child != nullptr) child->Traverse(pre, post, child);
+    post(*this, ptr);
   }
   std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
   void Append(Ptr<Node> node) override { child = std::move(node); }
@@ -530,9 +570,11 @@ class CompositeNode : public InternalNode {
   CompositeNode(std::string_view name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
-  void Traverse(TraversalCallback& cb) override {
-    Node::Traverse(cb);
-    for (auto& child : children) child->Traverse(cb);
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
+    pre(*this, ptr);
+    for (auto& child : children)
+      if (child != nullptr) child->Traverse(pre, post, child);
+    post(*this, ptr);
   }
 
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
@@ -988,7 +1030,7 @@ class InvertNode : public DecoratorNode {
 class ConditionalRunNode : public DecoratorNode {
  private:
   // Condition node to check.
-  Ptr<ConditionNode> condition;
+  Ptr<Node> condition;
 
  public:
   ConditionalRunNode(Ptr<ConditionNode> condition = nullptr, std::string_view name = "ConditionalRun",
@@ -996,10 +1038,11 @@ class ConditionalRunNode : public DecoratorNode {
       : DecoratorNode(std::string(name) + '<' + std::string(condition->Name()) + '>', std::move(child)),
         condition(std::move(condition)) {}
 
-  void Traverse(TraversalCallback& cb) override {
-    Node::Traverse(cb);
-    condition->Traverse(cb);
-    child->Traverse(cb);
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
+    pre(*this, ptr);
+    if (condition != nullptr) condition->Traverse(pre, post, condition);
+    if (child != nullptr) child->Traverse(pre, post, child);
+    post(*this, ptr);
   }
   Status Update(const Context& ctx) override {
     if (condition->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
@@ -1167,8 +1210,16 @@ class RetryNode : public DecoratorNode {
 /// Node > SingleNode > RootNode
 ///////////////////////////////////////////////////////////////
 
+class NodePool;  // forward declaration.
+
 // RootNode is a SingleNode.
 class RootNode : public SingleNode, public IRootNode {
+ private:
+  NodePool* pool = nullptr;
+
+  // for access: pool.
+  friend class NodePool;
+
  protected:
   // Current binding tree blob.
   ITreeBlob* blob = nullptr;
@@ -1181,11 +1232,13 @@ class RootNode : public SingleNode, public IRootNode {
   // MaxSizeNodeBlob is the max size of tree node blobs.
   std::size_t maxSizeNodeBlob = 0;
 
-  friend class _InternalBuilderBase;  // for access to n, maxSizeNode, maxSizeNodeBlob;
+  friend class _InternalBuilderBase;  // for access to n, treeSize, maxSizeNode, maxSizeNodeBlob;
 
  public:
   RootNode(std::string_view name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
+  // Returns the pool using, nullptr if none.
+  NodePool* Pool() const { return pool; }
 
   //////////////////////////
   /// Blob Apis
@@ -1262,6 +1315,54 @@ class RootNode : public SingleNode, public IRootNode {
   }
 };
 
+// Concept TRootNode for all classes derived from RootNode.
+template <typename T>
+concept TRootNode = std::is_base_of_v<RootNode, T>;
+
+//////////////////////////////////////////////////////////////
+/// NodePool
+///////////////////////////////////////////////////////////////
+
+// NodePool manages a piece of contiguous memory for node allocations.
+// Its main purpose is for less cache misses in runtime node traversal.
+// It's optional to use a memory pool.
+// It's a (n rows) x (m cols) 2d unsigned char array.
+// Where n should be larger than the max number of total tree nodes.
+// m should be larger than the max size of node ever seen.
+class NodePool {
+ private:
+  std::size_t n, m;        // size: n rows x m cols
+  std::size_t offset = 0;  // pointer offset to buf.
+  std::size_t k = 0;       // how many node allocated.
+  std::unique_ptr<unsigned char[]> buf;
+
+ public:
+  NodePool(std::size_t n, std::size_t m) : n(n), m(m) {
+    auto sz = n * m;
+    buf = std::make_unique_for_overwrite<unsigned char[]>(sz);
+    std::fill_n(buf.get(), sz, 0);
+  }
+
+  // Allocates a new node for given type. returns the raw pointer.
+  template <TNode T, typename... Args>
+  T* Allocate(Args... args) {
+    if (k >= n) throw std::runtime_error("bt: pool n not enough");
+    if (sizeof(T) > m) throw std::runtime_error("bt: pool m not enough, at least: " + std::to_string(sizeof(T)));
+    auto p = buf.get() + offset;
+    offset += sizeof(T);
+    k++;
+    return new (p) T(std::forward<Args>(args)...);
+  }
+
+  // Creates a new tree, returns the reference.
+  template <TRootNode T, typename... Args>
+  T& NewTree(Args... args) {
+    auto tree = Allocate<T>(std::forward<Args>(args)...);
+    tree->pool = this;
+    return *tree;
+  }
+};
+
 //////////////////////////////////////////////////////////////
 /// Tree Builder
 ///////////////////////////////////////////////////////////////
@@ -1285,6 +1386,7 @@ class _InternalBuilderBase {
     root->maxSizeNode = rootNodeSize;
     root->maxSizeNodeBlob = blobSize;
   }
+
   template <TNode T>
   void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
     node.size = sizeof(T);
@@ -1292,6 +1394,7 @@ class _InternalBuilderBase {
     root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
     root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));
   }
+
   void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root) {
     root->treeSize += subtree.treeSize;
     root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
@@ -1310,8 +1413,8 @@ class _InternalBuilderBase {
   }
   void onSubtreeAttach(RootNode& subtree, RootNode* root) {
     // Resets root in sub tree recursively.
-    Node::TraversalCallback f = [&](Node& node) { maintainNodeBindInfo(node, root); };
-    subtree.Traverse(f);
+    TraversalCallback pre = [&](Node& node, Ptr<Node>& ptr) { maintainNodeBindInfo(node, root); };
+    subtree.Traverse(pre, NullTraversalCallback, NullNodePtr);
     maintainSizeInfoOnSubtreeAttach(subtree, root);
   }
 };
@@ -1322,8 +1425,10 @@ template <typename D = void>
 class Builder : public _InternalBuilderBase {
  private:
   std::stack<InternalNode*> stack;
-  int level;  // indent level to insert new node, starts from 1.
+  // indent level to insert new node, starts from 1.
+  int level;
   RootNode* root = nullptr;
+
   // Validate node.
   void validate(Node* node) {
     auto e = node->Validate();
@@ -1395,7 +1500,10 @@ class Builder : public _InternalBuilderBase {
   // Any node creation should use this function.
   template <TNode T, typename... Args>
   Ptr<T> make(bool skipActtach, Args... args) {
-    auto p = std::make_unique<T>(std::forward<Args>(args)...);
+    auto p = root->Pool() == nullptr
+                 ? Ptr<T>(new T(std::forward<Args>(args)...), NodeUniquePtrDeleter<T>(false))  // from heap
+                 : Ptr<T>(root->Pool()->Allocate<T>(std::forward<Args>(args)...),
+                          NodeUniquePtrDeleter<T>(true));  // from pool
     if (!skipActtach) onNodeAttach<T>(*p, root);
     return p;
   };
