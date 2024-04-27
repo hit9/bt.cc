@@ -292,6 +292,8 @@ class Node {
   friend class _InternalBuilderBase;
 
  public:
+  using Blob = NodeBlob;
+
   Node(std::string_view name = "Node") : name(name) {}
   virtual ~Node() = default;
   // Returns the id of this node.
@@ -1157,13 +1159,18 @@ class RootNode : public SingleNode, public IRootNode {
   ITreeBlob* blob = nullptr;
   // Number of nodes on this tree, including the root itself.
   int n = 0;
+  // Size of this tree.
+  std::size_t size = 0;
+  // MaxSizeNode is the max size of tree node.
+  std::size_t maxSizeNode = 0;
+  // MaxSizeNodeBlob is the max size of tree node blobs.
+  std::size_t maxSizeNodeBlob = 0;
 
-  friend class _InternalBuilderBase;  // for access to n;
+  friend class _InternalBuilderBase;  // for access to n, maxSizeNode, maxSizeNodeBlob;
 
  public:
   RootNode(std::string_view name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
-  int NumNodes() const override final { return n; }
 
   //////////////////////////
   /// Blob Apis
@@ -1175,6 +1182,23 @@ class RootNode : public SingleNode, public IRootNode {
   ITreeBlob* GetTreeBlob(void) const override { return blob; }
   // Unbind current tree blob.
   void UnbindTreeBlob() { blob = nullptr; }
+
+  //////////////////////////
+  /// Size Info
+  //////////////////////////
+
+  // Returns the total number of nodes in this tree.
+  // Available once the tree is built.
+  int NumNodes() const override final { return n; }
+  // Returns the total size of the node classes in this tree.
+  // Available once the tree is built.
+  std::size_t Size() const { return size; }
+  // Returns the max size of the node class in this tree.
+  // Available once the tree is built.
+  std::size_t MaxSizeNode() const { return maxSizeNode; }
+  // Returns the max size of the node blob struct for this tree.
+  // Available once the tree is built.
+  std::size_t MaxSizeNodeBlob() const { return maxSizeNodeBlob; }
 
   //////////////////////////
   /// Visualization
@@ -1234,11 +1258,44 @@ class _InternalBuilderBase {
   // unique inside this builder instance.
   NodeId nextNodeId = 0;
 
- protected:
-  void onNodeAttach(Node& node, RootNode* root) {
+  void maintainNodeBindInfo(Node& node, RootNode* root) {
     node.root = root;
     root->n++;
     node.id = ++nextNodeId;
+  }
+
+  void maintainSizeInfoOnRootBind(RootNode* root, std::size_t size, std::size_t blobSize) {
+    root->size += size;
+    root->maxSizeNode = size;
+    root->maxSizeNodeBlob = blobSize;
+  }
+  template <TNode T>
+  void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
+    root->size += sizeof(T);
+    root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
+    root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));
+  }
+  void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root) {
+    root->size += subtree.size;
+    root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
+    root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, subtree.maxSizeNodeBlob);
+  }
+
+ protected:
+  template <TNode T>
+  void onNodeAttach(T& node, RootNode* root) {
+    maintainNodeBindInfo(node, root);
+    maintainSizeInfoOnNodeAttach<T>(node, root);
+  }
+  void onRootAttach(RootNode* root, std::size_t size, std::size_t blobSize) {
+    maintainNodeBindInfo(*root, root);
+    maintainSizeInfoOnRootBind(root, size, blobSize);
+  }
+  void onSubtreeAttach(RootNode& subtree, RootNode* root) {
+    // Resets root in sub tree recursively.
+    Node::TraversalCallback f = [&](Node& node) { maintainNodeBindInfo(node, root); };
+    subtree.Traverse(f);
+    maintainSizeInfoOnSubtreeAttach(subtree, root);
   }
 };
 
@@ -1291,7 +1348,7 @@ class Builder : public _InternalBuilderBase {
   void bindRoot(RootNode& r) {
     stack.push(&r);
     root = &r;
-    onNodeAttach(r, root);
+    onRootAttach(root, sizeof(D), sizeof(typename D::Blob));
   }
 
   // Creates a leaf node.
@@ -1322,7 +1379,7 @@ class Builder : public _InternalBuilderBase {
   template <TNode T, typename... Args>
   Ptr<T> make(bool skipActtach, Args... args) {
     auto p = std::make_unique<T>(std::forward<Args>(args)...);
-    if (!skipActtach) onNodeAttach(*p, root);
+    if (!skipActtach) onNodeAttach<T>(*p, root);
     return p;
   };
 
@@ -1605,9 +1662,7 @@ class Builder : public _InternalBuilderBase {
   //      ._().Subtree(std::move(subtree))
   //      .End();
   auto& Subtree(RootNode&& subtree) {
-    // Resets root in sub tree recursively.
-    Node::TraversalCallback f = [&](Node& node) { onNodeAttach(node, root); };
-    subtree.Traverse(f);
+    onSubtreeAttach(subtree, root);
     // move to the tree
     return M<RootNode>(std::move(subtree));
   }
