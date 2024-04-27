@@ -193,6 +193,8 @@ class FixedTreeBlob final : public ITreeBlob {
 
  protected:
   void* allocate(const std::size_t idx, std::size_t size) override {
+      if (idx >= NumNodes) throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
+      if (size > MaxSizeNodeBlob) throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
     buf[idx][0] = true;
     return get(idx);
   };
