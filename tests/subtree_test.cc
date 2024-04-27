@@ -15,7 +15,7 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
   subtree
   .Sequence()
   ._().template Action<A>()
-  ._().If<C>()
+  ._().template If<C>()
   ._()._().template Action<B>()
   .End()
   ;
