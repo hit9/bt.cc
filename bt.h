@@ -541,7 +541,6 @@ struct _InternalStatefulCompositeNodeBlob : NodeBlob {
 
 // Always skip children that already succeeded or failure during current round.
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
-
  protected:
   bool isParatialConsidered() const override { return true; }
   bool considerable(int i) const override { return !(getNodeBlob<Blob>()->st[i]); }
@@ -999,7 +998,6 @@ struct RepeatNodeBlob : NodeBlob {
 // RepeatNode repeats its child for exactly n times.
 // Fails immediately if its child fails.
 class RepeatNode : public DecoratorNode {
-
  protected:
   // Times to repeat, -1 for forever, 0 for immediately success.
   int n;
@@ -1039,7 +1037,6 @@ struct TimeoutNodeBlob : NodeBlob {
 // Timeout runs its child for at most given duration, fails on timeout.
 template <typename Clock = std::chrono::high_resolution_clock>
 class TimeoutNode : public DecoratorNode {
-
  protected:
   std::chrono::milliseconds duration;
 
@@ -1068,7 +1065,6 @@ struct DelayNodeBlob : NodeBlob {
 // DelayNode runs its child node after given duration.
 template <typename Clock = std::chrono::high_resolution_clock>
 class DelayNode : public DecoratorNode {
-
  protected:
   // Duration to wait.
   std::chrono::milliseconds duration;
@@ -1102,7 +1098,6 @@ struct RetryNodeBlob : NodeBlob {
 // RetryNode retries its child node on failure.
 template <typename Clock = std::chrono::high_resolution_clock>
 class RetryNode : public DecoratorNode {
-
  protected:
   // Max retry times, -1 for unlimited.
   int maxRetries = -1;
