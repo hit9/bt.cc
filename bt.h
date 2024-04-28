@@ -159,8 +159,8 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 class ITreeBlob {
  protected:
   // allocates memory for given index, returns the pointer to the node blob.
-  virtual void* allocate(const std::size_t idx, std::size_t size) = 0;
-  // returns true if a index already allocated memory.
+  virtual void* allocate(const std::size_t idx, const std::size_t size) = 0;
+  // returns true if an index already allocated memory.
   virtual bool exist(const std::size_t idx) = 0;
   // get the blob's pointer for the given index.
   // returns nullptr if not exist.
@@ -192,15 +192,15 @@ class FixedTreeBlob final : public ITreeBlob {
   unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
 
  protected:
-  void* allocate(const std::size_t idx, std::size_t size) override {
+  void* allocate(const std::size_t idx, const std::size_t size) override {
     if (idx >= NumNodes) throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
     if (size > MaxSizeNodeBlob) throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
     buf[idx][0] = true;
     return get(idx);
-  };
-  bool exist(const std::size_t idx) override { return static_cast<bool>(buf[idx][0]); };
-  void* get(const std::size_t idx) override { return &buf[idx][1]; };
-  void reserve(const std::size_t cap) override{};
+  }
+  bool exist(const std::size_t idx) override { return static_cast<bool>(buf[idx][0]); }
+  void* get(const std::size_t idx) override { return &buf[idx][1]; }
+  void reserve(const std::size_t cap) override {}
 
  public:
   FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
@@ -213,7 +213,7 @@ class DynamicTreeBlob final : public ITreeBlob {
   std::vector<bool> e;                              // index => exist, dynamic
 
  protected:
-  void* allocate(const std::size_t idx, std::size_t size) override {
+  void* allocate(const std::size_t idx, const std::size_t size) override {
     if (m.size() <= idx) {
       m.resize(idx + 1);
       e.resize(idx + 1, false);
@@ -225,13 +225,13 @@ class DynamicTreeBlob final : public ITreeBlob {
     e[idx] = true;
     return rp;
   };
-  bool exist(const std::size_t idx) override { return e.size() > idx && e[idx]; };
-  void* get(const std::size_t idx) override { return m[idx].get(); };
+  bool exist(const std::size_t idx) override { return e.size() > idx && e[idx]; }
+  void* get(const std::size_t idx) override { return m[idx].get(); }
   void reserve(const std::size_t cap) override {
     if (m.capacity() < cap) {
       m.reserve(cap);
       e.reserve(cap);
-    };
+    }
   }
 
  public:
@@ -263,7 +263,7 @@ template <typename T>
 using PtrList = std::vector<Ptr<T>>;
 
 // Type of the callback function for node traversal.
-// Parameters: curren walking node and its unique pointer from parent (NullNodePtr for root).
+// Parameters: current walking node and its unique pointer from parent (NullNodePtr for root).
 using TraversalCallback = std::function<void(Node& currentNode, Ptr<Node>& currentNodePtr)>;
 static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
 
@@ -273,7 +273,7 @@ class Node {
   std::string name;
   // cache priority for current tick.
   unsigned int priorityCurrentTick = 0;
-// tick seq when the priority cache was set.
+  // tick seq when the priority cache was set.
   ull priorityCurrentTickSeq = 0;
 
  protected:
@@ -310,7 +310,7 @@ class Node {
   }
 
   // Internal onBuild method.
-  // Separating from the api hook OnBuild, so there's no need to call parent
+  // Separating from the public hook api OnBuild, so there's no need to call parent
   // class's OnBuild for custom OnBuild overridings.
   virtual void internalOnBuild() {}
 
@@ -410,7 +410,7 @@ class Node {
   // Returns the priority of this node, should be strictly larger than 0, the larger the higher.
   // By default, all nodes' priorities are equal, to 1.
   // Providing this method is primarily for selecting children by dynamic priorities.
-  // It's recommended to implement this function fast enough, since it will be called **exactly once**
+  // It's recommended to implement this function fast enough, since it will be called **at most once**
   // on each tick. For instance, we may not need to do the calculation on every tick if it's complex.
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
@@ -1026,14 +1026,8 @@ class ConditionalRunNode : public DecoratorNode {
  private:
   // Condition node to check.
   Ptr<Node> condition;
-  Node* condition_view;
 
  protected:
-  void internalOnBuild() override {
-    DecoratorNode::internalOnBuild();
-    condition_view = condition.get();
-  }
-
  public:
   ConditionalRunNode(Ptr<ConditionNode> condition = nullptr, std::string_view name = "ConditionalRun",
                      Ptr<Node> child = nullptr)
@@ -1047,7 +1041,7 @@ class ConditionalRunNode : public DecoratorNode {
     post(*this, ptr);
   }
   Status Update(const Context& ctx) override {
-    if (condition_view->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
+    if (condition->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
     return Status::FAILURE;
   }
 };
