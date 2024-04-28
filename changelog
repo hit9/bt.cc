@@ -18,6 +18,7 @@ Node's name:
 Misc:
 
 * Refactor Traversal api, allow pre and post order callback.
+* Cache priority value inside a tick (performance improvement).
 
 0.3.1
 -----

@@ -38,6 +38,26 @@ void buildStateful(bt::Tree& root) {
   root.End();
 }
 
+TEMPLATE_TEST_CASE("Tick/1", "[simple small tree traversal benchmark - 60 nodes ]", Entity,
+                   (EntityFixedBlob<62>)) {
+  bt::Tree root;
+  auto bb = std::make_shared<Blackboard>();
+  bt::Context ctx(bb);
+  build(root, 10);
+  TestType e;
+  bb->shouldA = bt::Status::SUCCESS;
+  bb->shouldB = bt::Status::SUCCESS;
+  bb->shouldG = bt::Status::SUCCESS;
+  bb->shouldH = bt::Status::SUCCESS;
+  bb->shouldI = bt::Status::SUCCESS;
+  BENCHMARK("bench tick without priorities  small tree - 60 nodes ") {
+    root.BindTreeBlob(e.blob);
+    ++ctx.seq;
+    root.Tick(ctx);
+    root.UnbindTreeBlob();
+  };
+}
+
 TEMPLATE_TEST_CASE("Tick/1", "[simple traversal benchmark ]", Entity, (EntityFixedBlob<6002>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
@@ -51,7 +71,8 @@ TEMPLATE_TEST_CASE("Tick/1", "[simple traversal benchmark ]", Entity, (EntityFix
   bb->shouldI = bt::Status::SUCCESS;
   BENCHMARK("bench tick without priorities - 6000 nodes ") {
     root.BindTreeBlob(e.blob);
-    ++ctx.seq;root.Tick(ctx);
+    ++ctx.seq;
+    root.Tick(ctx);
     root.UnbindTreeBlob();
   };
 }
@@ -72,7 +93,8 @@ TEST_CASE("Tick/2", "[simple traversal benchmark - priority ]") {
   bb->shouldPriorityG = 2;
   BENCHMARK("bench tick with priorities - 6000 nodes") {
     root.BindTreeBlob(e.blob);
-    ++ctx.seq;root.Tick(ctx);
+    ++ctx.seq;
+    root.Tick(ctx);
     root.UnbindTreeBlob();
   };
 }
@@ -90,16 +112,17 @@ TEST_CASE("Tick/3", "[simple traversal benchmark - stateful ]") {
   bb->shouldI = bt::Status::SUCCESS;
   BENCHMARK("bench tick without priorities - stateful - 6000 nodes ") {
     root.BindTreeBlob(e.blob);
-    ++ctx.seq;root.Tick(ctx);
+    ++ctx.seq;
+    root.Tick(ctx);
     root.UnbindTreeBlob();
   };
 }
 
-TEMPLATE_TEST_CASE("Tick/4", "[lots of entities]", Entity, (EntityFixedBlob<602>)) {
+TEMPLATE_TEST_CASE("Tick/4", "[lots of entities]", Entity, (EntityFixedBlob<302>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
-  build(root, 100);
+  build(root, 50);
 
   std::vector<TestType> entities(1000);
   bb->shouldA = bt::Status::SUCCESS;
@@ -107,10 +130,11 @@ TEMPLATE_TEST_CASE("Tick/4", "[lots of entities]", Entity, (EntityFixedBlob<602>
   bb->shouldG = bt::Status::SUCCESS;
   bb->shouldH = bt::Status::SUCCESS;
   bb->shouldI = bt::Status::SUCCESS;
-  BENCHMARK("bench lots of entities - 1000 entities x 600 nodes") {
+  BENCHMARK("bench lots of entities - 1000 entities x 300 nodes") {
     for (auto& e : entities) {
       root.BindTreeBlob(e.blob);
-      ++ctx.seq;root.Tick(ctx);
+      ++ctx.seq;
+      root.Tick(ctx);
       root.UnbindTreeBlob();
     }
   };
