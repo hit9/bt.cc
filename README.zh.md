@@ -18,13 +18,14 @@
 ## 特点
 
 
-1. 节点本身不存储数据状态，行为和实体的数据是分离的。
+1. 节点本身不存储实体相关的数据状态，行为和实体的数据是分离的。
 
    **适合：多个实体共享一套行为树的情形**。
 
 2. 用树状的代码结构来组织一颗行为树，简洁直观，同时支持自定义扩展构建器。
 3. 自带多种装饰器节点，支持自定义装饰器节点。
 4. 支持带优先级的组合节点、带状态的组合节点 和 随机选择器。
+5. 也支持采用连续固定内存块的实体数据 Blob
 
 
 ## 代码总览
@@ -60,6 +61,10 @@ root
 struct Entity {
   // TreeBlob 存储行为树中所有和实体相关的状态数据
   bt::TreeBlob blob;
+
+  // 或者用一个固定大小的 TreeBlob, 会直接内嵌到 Entity 结构体内
+  // 最多 8 个节点 x 每个节点最多64个字节, 固定大小二维数组
+  bt::FixedTreeBlob<8, 64> blob;
 };
 ```
 
@@ -89,6 +94,7 @@ while(...) {
 - [构建过程](#build)
 - [状态码](#status)
 - [节点分类](#classes)
+- [TreeBlob](#tree-blob)
 - 叶子节点:
   - [动作节点 Action](#action)
     - [带实体状态的节点](#node-blob)
@@ -118,6 +124,7 @@ while(...) {
   - [Tick 循环](#ticker-loop)
   - [自定义 Builder](#custom-builder)
   - [信号和事件](#signals)
+  - [树的遍历](#traversal)
 
 * **构建一棵树**: <span id="build"></span> <a href="#ref">[↑]</a>:
 
@@ -169,6 +176,30 @@ while(...) {
    |   | ConditionNode               条件节点
   ```
 
+* **TreeBlob***   <span id="tree-blob"></span> <a href="#ref">[↑]</a>
+
+  TreeBlob 负责存储一颗行为树的和实体相关的数据.
+
+  一颗行为树 和 一个实体对象, 对应一个 TreeBlob 实例.
+
+  有两种类型的 TreeBlob:
+
+  1. `bt::DynamicTreeBlob` 包含一个 `vector`, 里面是动态内存申请的节点的 NodeBlob 的指针.
+  2. `bt::FixedTreeBlob` 则包含一个固定大小的连续内存的二维数组.
+
+     ```cpp
+     // NumNodes 是对应的行为树的可能的最多的节点数目,作为行数
+     // MaxSizeNodeBlob 是对应的行为树中可能出现的最大的 NodeBlob 的大小,作为列数
+     bt::FixedTreeBlob<NumNodes, MaxSizeNodeBlob> blob;
+     ```
+
+     `FixedTreeBlob` 表现上比 `DynamicTreeBlob` 稍微快一小点
+
+     这两个模板参数,可以通过接口 `root.NumNodes()` 和 `MaxSizeNodeBlob()` 来获取,
+     这需要先把构建好的行为树先编译, 执行一下, 输出这些信息, 然后再填写到实体中定义这些 FixedTreeBlob 的代码中去.
+
+  关于如何定义一个使用 TreeBlob 的行为节点, 请看下面的 [node blob](#node-blob).
+
 * **Action**  <span id="action"></span> <a href="#a">[↑]</a>
 
   要定义一个 `Action` 节点，只需要继承自 `bt::ActionNode`，并实现方法 `Update`：
@@ -204,6 +235,8 @@ while(...) {
   class A : public bt::ActionNode {
    public:
     NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
+    // 任何一个有实体状态的节点都应该定义一个类型成员, 叫做 Blob
+    using Blob = ANodeBlob;
     // 在这个类的方法中，可以用 getNodeBlob<ANodeBlob>() 来获取数据快的指针, 来查询和修改实体相关的数据。
     bt::Status Update(const bt::Context& ctx) override {
         ANodeBlob* b = getNodeBlob<ANodeBlob>();
@@ -650,6 +683,25 @@ while(...) {
     ;
   ```
 
+* **树的遍历** <span id="traversal"></span> <a href="#ref">[↑]</a>
+
+  有一个简单的方法可以来深度优先遍历一棵行为树:
+
+  ```cpp
+  // 前序回调方法, 在节点 node 访问之前执行, ptr 是上游持有 node 节点的 unique_ptr 指针的引用
+  // 注意 ptr 可能是空指针 nullptr (当访问 root 节点时)
+  bt::TraversalCallback preOrder = [&](bt:Node& node, bt::Ptr<bt::Node>& ptr) {
+      // TODO
+  };
+
+  // 后序回调方法, 在节点 node 和其所有子孙访问之后执行, ptr 含义和前面所说一样
+  bt::TraversalCallback postOrder = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
+      // TODO
+  };
+
+  // 此外, 可以用 bt::NullTraversalCallback 来表示一个空回调
+  root.Traverse(preOrder, postOrder, NullNodePtr);
+  ```
 
 ## License
 
