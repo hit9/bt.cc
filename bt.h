@@ -271,6 +271,8 @@ static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
 class Node {
  private:
   std::string name;
+  // cache priority for current tick.
+  unsigned int priorityCurrentTick = 0;
 
  protected:
   NodeId id = 0;
@@ -341,6 +343,13 @@ class Node {
   // Any Node has a NodeBlob class should override this.
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
+  // Internal method to query priority of this node in current tick.
+  unsigned int GetPriorityCurrentTick(const Context& ctx) {
+    // try cache in this tick firstly.
+    if (!priorityCurrentTick) priorityCurrentTick = Priority(ctx);
+    return priorityCurrentTick;
+  }
+
   /////////////////////////////////////////
   // API
   /////////////////////////////////////////
@@ -369,6 +378,10 @@ class Node {
       OnTerminate(ctx, status);
       b->running = false;  // reset
     }
+
+    // Clears priority for this tick.
+    priorityCurrentTick = 0;
+    std::cout << "debug1: clear priority " << Name() << std::endl;
     return status;
   }
 
@@ -395,8 +408,8 @@ class Node {
   // Returns the priority of this node, should be strictly larger than 0, the larger the higher.
   // By default, all nodes' priorities are equal, to 1.
   // Providing this method is primarily for selecting children by dynamic priorities.
-  // It's recommended to implement this function fast enough, since it will be called on each
-  // tick. For instance, we may not need to do the calculation on every tick if it's complex.
+  // It's recommended to implement this function fast enough, since it will be called **exactly once**
+  // on each tick. For instance, we may not need to do the calculation on every tick if it's complex.
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
   virtual unsigned int Priority(const Context& ctx) const { return 1; }
@@ -503,6 +516,7 @@ class SingleNode : public InternalNode {
       child->makeVisualizeString(s, depth + 1, seq);
     }
   }
+
  public:
   SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
@@ -513,7 +527,7 @@ class SingleNode : public InternalNode {
   }
   std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
   void Append(Ptr<Node> node) override { child = std::move(node); }
-  unsigned int Priority(const Context& ctx) const override { return child->Priority(ctx); }
+  unsigned int Priority(const Context& ctx) const override { return child->GetPriorityCurrentTick(ctx); }
 };
 
 ////////////////////////////////////////////////
@@ -562,7 +576,7 @@ class CompositeNode : public InternalNode {
   unsigned int Priority(const Context& ctx) const final override {
     unsigned int ans = 0;
     for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) ans = std::max(ans, children[i]->Priority(ctx));
+      if (considerable(i)) ans = std::max(ans, children[i]->GetPriorityCurrentTick(ctx));
     return ans;
   }
 };
@@ -704,7 +718,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
     for (int i = 0; i < children.size(); i++) {
       if (!considerable(i)) continue;
-      p[i] = children[i]->Priority(ctx);
+      p[i] = children[i]->GetPriorityCurrentTick(ctx);
       if (!v) v = p[i];
       if (v != p[i]) areAllEqual = false;
     }
