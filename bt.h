@@ -273,7 +273,8 @@ class Node {
   std::string name;
   // cache priority for current tick.
   unsigned int priorityCurrentTick = 0;
-  unsigned int priorityCurrentTickSeq = 0;
+// tick seq when the priority cache was set.
+  ull priorityCurrentTickSeq = 0;
 
  protected:
   NodeId id = 0;
