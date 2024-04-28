@@ -224,7 +224,7 @@ while(...) {
   如果要实现一个带实体状态的行为节点，可以先定义一个 `NodeBlob` 结构：      <span id="node-blob"></span> <a href="#ref">[↑]</a>:
 
   ```cpp
-  struct ANodeBlob : NodeBlob {
+  struct ANodeBlob : bt::NodeBlob {
     // 数据字段, 建议加上默认值
   };
   ```

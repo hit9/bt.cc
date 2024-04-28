@@ -232,7 +232,7 @@ Reference: <span id="ref"></span>
   We can define a `NodeBlob` struct at first:        <span id="node-blob"></span> <a href="#ref">[↑]</a>:
 
   ```cpp
-  struct ANodeBlob : NodeBlob {
+  struct ANodeBlob : bt::NodeBlob {
     // data fields storing entity related data.
     // It's recommended to set a initial value for each field.
   };
