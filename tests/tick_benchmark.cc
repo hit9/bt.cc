@@ -95,26 +95,7 @@ TEST_CASE("Tick/3", "[simple traversal benchmark - stateful ]") {
   };
 }
 
-TEMPLATE_TEST_CASE("Tick/4", "[simple traversal benchmark - pool ]", Entity, (EntityFixedBlob<6002>)) {
-  bt::NodePool pool(6002, 320);
-  auto& root = pool.NewTree<bt::Tree>("root");
-  auto bb = std::make_shared<Blackboard>();
-  bt::Context ctx(bb);
-  build(root);
-  TestType e;
-  bb->shouldA = bt::Status::SUCCESS;
-  bb->shouldB = bt::Status::SUCCESS;
-  bb->shouldG = bt::Status::SUCCESS;
-  bb->shouldH = bt::Status::SUCCESS;
-  bb->shouldI = bt::Status::SUCCESS;
-  BENCHMARK("bench tick without priorities - 6000 nodes - pool ") {
-    root.BindTreeBlob(e.blob);
-    root.Tick(ctx);
-    root.UnbindTreeBlob();
-  };
-}
-
-TEMPLATE_TEST_CASE("Tick/5", "[lots of entities]", Entity, (EntityFixedBlob<602>)) {
+TEMPLATE_TEST_CASE("Tick/4", "[lots of entities]", Entity, (EntityFixedBlob<602>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -127,28 +108,6 @@ TEMPLATE_TEST_CASE("Tick/5", "[lots of entities]", Entity, (EntityFixedBlob<602>
   bb->shouldH = bt::Status::SUCCESS;
   bb->shouldI = bt::Status::SUCCESS;
   BENCHMARK("bench lots of entities - 1000 entities x 600 nodes") {
-    for (auto& e : entities) {
-      root.BindTreeBlob(e.blob);
-      root.Tick(ctx);
-      root.UnbindTreeBlob();
-    }
-  };
-}
-
-TEMPLATE_TEST_CASE("Tick/6", "[lots of entities - pool ]", Entity, (EntityFixedBlob<602>)) {
-  bt::NodePool pool(6002, 320);
-  auto& root = pool.NewTree<bt::Tree>("root");
-  auto bb = std::make_shared<Blackboard>();
-  bt::Context ctx(bb);
-  build(root, 100);
-
-  std::vector<TestType> entities(1000);
-  bb->shouldA = bt::Status::SUCCESS;
-  bb->shouldB = bt::Status::SUCCESS;
-  bb->shouldG = bt::Status::SUCCESS;
-  bb->shouldH = bt::Status::SUCCESS;
-  bb->shouldI = bt::Status::SUCCESS;
-  BENCHMARK("bench lots of entities - pool - 1000 entities x 600 nodes") {
     for (auto& e : entities) {
       root.BindTreeBlob(e.blob);
       root.Tick(ctx);
