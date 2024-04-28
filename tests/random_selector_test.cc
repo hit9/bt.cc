@@ -26,7 +26,10 @@ TEST_CASE("RandomSelector/1", "[simple random selector]") {
   bb->shouldPriorityI = 0;
   bb->shouldPriorityH = 1;
 
-  for (int i = 0; i < 100; i++) ++ctx.seq;root.Tick(ctx);
+  for (int i = 0; i < 100; i++) {
+    ++ctx.seq;
+    root.Tick(ctx);
+  }
   REQUIRE(bb->counterI == 0);  // I should have no chance to get tick
   REQUIRE(bb->counterH == 100);
   // The whole tree should RUNNING
@@ -56,7 +59,8 @@ TEST_CASE("RandomSelector/2", "[simple random selector - equal weights]") {
   bb->shouldPriorityI = 1;
   bb->shouldPriorityH = 1;
 
-  for (int i = 0; i < 100000; i++) ++ctx.seq;root.Tick(ctx);
+  for (int i = 0; i < 100000; i++) {++ctx.seq;
+  root.Tick(ctx);}
   REQUIRE(abs(bb->counterI - bb->counterH) < 3000);  // error < 30%?
   // The whole tree should RUNNING
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
