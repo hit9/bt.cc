@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <thread>
 
@@ -6,7 +7,8 @@
 
 using namespace std::chrono_literals;
 
-TEST_CASE("Timeout/1", "[simple timeout success]") {
+TEMPLATE_TEST_CASE("Timeout/1", "[simple timeout success]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -19,22 +21,23 @@ TEST_CASE("Timeout/1", "[simple timeout success]") {
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#2: Makes A success.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Timeout/2", "[simple timeout failure]") {
+TEMPLATE_TEST_CASE("Timeout/2", "[simple timeout failure]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -47,22 +50,23 @@ TEST_CASE("Timeout/2", "[simple timeout failure]") {
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#2: Makes A failure.
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Timeout/3", "[simple timeout timedout]") {
+TEMPLATE_TEST_CASE("Timeout/3", "[simple timeout timedout]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -75,16 +79,16 @@ TEST_CASE("Timeout/3", "[simple timeout timedout]") {
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
   // Tick#1: A is not started.
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#2: should timeout
   std::this_thread::sleep_for(110ms);
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
   root.UnbindTreeBlob();

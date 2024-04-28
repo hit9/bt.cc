@@ -1,3 +1,25 @@
+0.3.5
+-----
+
+Support fixed size TreeBlob:
+
+* Remove name `TreeBlob`, now is DynamicTreeBlob.
+* Split into `DynamicTreeBlob` and `FixedTreeBlob`
+
+Add api for size info:
+
+* Add api for tree: `TreeSize()`, `MaxSizeNode()`, `MaxSizeNodeBlob()`
+* Add api for node: `Size()`.
+
+Node's name:
+
+* Fix Node name (std::string_view issue), use std::string to store name.
+
+Misc:
+
+* Refactor Traversal api, allow pre and post order callback.
+* Cache priority value inside a tick (performance improvement).
+
 0.3.1
 -----
 

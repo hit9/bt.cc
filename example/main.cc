@@ -1,6 +1,4 @@
-#include <chrono>
 #include <cstdlib>
-#include <iostream>
 
 #include "bt.h"
 using namespace std::chrono_literals;
@@ -31,7 +29,7 @@ class C : public bt::ConditionNode {
 
 // Entity
 struct Entity {
-  bt::TreeBlob blob;
+  bt::FixedTreeBlob<64, 64> blob;
 };
 
 int main(void) {

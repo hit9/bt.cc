@@ -19,7 +19,7 @@ Just copy the header file `bt.h` and include it.
 
 ## Features
 
-1. Nodes store no data states, behaviors and data are separated.
+1. Nodes store no entity-relate data states, behaviors and data are separated.
 
    **Suitable for: multiple entities sharing a same set of behaviors**.
 
@@ -27,6 +27,7 @@ Just copy the header file `bt.h` and include it.
    and supports to extend the builder.
 3. Built-in multiple decorators, and supports custom decorator definition.
 4. Supports composite nodes with priority child nodes, stateful compositors, and random selector.
+5. Also supports continuous memory fixed sized tree blob.
 
 
 ## The Big Picture
@@ -62,8 +63,12 @@ In the entities module:
 
 ```cpp
 struct Entity {
-  // TreeBlob holds all the entity-related stateful data.
-  bt::TreeBlob blob;
+  // A TreeBlob holds all the entity-related stateful data.
+  bt::DynamicTreeBlob blob;
+
+  // or use a fixed size tree blob, will be embeded into the entity struct.
+  // at most 8 nodes x 64 bytes/per node, 2d fixed size array
+  bt::FixedTreeBlob<8, 64> blob;
 };
 ```
 
@@ -95,6 +100,7 @@ Reference: <span id="ref"></span>
 - [Build](#build)
 - [Status](#status)
 - [Node Classification](#classes)
+- [TreeBlob](#tree-blob)
 - Leaf Nodes:
   - [Action](#action)
     - [Stateful Action](#node-blob)
@@ -124,6 +130,7 @@ Reference: <span id="ref"></span>
   - [Ticker Loop](#ticker-loop)
   - [Custom Builder](#custom-builder)
   - [Working with Signals/Events](#signals)
+  - [Tree traversal](#traversal)
 
 * **Build a tree**: <span id="build"></span> <a href="#ref">[↑]</a>:
 
@@ -175,12 +182,37 @@ Reference: <span id="ref"></span>
    |   | ConditionNode               Tests a specific condition.
   ```
 
+* **TreeBlob**   <span id="tree-blob"></span> <a href="#ref">[↑]</a>
+
+  A TreeBlob stores the entity-related states data for all nodes in a tree.
+
+  One bt tree and one entity instance correspond to a TreeBlob instance.
+
+  There are two kinds of tree blobs:
+
+  1. `bt::DynamicTreeBlob` contains a vector of dynamically allocated unique pointers to node blobs.
+  2. `bt::FixedTreeBlob` contains a fixed size 2d array.
+
+     ```cpp
+     // NumNodes is the max number of nodes to store.
+     // MaxSizeNodeBlob is the max value of the sizes of node blobs to store.
+     bt::FixedTreeBlob<NumNodes, MaxSizeNodeBlob> blob;
+     ```
+
+     `FixedTreeBlob` performs a bit faster than the `DynamicTreeBlob`.
+
+     These two template parameters can be obtained through the interface `root.NumNodes()` and `MaxSizeNodeBlob()`.
+     This requires compiling the built behavior tree first, executing it, outputting this information, and then filling
+     it in the code that defines these FixedTreeBlobs in the entity.
+
+  To declare a stateful bt node on top of tree blob, checkout the following [node-blob](#node-blob) section.
+
 * **Action**  <span id="action"></span> <a href="#ref">[↑]</a>
 
-  Define a class that inherits from `bt::Action`, and implement the `Update` method:
+  Define a class that inherits from `bt::ActionNode`, and implement the `Update` method:
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     // TODO: Implements this
     bt::Status Update(const bt::Context& ctx) override { }
@@ -200,7 +232,7 @@ Reference: <span id="ref"></span>
   We can define a `NodeBlob` struct at first:        <span id="node-blob"></span> <a href="#ref">[↑]</a>:
 
   ```cpp
-  struct ANodeBlob : NodeBlob {
+  struct ANodeBlob : bt::NodeBlob {
     // data fields storing entity related data.
     // It's recommended to set a initial value for each field.
   };
@@ -209,9 +241,14 @@ Reference: <span id="ref"></span>
   And then overrides the interface `GetNodeBlob`:
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
+    // Every stateful Node class should declare its own Blob type member.
+    using Blob = ANodeBlob;
+    // Should override this method, returns a pointer to the base node blob type.
+    // getNodeBlob is a method provided by bt library, defined in class `Node`.
     NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
+
     // Use getNodeBlob<ANodeBlob>() to access the pointer to this's node's data blob.
     bt::Status Update(const bt::Context& ctx) override {
         ANodeBlob* b = getNodeBlob<ANodeBlob>();
@@ -228,7 +265,7 @@ Reference: <span id="ref"></span>
 
   And there's no `RUNNING` status for a condition node.
 
-  To implement a "static condition", just define a class derived from class `bt::Condition`, and implements the `Check` method:
+  To implement a "static condition", just define a class derived from class `bt::ConditionNode`, and implements the `Check` method:
 
   ```cpp
   class C : public bt::ConditionNode {
@@ -335,7 +372,7 @@ Reference: <span id="ref"></span>
   for such cases, the class `Node` supports overriding a `Priority` function.
 
   ```cpp
-  class A : public bt::Action {
+  class A : public bt::ActionNode {
    public:
     unsigned int Priority(const bt::Context& ctx) const override {
         // TODO, returns a number > 0
@@ -664,6 +701,27 @@ Reference: <span id="ref"></span>
     ._()._()._()._().Action<B>()
     .End()
     ;
+  ```
+
+* **Tree traversal** <span id="traversal"></span> <a href="#ref">[↑]</a>
+
+  There's a simple method to traversal a bt tree in a depth-first way, example code:
+
+  ```cpp
+  // Called before touching a `node`, the ptr is the unique_ptr instance holding this node.
+  // Notes that ptr is nullptr for case `node equals root`.
+  bt::TraversalCallback preOrder = [&](bt:Node& node, bt::Ptr<bt::Node>& ptr) {
+      // TODO
+  };
+
+  // Called after the `node` and all of its children are touched.
+  // ptr is the same meaning as previous preOrder callback.
+  bt::TraversalCallback postOrder = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
+      // TODO
+  };
+
+  // And, we can use bt::NullTraversalCallback for empty callback.
+  root.Traverse(preOrder, postOrder, NullNodePtr);
   ```
 
 ## License

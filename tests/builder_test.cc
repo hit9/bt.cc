@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <any>
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <string_view>
@@ -7,25 +9,25 @@
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
-  // CounterDecorator counts how many times the decorated nodes' ticking was executed.
-  class CounterDecorator : public bt::DecoratorNode {
-   public:
-    CounterDecorator(std::string_view name = "CounterDecorator") : bt::DecoratorNode(name) {}
-    bt::Status Update(const bt::Context& ctx) override {
-      auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
-      bb->customDecoratorCounter++;
-      return child->Update(ctx);
-    }
-  };
+// CounterDecorator counts how many times the decorated nodes' ticking was executed.
+class CounterDecorator : public bt::DecoratorNode {
+ public:
+  CounterDecorator(std::string_view name = "CounterDecorator") : bt::DecoratorNode(name) {}
+  bt::Status Update(const bt::Context& ctx) override {
+    auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
+    bb->customDecoratorCounter++;
+    return child->Update(ctx);
+  }
+};
 
-  // Extend the builder.
-  class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
-   public:
-    MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder() { bindRoot(*this); }
-    auto& Counter() { return C<CounterDecorator>(); }
-  };
+// Extend the builder.
+class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
+ public:
+  MyTree(std::string_view name = "Root") : bt::RootNode(name), Builder() { bindRoot(*this); }
+  auto& Counter() { return C<CounterDecorator>(); }
+};
 
+TEMPLATE_TEST_CASE("Builder/1", "[extend a custom decorator to builder]", Entity, (EntityFixedBlob<32>)) {
   MyTree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -41,11 +43,12 @@ TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
   ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   // Tick#1
 
   root.BindTreeBlob(e.blob);
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->customDecoratorCounter == 1);
@@ -54,6 +57,7 @@ TEST_CASE("Builder/1", "[extend a custom decorator to builder]") {
   // Tick#2
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -95,14 +99,14 @@ TEST_CASE("Builder/2", "[node id increment]") {
   // clang-format on
 
   std::unordered_set<bt::NodeId> ids;
-  bt::Node::TraversalCallback f = [&](bt::Node& node) {
+  bt::TraversalCallback f = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
     REQUIRE(ids.find(node.Id()) == ids.end());
     ids.insert(node.Id());
   };
-  root.Traverse(f);
+  root.Traverse(f, bt::NullTraversalCallback, bt::NullNodePtr);
 }
 
-TEST_CASE("Builder/3", "[node count]") {
+TEST_CASE("Builder/3", "[node count and size info]") {
   auto st = [&]() {  // n: 4
     bt::Tree subtree("Subtree");
     // clang-format off
@@ -139,6 +143,22 @@ TEST_CASE("Builder/3", "[node count]") {
   REQUIRE(root.NumNodes() == 18);
 
   // All id should <= n;
-  bt::Node::TraversalCallback cb1 = [&](bt::Node& node) { REQUIRE(node.Id() <= root.NumNodes()); };
-  root.Traverse(cb1);
+  bt::TraversalCallback cb1 = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
+    REQUIRE(node.Id() <= root.NumNodes());
+  };
+  root.Traverse(cb1, bt::NullTraversalCallback, bt::NullNodePtr);
+
+  // Test total size
+  std::size_t totalSize = 0;
+  std::size_t maxSize = 0;
+  bt::TraversalCallback cb2 = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
+    totalSize += node.Size();
+    maxSize = std::max(node.Size(), maxSize);
+  };
+  root.Traverse(cb2, bt::NullTraversalCallback, bt::NullNodePtr);
+  REQUIRE(totalSize == root.TreeSize());
+  REQUIRE(maxSize == root.MaxSizeNode());
+
+  REQUIRE(root.MaxSizeNodeBlob() == sizeof(bt::NodeBlob));
+  REQUIRE(root.Size() == sizeof(bt::Tree));
 }

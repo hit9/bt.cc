@@ -55,7 +55,7 @@ class OnSignalNode : public bt::DecoratorNode {
 };
 
 // Action A prints a simple statement.
-class A : public bt::Action {
+class A : public bt::ActionNode {
  public:
   std::string_view Name() const override { return "A"; }
   bt::Status Update(const bt::Context& ctx) override {
@@ -67,7 +67,7 @@ class A : public bt::Action {
 };
 
 // Action B prints a simple statement.
-class B : public bt::Action {
+class B : public bt::ActionNode {
  public:
   std::string_view Name() const override { return "B"; }
   bt::Status Update(const bt::Context& ctx) override {
@@ -79,7 +79,7 @@ class B : public bt::Action {
 };
 
 // Action C emits signals randomly.
-class C : public bt::Action {
+class C : public bt::ActionNode {
  public:
   std::string_view Name() const override { return "C"; }
   bt::Status Update(const bt::Context& ctx) override {
@@ -104,7 +104,7 @@ class MyTree : public bt::RootNode, public bt::Builder<MyTree> {
 int main(void) {
   MyTree root("Root");
 
-  bt::TreeBlob blob;
+  bt::DynamicTreeBlob blob;
 
   // clang-format off
   root

@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
@@ -26,7 +27,7 @@ TEST_CASE("Hook/1", "[hook OnBuild]") {
   REQUIRE(onBuildCalled);
 }
 
-TEST_CASE("Hook/2", "[hook OnEnter]") {
+TEMPLATE_TEST_CASE("Hook/2", "[hook OnEnter]", Entity, (EntityFixedBlob<16>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -38,15 +39,15 @@ TEST_CASE("Hook/2", "[hook OnEnter]") {
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   root.BindTreeBlob(e.blob);
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->onEnterCalledA);
   root.UnbindTreeBlob();
 }
 
-TEST_CASE("Hook/3", "[hook OnTerminate]") {
+TEMPLATE_TEST_CASE("Hook/3", "[hook OnTerminate]", Entity, (EntityFixedBlob<16>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -58,16 +59,16 @@ TEST_CASE("Hook/3", "[hook OnTerminate]") {
     ;
   // clang-format on
 
-  Entity e;
+  TestType e;
 
   root.BindTreeBlob(e.blob);
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(!bb->onTerminatedCalledA);
   root.UnbindTreeBlob();
 
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->onTerminatedCalledA);
   root.UnbindTreeBlob();
 }

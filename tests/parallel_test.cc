@@ -23,7 +23,7 @@ TEST_CASE("Parallel/1", "[all success]") {
 
   // Tick#1
   root.BindTreeBlob(e.blob);
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // both A and B should RUNNING
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 1);
@@ -36,7 +36,7 @@ TEST_CASE("Parallel/1", "[all success]") {
   // Tick#2: Makes A SUCCESS.
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should SUCCESS, and b should still running
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 2);
@@ -49,7 +49,7 @@ TEST_CASE("Parallel/1", "[all success]") {
   // Tick#3: Makes B success.
   root.BindTreeBlob(e.blob);
   bb->shouldB = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
 
   REQUIRE(bb->counterA == 3);
   REQUIRE(bb->counterB == 3);
@@ -81,7 +81,7 @@ TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
   root.BindTreeBlob(e.blob);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // both A and B should RUNNING
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 1);
@@ -92,7 +92,7 @@ TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
 
   // Tick#2: Makes A SUCCESS.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should SUCCESS, and b should still running
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 2);
@@ -103,7 +103,7 @@ TEST_CASE("Parallel/2", "[partial success (2nd failure)]") {
 
   // Tick#3: Makes B failure.
   bb->shouldB = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
 
   REQUIRE(bb->counterA == 3);
   REQUIRE(bb->counterB == 3);
@@ -135,7 +135,7 @@ TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
   root.BindTreeBlob(e.blob);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // both A and B should RUNNING
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 1);
@@ -146,7 +146,7 @@ TEST_CASE("Parallel/3", "[partial success (1st failure)]") {
 
   // Tick#2: Makes A FAILURE.
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should FAILURE b should still running
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 2);
@@ -178,7 +178,7 @@ TEST_CASE("Parallel/4", "[all failure]") {
   root.BindTreeBlob(e.blob);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // both A and B should RUNNING
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 1);
@@ -190,7 +190,7 @@ TEST_CASE("Parallel/4", "[all failure]") {
   // Tick#2: Makes A and B FAILURE.
   bb->shouldA = bt::Status::FAILURE;
   bb->shouldB = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A and B shuold both FAILURE
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 2);
@@ -225,7 +225,7 @@ TEST_CASE("Parallel/5", "[priority partial]") {
   bb->shouldPriorityH = 2;
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 1);
   REQUIRE(bb->counterH == 1);
   REQUIRE(bb->statusG == bt::Status::RUNNING);
@@ -235,7 +235,7 @@ TEST_CASE("Parallel/5", "[priority partial]") {
   // Tick#2
   bb->shouldG = bt::Status::FAILURE;
   bb->shouldH = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 2);
   REQUIRE(bb->counterH == 2);
   REQUIRE(bb->statusG == bt::Status::FAILURE);

@@ -1,10 +1,11 @@
-
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "bt.h"
 #include "types.h"
 
-TEST_CASE("Repeat/1", "[simple repeat]") {
+TEMPLATE_TEST_CASE("Repeat/1", "[simple repeat]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::RepeatNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -20,7 +21,7 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
     .End()
     ;
   // clang-format on
-  Entity e;
+  TestType e;
   root.BindTreeBlob(e.blob);
 
   REQUIRE(bb->counterA == 0);
@@ -28,7 +29,7 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
   REQUIRE(bb->counterE == 0);
 
   // Tick1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterE == 1);
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);  // blocked by A
@@ -38,7 +39,7 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
   bb->shouldA = bt::Status::SUCCESS;
   bb->shouldB = bt::Status::SUCCESS;
   bb->shouldE = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterE == 2);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -47,7 +48,7 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
   // Tick3: A, B goes into RUNNING again.
   bb->shouldA = bt::Status::RUNNING;
   bb->shouldB = bt::Status::RUNNING;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterE == 3);
   REQUIRE(bb->counterA == 3);
   REQUIRE(bb->counterB == 1);                         // blocked by A
@@ -56,7 +57,7 @@ TEST_CASE("Repeat/1", "[simple repeat]") {
   // Tick4: A, B both gose into SUCCESS again.
   bb->shouldA = bt::Status::SUCCESS;
   bb->shouldB = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterE == 4);
   REQUIRE(bb->counterA == 4);
   REQUIRE(bb->counterB == 2);                         // blocked by A

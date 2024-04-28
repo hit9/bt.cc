@@ -13,6 +13,7 @@
 //    and supports to extend the builder.
 // 3. Built-in multiple decorators, and supports custom decoration nodes,
 // 4. Supports composite nodes with priority child nodes, and random selector.
+// 5. Also supports continuous memory fixed sized tree blob.
 //
 // Code Example
 // ~~~~~~~~~~~~
@@ -30,7 +31,10 @@
 // Prepares a TreeBlob, e.g. for each entity:
 //
 //   // A TreeBlob holds all the internal state data.
-//   bt::TreeBlob blob;
+//   bt::DynamicTreeBlob blob;
+//
+//   // Or use a fixed size tree blob:
+//   bt::FixedTreeBlob<8, 64> blob;
 //
 // Run ticking:
 //
@@ -62,7 +66,7 @@
 //    |   | ActionNode
 //    |   | ConditionNode
 
-// Version: 0.3.1
+// Version: 0.3.5
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -71,6 +75,7 @@
 #include <any>
 #include <cassert>  // for NDEBUG mode
 #include <chrono>   // for milliseconds, high_resolution_clock
+#include <cstring>  // for memset
 #include <functional>
 #include <iostream>  // for cout, flush
 #include <memory>    // for unique_ptr
@@ -148,40 +153,89 @@ concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
 /// TreeBlob
 ////////////////////////////
 
+// ITreeBlob is an internal interface base class for FixedTreeBlob and DynamicTreeBlob.
 // A TreeBlob stores the entity-related states data for all nodes in a tree.
 // One tree blob for one entity.
-class TreeBlob {
- private:
-  std::vector<std::unique_ptr<NodeBlob>> m;  // NodeId-1 => Blob pointer.
-  std::vector<bool> exist;                   // NodeId-1 => exist, dynamic
+class ITreeBlob {
+ protected:
+  // allocates memory for given index, returns the pointer to the node blob.
+  virtual void* allocate(const std::size_t idx, const std::size_t size) = 0;
+  // returns true if an index already allocated memory.
+  virtual bool exist(const std::size_t idx) = 0;
+  // get the blob's pointer for the given index.
+  // returns nullptr if not exist.
+  virtual void* get(const std::size_t idx) = 0;
+  // pre-reserve enough capacity if need.
+  virtual void reserve(const std::size_t cap) = 0;
 
  public:
-  TreeBlob() {}
-
+  virtual ~ITreeBlob() {}
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
   // Parameter cb is an optional function to be called after the blob is first allocated.
   template <TNodeBlob B>
   B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0) {
-    // optimization: pre allocate memory.
-    if (cap && m.capacity() < cap) {
-      m.reserve(cap);
-      exist.reserve(cap);
-    }
-    auto offset = id - 1, sz = id;
-    if (sz <= m.size()) {
-      if (exist[offset]) return static_cast<B*>(m[offset].get());
-    } else {
-      m.resize(sz);
-      exist.resize(sz, false);
-    }
-    auto p = std::make_unique<B>();
-    auto rp = p.get();
-    m[offset] = std::move(p);
-    exist[offset] = true;
-    if (cb != nullptr) cb(rp);
-    return rp;
+    if (cap) reserve(cap);
+    std::size_t idx = id - 1;
+    if (exist(idx)) return static_cast<B*>(get(idx));
+    auto p = static_cast<B*>(allocate(idx, sizeof(B)));
+    new (p) B();  // call constructor
+    if (cb != nullptr) cb(p);
+    return p;
   }
+};
+
+// FixedTreeBlob is just a continuous buffer, implements ITreeBlob.
+template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+class FixedTreeBlob final : public ITreeBlob {
+ private:
+  unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
+
+ protected:
+  void* allocate(const std::size_t idx, const std::size_t size) override {
+    if (idx >= NumNodes) throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
+    if (size > MaxSizeNodeBlob) throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
+    buf[idx][0] = true;
+    return get(idx);
+  }
+  bool exist(const std::size_t idx) override { return static_cast<bool>(buf[idx][0]); }
+  void* get(const std::size_t idx) override { return &buf[idx][1]; }
+  void reserve(const std::size_t cap) override {}
+
+ public:
+  FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
+};
+
+// DynamicTreeBlob contains dynamic allocated unique pointers, implements ITreeBlob.
+class DynamicTreeBlob final : public ITreeBlob {
+ private:
+  std::vector<std::unique_ptr<unsigned char[]>> m;  // index => blob pointer.
+  std::vector<bool> e;                              // index => exist, dynamic
+
+ protected:
+  void* allocate(const std::size_t idx, const std::size_t size) override {
+    if (m.size() <= idx) {
+      m.resize(idx + 1);
+      e.resize(idx + 1, false);
+    }
+    auto p = std::make_unique_for_overwrite<unsigned char[]>(size);
+    auto rp = p.get();
+    std::fill_n(rp, size, 0);
+    m[idx] = std::move(p);
+    e[idx] = true;
+    return rp;
+  };
+  bool exist(const std::size_t idx) override { return e.size() > idx && e[idx]; }
+  void* get(const std::size_t idx) override { return m[idx].get(); }
+  void reserve(const std::size_t cap) override {
+    if (m.capacity() < cap) {
+      m.reserve(cap);
+      e.reserve(cap);
+    }
+  }
+
+ public:
+  DynamicTreeBlob() {}
 };
 
 ////////////////////////////
@@ -192,20 +246,42 @@ class TreeBlob {
 class IRootNode {
  public:
   // Returns the current binding TreeBlob's pointer.
-  virtual TreeBlob* GetTreeBlob(void) const = 0;
+  virtual ITreeBlob* GetTreeBlob(void) const = 0;
   // Returns the total number of nodes built on this tree.
   virtual int NumNodes() const = 0;
 };
 
+class Node;  // forward declaration.
+
+// Alias
+template <typename T>
+using Ptr = std::unique_ptr<T>;
+
+static Ptr<Node> NullNodePtr = nullptr;
+
+template <typename T>
+using PtrList = std::vector<Ptr<T>>;
+
+// Type of the callback function for node traversal.
+// Parameters: current walking node and its unique pointer from parent (NullNodePtr for root).
+using TraversalCallback = std::function<void(Node& currentNode, Ptr<Node>& currentNodePtr)>;
+static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
+
 // The most base class of all behavior nodes.
 class Node {
  private:
-  std::string_view name;
+  std::string name;
+  // cache priority for current tick.
+  unsigned int priorityCurrentTick = 0;
+  // tick seq when the priority cache was set.
+  ull priorityCurrentTickSeq = 0;
 
  protected:
   NodeId id = 0;
   // holding a pointer to the root.
   IRootNode* root = nullptr;
+  // size of this node, available after tree built.
+  std::size_t size = 0;
 
   // Internal helper method to return the raw pointer to the node blob.
   template <TNodeBlob B>
@@ -233,28 +309,64 @@ class Node {
     if (b->lastSeq == seq) s += "\033[0m";
   }
 
+  // Internal onBuild method.
+  // Separating from the public hook api OnBuild, so there's no need to call parent
+  // class's OnBuild for custom OnBuild overridings.
+  virtual void internalOnBuild() {}
+
   // firend with SingleNode and CompositeNode for accessbility to makeVisualizeString.
   friend class SingleNode;
   friend class CompositeNode;
 
-  // friend with _InternalBuilderBase to access member root and id;
+  // friend with _InternalBuilderBase to access member root, size and id etc.
   friend class _InternalBuilderBase;
 
  public:
+  // Every stateful Node class should declare its own Blob type member.
+  using Blob = NodeBlob;
+
   Node(std::string_view name = "Node") : name(name) {}
   virtual ~Node() = default;
+
+  /////////////////////////////////////////
+  // Simple Getters
+  /////////////////////////////////////////
+
   // Returns the id of this node.
   NodeId Id() const { return id; }
-
-  // Type of the callback function for node traversal.
-  using TraversalCallback = std::function<void(Node&)>;
+  // Returns the size of this node, available after tree built.
+  std::size_t Size() const { return size; }
+  // Returns the name of this node.
+  virtual std::string_view Name() const { return name; }
+  // Returns last status of this node.
+  bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
 
   // Helps to access the node blob's pointer, which stores the entity-related data and states.
   // Any Node has a NodeBlob class should override this.
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
-  // Traverse the subtree of the current node recursively and execute the given function cb.
-  virtual void Traverse(TraversalCallback& cb) { cb(*this); }
+  // Internal method to query priority of this node in current tick.
+  unsigned int GetPriorityCurrentTick(const Context& ctx) {
+    if (ctx.seq != priorityCurrentTickSeq) priorityCurrentTick = 0;
+    // try cache in this tick firstly.
+    if (!priorityCurrentTick) {
+      priorityCurrentTick = Priority(ctx);
+      priorityCurrentTickSeq = ctx.seq;
+    }
+    return priorityCurrentTick;
+  }
+
+  /////////////////////////////////////////
+  // API
+  /////////////////////////////////////////
+
+  // Traverse the subtree of the current node recursively and execute the given function callback functions.
+  // The callback function pre will be called pre-order, and the post will be called post-order.
+  // Pass NullTraversalCallback for empty callbacks.
+  virtual void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) {
+    pre(*this, ptr);
+    post(*this, ptr);
+  }
 
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx) {
@@ -275,15 +387,6 @@ class Node {
     return status;
   }
 
-  // Returns the name of this node.
-  virtual std::string_view Name() const { return name; }
-  // Returns last status of this node.
-  bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
-
-  // Validate whether the node is builded correctly.
-  // Returns error message, empty string for good.
-  virtual std::string_view Validate() const { return ""; }
-
   /////////////////////////////////////////
   // Public Virtual Functions To Override
   /////////////////////////////////////////
@@ -297,6 +400,7 @@ class Node {
   virtual void OnTerminate(const Context& ctx, Status status){};
 
   // Hook function to be called on this node's build is finished.
+  // Nice to call parent class' OnBuild after your implementation
   virtual void OnBuild() {}
 
   // Main update function to be implemented by all subclasses.
@@ -306,26 +410,23 @@ class Node {
   // Returns the priority of this node, should be strictly larger than 0, the larger the higher.
   // By default, all nodes' priorities are equal, to 1.
   // Providing this method is primarily for selecting children by dynamic priorities.
-  // It's recommended to implement this function fast enough, since it will be called on each
-  // tick. For instance, we may not need to do the calculation on every tick if it's complex.
+  // It's recommended to implement this function fast enough, since it will be called **at most once**
+  // on each tick. For instance, we may not need to do the calculation on every tick if it's complex.
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
   virtual unsigned int Priority(const Context& ctx) const { return 1; }
 
   // Hook function to be called on a blob's first allocation.
   virtual void OnBlobAllocated(NodeBlob* blob) const {}
+
+  // Validate whether the node is builded correctly.
+  // Returns error message, empty string for good.
+  virtual std::string_view Validate() const { return ""; }
 };
 
 // Concept TNode for all classes derived from Node.
 template <typename T>
 concept TNode = std::is_base_of_v<Node, T>;
-
-// Alias
-template <typename T>
-using Ptr = std::unique_ptr<T>;
-
-template <typename T>
-using PtrList = std::vector<Ptr<T>>;
 
 ////////////////////////////
 /// Node > LeafNode
@@ -421,13 +522,14 @@ class SingleNode : public InternalNode {
  public:
   SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
-  void Traverse(TraversalCallback& cb) override {
-    child->Traverse(cb);
-    Node::Traverse(cb);
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
+    pre(*this, ptr);
+    if (child != nullptr) child->Traverse(pre, post, child);
+    post(*this, ptr);
   }
   std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
   void Append(Ptr<Node> node) override { child = std::move(node); }
-  unsigned int Priority(const Context& ctx) const override { return child->Priority(ctx); }
+  unsigned int Priority(const Context& ctx) const override { return child->GetPriorityCurrentTick(ctx); }
 };
 
 ////////////////////////////////////////////////
@@ -462,19 +564,21 @@ class CompositeNode : public InternalNode {
   CompositeNode(std::string_view name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
-  void Traverse(TraversalCallback& cb) override {
-    for (auto& child : children) child->Traverse(cb);
-    Node::Traverse(cb);
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
+    pre(*this, ptr);
+    for (auto& child : children)
+      if (child != nullptr) child->Traverse(pre, post, child);
+    post(*this, ptr);
   }
 
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
   std::string_view Validate() const override { return children.empty() ? "children empty" : ""; }
 
   // Returns the max priority of considerable children.
-  unsigned int Priority(const Context& ctx) const override {
+  unsigned int Priority(const Context& ctx) const final override {
     unsigned int ans = 0;
     for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) ans = std::max(ans, children[i]->Priority(ctx));
+      if (considerable(i)) ans = std::max(ans, children[i]->GetPriorityCurrentTick(ctx));
     return ans;
   }
 };
@@ -490,14 +594,13 @@ struct _InternalStatefulCompositeNodeBlob : NodeBlob {
 
 // Always skip children that already succeeded or failure during current round.
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
-  using Blob = _InternalStatefulCompositeNodeBlob;
-
  protected:
   bool isParatialConsidered() const override { return true; }
   bool considerable(int i) const override { return !(getNodeBlob<Blob>()->st[i]); }
   void skip(const int i) { getNodeBlob<Blob>()->st[i] = true; }
 
  public:
+  using Blob = _InternalStatefulCompositeNodeBlob;
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
   void OnTerminate(const Context& ctx, Status status) override {
     auto& t = getNodeBlob<Blob>()->st;
@@ -617,7 +720,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
     for (int i = 0; i < children.size(); i++) {
       if (!considerable(i)) continue;
-      p[i] = children[i]->Priority(ctx);
+      p[i] = children[i]->GetPriorityCurrentTick(ctx);
       if (!v) v = p[i];
       if (v != p[i]) areAllEqual = false;
     }
@@ -647,10 +750,8 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
 
- public:
-  _InternalPriorityCompositeNode() {}
-
-  void OnBuild() override {
+  void internalOnBuild() override {
+    CompositeNode::internalOnBuild();
     // pre-allocate capacity for p.
     p.resize(children.size());
     // initialize simpleQ1Container;
@@ -661,6 +762,9 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
     auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
     q = _MixedQueueHelper(cmp, children.size());
   }
+
+ public:
+  _InternalPriorityCompositeNode() {}
 
   Status Update(const Context& ctx) override {
     refresh(ctx);
@@ -921,18 +1025,20 @@ class InvertNode : public DecoratorNode {
 class ConditionalRunNode : public DecoratorNode {
  private:
   // Condition node to check.
-  Ptr<ConditionNode> condition;
+  Ptr<Node> condition;
 
+ protected:
  public:
   ConditionalRunNode(Ptr<ConditionNode> condition = nullptr, std::string_view name = "ConditionalRun",
                      Ptr<Node> child = nullptr)
       : DecoratorNode(std::string(name) + '<' + std::string(condition->Name()) + '>', std::move(child)),
         condition(std::move(condition)) {}
 
-  void Traverse(TraversalCallback& cb) override {
-    condition->Traverse(cb);
-    child->Traverse(cb);
-    Node::Traverse(cb);
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
+    pre(*this, ptr);
+    if (condition != nullptr) condition->Traverse(pre, post, condition);
+    if (child != nullptr) child->Traverse(pre, post, child);
+    post(*this, ptr);
   }
   Status Update(const Context& ctx) override {
     if (condition->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
@@ -948,13 +1054,12 @@ struct RepeatNodeBlob : NodeBlob {
 // RepeatNode repeats its child for exactly n times.
 // Fails immediately if its child fails.
 class RepeatNode : public DecoratorNode {
-  using Blob = RepeatNodeBlob;
-
  protected:
   // Times to repeat, -1 for forever, 0 for immediately success.
   int n;
 
  public:
+  using Blob = RepeatNodeBlob;
   RepeatNode(int n, std::string_view name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
@@ -988,12 +1093,11 @@ struct TimeoutNodeBlob : NodeBlob {
 // Timeout runs its child for at most given duration, fails on timeout.
 template <typename Clock = std::chrono::high_resolution_clock>
 class TimeoutNode : public DecoratorNode {
-  using Blob = TimeoutNodeBlob<Clock>;
-
  protected:
   std::chrono::milliseconds duration;
 
  public:
+  using Blob = TimeoutNodeBlob<Clock>;
   TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
@@ -1017,13 +1121,12 @@ struct DelayNodeBlob : NodeBlob {
 // DelayNode runs its child node after given duration.
 template <typename Clock = std::chrono::high_resolution_clock>
 class DelayNode : public DecoratorNode {
-  using Blob = DelayNodeBlob<Clock>;
-
  protected:
   // Duration to wait.
   std::chrono::milliseconds duration;
 
  public:
+  using Blob = DelayNodeBlob<Clock>;
   DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
@@ -1051,8 +1154,6 @@ struct RetryNodeBlob : NodeBlob {
 // RetryNode retries its child node on failure.
 template <typename Clock = std::chrono::high_resolution_clock>
 class RetryNode : public DecoratorNode {
-  using Blob = RetryNodeBlob<Clock>;
-
  protected:
   // Max retry times, -1 for unlimited.
   int maxRetries = -1;
@@ -1060,6 +1161,7 @@ class RetryNode : public DecoratorNode {
   std::chrono::milliseconds interval;
 
  public:
+  using Blob = RetryNodeBlob<Clock>;
   RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
@@ -1108,27 +1210,49 @@ class RetryNode : public DecoratorNode {
 class RootNode : public SingleNode, public IRootNode {
  protected:
   // Current binding tree blob.
-  TreeBlob* blob = nullptr;
+  ITreeBlob* blob = nullptr;
   // Number of nodes on this tree, including the root itself.
   int n = 0;
+  // Size of this tree.
+  std::size_t treeSize = 0;
+  // MaxSizeNode is the max size of tree node.
+  std::size_t maxSizeNode = 0;
+  // MaxSizeNodeBlob is the max size of tree node blobs.
+  std::size_t maxSizeNodeBlob = 0;
 
-  friend class _InternalBuilderBase;  // for access to n;
+  friend class _InternalBuilderBase;  // for access to n, treeSize, maxSizeNode, maxSizeNodeBlob;
 
  public:
   RootNode(std::string_view name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
-  int NumNodes() const override final { return n; }
 
   //////////////////////////
   /// Blob Apis
   //////////////////////////
 
   // Binds a tree blob.
-  void BindTreeBlob(TreeBlob& b) { blob = &b; }
+  void BindTreeBlob(ITreeBlob& b) { blob = &b; }
   // Returns current tree blob.
-  TreeBlob* GetTreeBlob(void) const override { return blob; }
+  ITreeBlob* GetTreeBlob(void) const override { return blob; }
   // Unbind current tree blob.
   void UnbindTreeBlob() { blob = nullptr; }
+
+  //////////////////////////
+  /// Size Info
+  //////////////////////////
+
+  // Returns the total number of nodes in this tree.
+  // Available once the tree is built.
+  int NumNodes() const override final { return n; }
+  // Returns the total size of the node classes in this tree.
+  // Available once the tree is built.
+  std::size_t TreeSize() const { return treeSize; }
+  // Returns the max size of the node class in this tree.
+  // Available once the tree is built.
+  std::size_t MaxSizeNode() const { return maxSizeNode; }
+  // Returns the max size of the node blob struct for this tree.
+  // Available once the tree is built.
+  std::size_t MaxSizeNodeBlob() const { return maxSizeNodeBlob; }
 
   //////////////////////////
   /// Visualization
@@ -1188,11 +1312,52 @@ class _InternalBuilderBase {
   // unique inside this builder instance.
   NodeId nextNodeId = 0;
 
- protected:
-  void onNodeAttach(Node& node, RootNode* root) {
+  void maintainNodeBindInfo(Node& node, RootNode* root) {
     node.root = root;
     root->n++;
     node.id = ++nextNodeId;
+  }
+
+  void maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize, std::size_t blobSize) {
+    root->size = rootNodeSize;
+    root->treeSize += rootNodeSize;
+    root->maxSizeNode = rootNodeSize;
+    root->maxSizeNodeBlob = blobSize;
+  }
+
+  template <TNode T>
+  void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
+    node.size = sizeof(T);
+    root->treeSize += sizeof(T);
+    root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
+    root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));
+  }
+
+  void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root) {
+    root->treeSize += subtree.treeSize;
+    root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
+    root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, subtree.maxSizeNodeBlob);
+  }
+
+ protected:
+  template <TNode T>
+  void onNodeAttach(T& node, RootNode* root) {
+    maintainNodeBindInfo(node, root);
+    maintainSizeInfoOnNodeAttach<T>(node, root);
+  }
+  void onRootAttach(RootNode* root, std::size_t size, std::size_t blobSize) {
+    maintainNodeBindInfo(*root, root);
+    maintainSizeInfoOnRootBind(root, size, blobSize);
+  }
+  void onSubtreeAttach(RootNode& subtree, RootNode* root) {
+    // Resets root in sub tree recursively.
+    TraversalCallback pre = [&](Node& node, Ptr<Node>& ptr) { maintainNodeBindInfo(node, root); };
+    subtree.Traverse(pre, NullTraversalCallback, NullNodePtr);
+    maintainSizeInfoOnSubtreeAttach(subtree, root);
+  }
+  void onNodeBuild(Node* node) {
+    node->internalOnBuild();
+    node->OnBuild();
   }
 };
 
@@ -1202,7 +1367,8 @@ template <typename D = void>
 class Builder : public _InternalBuilderBase {
  private:
   std::stack<InternalNode*> stack;
-  int level;  // indent level to insert new node, starts from 1.
+  // indent level to insert new node, starts from 1.
+  int level;
   RootNode* root = nullptr;
   // Validate node.
   void validate(Node* node) {
@@ -1230,7 +1396,7 @@ class Builder : public _InternalBuilderBase {
   // pops an internal node from the stack.
   void pop() {
     validate(stack.top());  // validate before pop
-    stack.top()->OnBuild();
+    onNodeBuild(stack.top());
     stack.pop();
   }
 
@@ -1245,14 +1411,14 @@ class Builder : public _InternalBuilderBase {
   void bindRoot(RootNode& r) {
     stack.push(&r);
     root = &r;
-    onNodeAttach(r, root);
+    onRootAttach(root, sizeof(D), sizeof(typename D::Blob));
   }
 
   // Creates a leaf node.
   auto& attachLeafNode(Ptr<LeafNode> p) {
     adjust();
     // Append to stack's top as a child.
-    p->OnBuild();
+    onNodeBuild(p.get());
     stack.top()->Append(std::move(p));
     // resets level.
     level = 1;
@@ -1276,7 +1442,7 @@ class Builder : public _InternalBuilderBase {
   template <TNode T, typename... Args>
   Ptr<T> make(bool skipActtach, Args... args) {
     auto p = std::make_unique<T>(std::forward<Args>(args)...);
-    if (!skipActtach) onNodeAttach(*p, root);
+    if (!skipActtach) onNodeAttach<T>(*p, root);
     return p;
   };
 
@@ -1559,9 +1725,7 @@ class Builder : public _InternalBuilderBase {
   //      ._().Subtree(std::move(subtree))
   //      .End();
   auto& Subtree(RootNode&& subtree) {
-    // Resets root in sub tree recursively.
-    Node::TraversalCallback f = [&](Node& node) { onNodeAttach(node, root); };
-    subtree.Traverse(f);
+    onSubtreeAttach(subtree, root);
     // move to the tree
     return M<RootNode>(std::move(subtree));
   }

@@ -1,3 +1,4 @@
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <functional>
 
@@ -5,7 +6,7 @@
 #include "types.h"
 
 TEST_CASE("Blob/1", "[simple tree blob test]") {
-  bt::TreeBlob blob;
+  bt::DynamicTreeBlob blob;
   std::function<void(bt::NodeBlob*)> cb = nullptr;
 
   // Allocate one
@@ -39,7 +40,8 @@ TEST_CASE("Blob/1", "[simple tree blob test]") {
   REQUIRE(p5->lastStatus == bt::Status::RUNNING);
 }
 
-TEST_CASE("Blob/2", "[multiple entites]") {
+TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
+                   (EntityFixedBlob<16, sizeof(bt::StatefulSelectorNode::Blob)>)) {
   bt::Tree root;
 
   // clang-format off
@@ -54,11 +56,12 @@ TEST_CASE("Blob/2", "[multiple entites]") {
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
 
-  Entity e1, e2, e3;
+  TestType e1, e2, e3;
 
   // e1: Tick#1
   root.BindTreeBlob(e1.blob);
   bb->shouldA = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 1);
@@ -69,6 +72,7 @@ TEST_CASE("Blob/2", "[multiple entites]") {
   // e2: Tick#1
   root.BindTreeBlob(e2.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
   REQUIRE(bb->counterA == 2);  // +1
@@ -79,6 +83,7 @@ TEST_CASE("Blob/2", "[multiple entites]") {
   root.BindTreeBlob(e3.blob);
   bb->shouldA = bt::Status::FAILURE;
   bb->shouldB = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 3);  // +1
@@ -90,6 +95,7 @@ TEST_CASE("Blob/2", "[multiple entites]") {
   // e1: Tick#2
   root.BindTreeBlob(e1.blob);
   bb->shouldB = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 3);  // +0
@@ -100,6 +106,7 @@ TEST_CASE("Blob/2", "[multiple entites]") {
   // e2: Tick#2
   root.BindTreeBlob(e2.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
   REQUIRE(bb->counterA == 4);  // +1
@@ -110,6 +117,7 @@ TEST_CASE("Blob/2", "[multiple entites]") {
   // e3: Tick#2
   root.BindTreeBlob(e3.blob);
   bb->shouldE = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
   REQUIRE(bb->counterA == 4);  // +0
