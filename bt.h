@@ -381,7 +381,6 @@ class Node {
 
     // Clears priority for this tick.
     priorityCurrentTick = 0;
-    std::cout << "debug1: clear priority " << Name() << std::endl;
     return status;
   }
 
