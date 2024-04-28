@@ -294,7 +294,8 @@ static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
 // The most base class of all behavior nodes.
 class Node {
  private:
-  char _name[16];
+  // TODO : comment
+  char* _name = nullptr;
 
  protected:
   NodeId id = 0;
@@ -341,10 +342,11 @@ class Node {
   using Blob = NodeBlob;
 
   Node(std::string_view name = "Node") {
-    memset(_name, 0, 16);
-    memcpy(_name, name.data(), std::min(name.length(), std::size_t(15)));  // keeps trailling 0
+    _name = new char[name.size() + 1];
+    memcpy(_name, name.data(), name.size());
+    _name[name.size()] = '\0';
   }
-  virtual ~Node() = default;
+  virtual ~Node() { delete _name; };
 
   /////////////////////////////////////////
   // Simple Getters
@@ -355,7 +357,7 @@ class Node {
   // Returns the size of this node, available after tree built.
   std::size_t Size() const { return size; }
   // Returns the name of this node.
-  virtual std::string_view Name() const { return std::string_view(_name); }
+  virtual std::string_view Name() const { return std::string_view(_name); }  // TODO: fix
   // Returns last status of this node.
   bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
 
@@ -1333,11 +1335,10 @@ class NodePool {
  private:
   std::size_t n, m;        // size: n rows x m cols
   std::size_t offset = 0;  // pointer offset to buf.
-  std::size_t k = 0;       // how many node allocated.
   std::unique_ptr<unsigned char[]> buf;
 
  public:
-  NodePool(std::size_t n, std::size_t m) : n(n), m(m) {
+  NodePool(std::size_t n, std::size_t m) : n(n), m((m + 63) & ~63) {
     auto sz = n * m;
     buf = std::make_unique_for_overwrite<unsigned char[]>(sz);
     std::fill_n(buf.get(), sz, 0);
@@ -1346,11 +1347,12 @@ class NodePool {
   // Allocates a new node for given type. returns the raw pointer.
   template <TNode T, typename... Args>
   T* Allocate(Args... args) {
-    if (k >= n) throw std::runtime_error("bt: pool n not enough");
-    if (sizeof(T) > m) throw std::runtime_error("bt: pool m not enough, at least: " + std::to_string(sizeof(T)));
+    if (offset >= n * m) throw std::runtime_error("bt: pool n not enough");
+    if (sizeof(T) > m)
+      throw std::runtime_error("bt: pool m not enough: " + std::to_string(m) + " < " +
+                               std::to_string(sizeof(T)));
     auto p = buf.get() + offset;
-    offset += sizeof(T);
-    k++;
+    offset += m;
     return new (p) T(std::forward<Args>(args)...);
   }
 
