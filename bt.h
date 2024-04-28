@@ -294,8 +294,8 @@ static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
 // The most base class of all behavior nodes.
 class Node {
  private:
-  // TODO : comment
-  char* _name = nullptr;
+  // TODO: comment why store a stirng_view
+  std::string_view name;
 
  protected:
   NodeId id = 0;
@@ -341,12 +341,8 @@ class Node {
   // Every stateful Node class should declare its own Blob type member.
   using Blob = NodeBlob;
 
-  Node(std::string_view name = "Node") {
-    _name = new char[name.size() + 1];
-    memcpy(_name, name.data(), name.size());
-    _name[name.size()] = '\0';
-  }
-  virtual ~Node() { delete _name; };
+  Node(std::string_view name = "Node") : name(name) {}
+  virtual ~Node() = default;
 
   /////////////////////////////////////////
   // Simple Getters
@@ -357,7 +353,7 @@ class Node {
   // Returns the size of this node, available after tree built.
   std::size_t Size() const { return size; }
   // Returns the name of this node.
-  virtual std::string_view Name() const { return std::string_view(_name); }  // TODO: fix
+  virtual std::string_view Name() const { return name; }
   // Returns last status of this node.
   bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
 
