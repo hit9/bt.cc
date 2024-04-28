@@ -6,10 +6,6 @@ Support fixed size TreeBlob:
 * Remove name `TreeBlob`, now is DynamicTreeBlob.
 * Split into `DynamicTreeBlob` and `FixedTreeBlob`
 
-Support fixed size memory pool:
-
-* Add `NodePool` class.
-
 Add api for size info:
 
 * Add api for tree: `TreeSize()`, `MaxSizeNode()`, `MaxSizeNodeBlob()`
@@ -17,7 +13,7 @@ Add api for size info:
 
 Node's name:
 
-* Fix Node name (std::string_view issue), use static array for name.
+* Fix Node name (std::string_view issue), use std::string to store name.
 
 Misc:
 
