@@ -47,6 +47,7 @@ TEMPLATE_TEST_CASE("Builder/1", "[extend a custom decorator to builder]", Entity
   // Tick#1
 
   root.BindTreeBlob(e.blob);
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->customDecoratorCounter == 1);
@@ -55,6 +56,7 @@ TEMPLATE_TEST_CASE("Builder/1", "[extend a custom decorator to builder]", Entity
   // Tick#2
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);

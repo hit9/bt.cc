@@ -22,6 +22,7 @@ TEST_CASE("Selector/1", "[first success]") {
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   // A is still running, B has not started running.
   REQUIRE(bb->counterA == 1);
@@ -33,6 +34,7 @@ TEST_CASE("Selector/1", "[first success]") {
 
   // Tick#2: Makes A SUCCESS.
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should SUCCESS, and b should not start running
   REQUIRE(bb->counterA == 2);
@@ -43,6 +45,7 @@ TEST_CASE("Selector/1", "[first success]") {
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 
   // Tick#3: Nothing changes.
+  ++ctx.seq;
   root.Tick(ctx);
 
   // A should still success, and b should still not started.
@@ -74,6 +77,7 @@ TEST_CASE("Selector/2", "[first failure and second success]") {
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   // A is still running, B has not started running.
   REQUIRE(bb->counterA == 1);
@@ -85,6 +89,7 @@ TEST_CASE("Selector/2", "[first failure and second success]") {
 
   // Tick#2: Makes A FAILURE.
   bb->shouldA = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should FAILURE, and b should started
   REQUIRE(bb->counterA == 2);
@@ -96,6 +101,7 @@ TEST_CASE("Selector/2", "[first failure and second success]") {
 
   // Tick#3: Makes B SUCCESS
   bb->shouldB = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
 
   // A should still FAILURE, and b should SUCCESS.
@@ -127,6 +133,7 @@ TEST_CASE("Selector/3", "[all failure]") {
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   // A is still running, B has not started running.
   REQUIRE(bb->counterA == 1);
@@ -138,6 +145,7 @@ TEST_CASE("Selector/3", "[all failure]") {
 
   // Tick#2: Makes A FAILURE.
   bb->shouldA = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should FAILURE, and b should started
   REQUIRE(bb->counterA == 2);
@@ -149,6 +157,7 @@ TEST_CASE("Selector/3", "[all failure]") {
 
   // Tick#3: Makes B FAILURE
   bb->shouldB = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
 
   // A should still FAILURE, and b should SUCCESS.
@@ -183,6 +192,7 @@ TEST_CASE("Selector/4", "[priority selector final success]") {
   bb->shouldPriorityG = 1;
   bb->shouldPriorityH = 2;
 
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 1);
@@ -193,6 +203,7 @@ TEST_CASE("Selector/4", "[priority selector final success]") {
 
   // Tick#2: makes H failure.
   bb->shouldH = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 1);  // G now started.
   REQUIRE(bb->counterH == 2);
@@ -202,12 +213,14 @@ TEST_CASE("Selector/4", "[priority selector final success]") {
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#3: one more tick
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 2);
   REQUIRE(bb->counterH == 3);
 
   // Tick#4: make G success.
   bb->shouldG = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 3);
   REQUIRE(bb->counterH == 4);
@@ -240,6 +253,7 @@ TEST_CASE("Selector/4", "[priority selector final failure]") {
   bb->shouldPriorityG = 1;
   bb->shouldPriorityH = 2;
 
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 1);
@@ -250,6 +264,7 @@ TEST_CASE("Selector/4", "[priority selector final failure]") {
 
   // Tick#2: makes H failure.
   bb->shouldH = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 1);  // G now started.
   REQUIRE(bb->counterH == 2);
@@ -260,6 +275,7 @@ TEST_CASE("Selector/4", "[priority selector final failure]") {
 
   // Tick#3: make G failure.
   bb->shouldG = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 2);
   REQUIRE(bb->counterH == 3);
@@ -292,6 +308,7 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
   bb->shouldPriorityG = 1;
   bb->shouldPriorityH = 2;
 
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 1);
@@ -302,6 +319,7 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
 
   // Tick#2: increase G's priority
   bb->shouldPriorityG = 2;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 1);  // G now started
   REQUIRE(bb->counterH == 1);  // H should not ticked
@@ -312,6 +330,7 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
 
   // Tick#3: increase G's priority
   bb->shouldPriorityG = 3;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 2);  // G now started
   REQUIRE(bb->counterH == 1);  // H should not ticked
@@ -322,6 +341,7 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
 
   // Tick#4: makes H success.
   bb->shouldH = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 3);  // G now started
   REQUIRE(bb->counterH == 1);  // H still blocked
@@ -332,6 +352,7 @@ TEST_CASE("Selector/5", "[priority selector - dynamic]") {
 
   // Tick$5 makes H's priority highest
   bb->shouldPriorityH = 99;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(bb->counterG == 3);  // G should be skipped.
   REQUIRE(bb->counterH == 2);

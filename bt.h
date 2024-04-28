@@ -273,6 +273,7 @@ class Node {
   std::string name;
   // cache priority for current tick.
   unsigned int priorityCurrentTick = 0;
+  unsigned int priorityCurrentTickSeq = 0;
 
  protected:
   NodeId id = 0;
@@ -345,8 +346,12 @@ class Node {
 
   // Internal method to query priority of this node in current tick.
   unsigned int GetPriorityCurrentTick(const Context& ctx) {
+    if (ctx.seq != priorityCurrentTickSeq) priorityCurrentTick = 0;
     // try cache in this tick firstly.
-    if (!priorityCurrentTick) priorityCurrentTick = Priority(ctx);
+    if (!priorityCurrentTick) {
+      priorityCurrentTick = Priority(ctx);
+      priorityCurrentTickSeq = ctx.seq;
+    }
     return priorityCurrentTick;
   }
 
@@ -378,9 +383,6 @@ class Node {
       OnTerminate(ctx, status);
       b->running = false;  // reset
     }
-
-    // Clears priority for this tick.
-    priorityCurrentTick = 0;
     return status;
   }
 

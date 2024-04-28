@@ -26,7 +26,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B & E has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -39,7 +39,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
 
   // Tick#2: Make A success.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should success, and B should started running, E should still not started.
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -51,7 +51,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#3
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should stay success, but without ticked.
   // B should still running, got one more tick.
   REQUIRE(bb->counterA == 2);
@@ -66,7 +66,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
 
   // Tick#4: Makes B success.
   bb->shouldB = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 3);  // got one more tick.
   // E started running
@@ -79,7 +79,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/1", "[all success]", Entity,
 
   // Tick#5: Makes E success
   bb->shouldE = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);  // not ticked.
   REQUIRE(bb->counterB == 3);  // not ticked.
   REQUIRE(bb->counterE == 2);  // got one more tick.
@@ -113,7 +113,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/2", "[paritial failure]", Entity,
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B & E has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -126,7 +126,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/2", "[paritial failure]", Entity,
 
   // Tick#2: Make A success.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should success, and B should started running, E should still not started.
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -139,7 +139,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/2", "[paritial failure]", Entity,
 
   // Tick#3: Make B failure
   bb->shouldB = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);  // not ticked
   REQUIRE(bb->counterB == 2);  // got one more tick
   REQUIRE(bb->counterE == 0);  // still not started.
@@ -150,7 +150,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/2", "[paritial failure]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 
   // Tick#4: The next tick will starts from first child.
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // restarts from here, got ticked
   root.UnbindTreeBlob();
 }
@@ -177,7 +177,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
   bb->shouldPriorityI = 3;
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 1);
@@ -189,7 +189,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
 
   // Tick#2: makes I success.
   bb->shouldI = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 1);
   REQUIRE(bb->counterI == 2);
@@ -199,7 +199,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
   // The whole tree should running.
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   // Tick#3
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 2);
   REQUIRE(bb->counterI == 2);
@@ -210,7 +210,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   // Tick#4: Makes G priority highest.
   bb->shouldPriorityG = 9999;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 1);
   REQUIRE(bb->counterH == 2);
   REQUIRE(bb->counterI == 2);
@@ -221,7 +221,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   // Tick#5: Makes G success.
   bb->shouldG = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 2);
   REQUIRE(bb->counterH == 3);
   REQUIRE(bb->counterI == 2);
@@ -232,7 +232,7 @@ TEMPLATE_TEST_CASE("StatefulSequence/3", "[priority StatefulSequence]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   // Tick#6: Makes H success.
   bb->shouldH = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 2);
   REQUIRE(bb->counterH == 4);
   REQUIRE(bb->counterI == 2);

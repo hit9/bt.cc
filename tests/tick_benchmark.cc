@@ -51,7 +51,7 @@ TEMPLATE_TEST_CASE("Tick/1", "[simple traversal benchmark ]", Entity, (EntityFix
   bb->shouldI = bt::Status::SUCCESS;
   BENCHMARK("bench tick without priorities - 6000 nodes ") {
     root.BindTreeBlob(e.blob);
-    root.Tick(ctx);
+    ++ctx.seq;root.Tick(ctx);
     root.UnbindTreeBlob();
   };
 }
@@ -72,7 +72,7 @@ TEST_CASE("Tick/2", "[simple traversal benchmark - priority ]") {
   bb->shouldPriorityG = 2;
   BENCHMARK("bench tick with priorities - 6000 nodes") {
     root.BindTreeBlob(e.blob);
-    root.Tick(ctx);
+    ++ctx.seq;root.Tick(ctx);
     root.UnbindTreeBlob();
   };
 }
@@ -90,7 +90,7 @@ TEST_CASE("Tick/3", "[simple traversal benchmark - stateful ]") {
   bb->shouldI = bt::Status::SUCCESS;
   BENCHMARK("bench tick without priorities - stateful - 6000 nodes ") {
     root.BindTreeBlob(e.blob);
-    root.Tick(ctx);
+    ++ctx.seq;root.Tick(ctx);
     root.UnbindTreeBlob();
   };
 }
@@ -110,7 +110,7 @@ TEMPLATE_TEST_CASE("Tick/4", "[lots of entities]", Entity, (EntityFixedBlob<602>
   BENCHMARK("bench lots of entities - 1000 entities x 600 nodes") {
     for (auto& e : entities) {
       root.BindTreeBlob(e.blob);
-      root.Tick(ctx);
+      ++ctx.seq;root.Tick(ctx);
       root.UnbindTreeBlob();
     }
   };

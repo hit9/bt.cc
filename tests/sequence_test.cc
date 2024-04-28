@@ -23,7 +23,7 @@ TEST_CASE("Sequence/1", "[all success]") {
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -34,7 +34,7 @@ TEST_CASE("Sequence/1", "[all success]") {
 
   // Tick#2: Makes A success.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should success, and b should started running
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -42,7 +42,7 @@ TEST_CASE("Sequence/1", "[all success]") {
   REQUIRE(bb->statusB == bt::Status::RUNNING);
 
   // Tick#3
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should stay success, and b should still running
   REQUIRE(bb->counterA == 3);
   REQUIRE(bb->counterB == 2);
@@ -51,7 +51,7 @@ TEST_CASE("Sequence/1", "[all success]") {
 
   // Tick#3: Make B success.
   bb->shouldB = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should stay success, and b should success.
   REQUIRE(bb->counterA == 4);
   REQUIRE(bb->counterB == 3);
@@ -82,7 +82,7 @@ TEST_CASE("Sequence/2", "[partial failure - first failure]") {
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -91,7 +91,7 @@ TEST_CASE("Sequence/2", "[partial failure - first failure]") {
 
   // Tick#2: Makes A failure
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should failure, and b should not started
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 0);
@@ -121,7 +121,7 @@ TEST_CASE("Sequence/3", "[partial failure - last failure]") {
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -130,7 +130,7 @@ TEST_CASE("Sequence/3", "[partial failure - last failure]") {
 
   // Tick#2: Makes A SUCCESS.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should failure, and b should start running
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -141,7 +141,7 @@ TEST_CASE("Sequence/3", "[partial failure - last failure]") {
 
   // Tick#3: Makes B FAILURE
   bb->shouldB = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
 
   // A should still success, and b should FAILURE
   REQUIRE(bb->counterA == 3);
@@ -178,7 +178,7 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
   bb->shouldPriorityI = 3;
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 1);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 0);
@@ -189,7 +189,7 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
 
   // Tick#2: makes I success
   bb->shouldI = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 2);
   REQUIRE(bb->counterH == 1);
   REQUIRE(bb->counterG == 0);
@@ -200,7 +200,7 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
 
   // Tick#3: makes H success
   bb->shouldH = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 3);
   REQUIRE(bb->counterH == 2);
   REQUIRE(bb->counterG == 1);
@@ -211,7 +211,7 @@ TEST_CASE("Sequence/4", "[priority sequence - final success]") {
 
   // Tick#4: makes G success
   bb->shouldG = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 4);
   REQUIRE(bb->counterH == 3);
   REQUIRE(bb->counterG == 2);
@@ -247,7 +247,7 @@ TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
   bb->shouldPriorityI = 3;
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 1);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 0);
@@ -258,7 +258,7 @@ TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
 
   // Tick#2: makes I success
   bb->shouldI = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 2);
   REQUIRE(bb->counterH == 1);
   REQUIRE(bb->counterG == 0);
@@ -269,7 +269,7 @@ TEST_CASE("Sequence/5", "[priority sequence - partial success/failure]") {
 
   // Tick#3: makes H FAILURE
   bb->shouldH = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 3);
   REQUIRE(bb->counterH == 2);
   REQUIRE(bb->counterG == 0);
@@ -305,7 +305,7 @@ TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
   bb->shouldPriorityI = 3;
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 1);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 0);
@@ -317,7 +317,7 @@ TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
   // Tick#2: makes G' and H' s priority higher
   bb->shouldPriorityG = 3;
   bb->shouldPriorityH = 3;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 1);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 1);
@@ -329,7 +329,7 @@ TEST_CASE("Sequence/5", "[priority sequence - dynamic]") {
   // Tick#2: makes I' s priority higher
   bb->shouldPriorityI = 999;
   bb->shouldI = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI == 2);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterG == 2);

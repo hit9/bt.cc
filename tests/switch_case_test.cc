@@ -24,7 +24,7 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   Entity e;
   root.BindTreeBlob(e.blob);
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // All should unstarted.
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterE == 0);
@@ -34,7 +34,7 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
 
   // Tick#2: Make D success.
   bb->shouldD = true;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // only B should started
   REQUIRE(bb->counterA == 0);
   REQUIRE(bb->counterE == 0);
@@ -46,7 +46,7 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   // Tick#3: Make D FAILURE and C ok
   bb->shouldD = false;
   bb->shouldC = true;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should started
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterE == 0);
@@ -60,7 +60,7 @@ TEST_CASE("SwitchCase/1", "[simplest switch/case]") {
   // Tick#4: Make A success and E success
   bb->shouldA = bt::Status::SUCCESS;
   bb->shouldE = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterE == 1);
   REQUIRE(bb->counterB == 1);

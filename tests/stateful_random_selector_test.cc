@@ -27,12 +27,12 @@ TEMPLATE_TEST_CASE("StatefulRandomSelector/1", "[simple stateful random selector
   bb->shouldPriorityI = 1;
   bb->shouldPriorityH = 1;
 
-  for (int i = 0; i < 10; i++) root.Tick(ctx);
+  for (int i = 0; i < 10; i++) ++ctx.seq;root.Tick(ctx);
 
   // Makes I failure.
   bb->shouldI = bt::Status::FAILURE;
 
-  for (int i = 0; i < 100; i++) root.Tick(ctx);
+  for (int i = 0; i < 100; i++) ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterI <= 11);  // at most get 11 tick
   REQUIRE(bb->counterH >= 99);  // at least 99 tick
 

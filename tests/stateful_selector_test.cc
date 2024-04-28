@@ -26,7 +26,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B & E has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -39,7 +39,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
 
   // Tick#2: Make A failure.
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should failure, and B should started running, E should still not started.
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -51,7 +51,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#3
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should stay failure, but without ticked.
   // B should still running, got one more tick.
   REQUIRE(bb->counterA == 2);
@@ -66,7 +66,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
 
   // Tick#4: Makes B failure
   bb->shouldB = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);  // not ticked
   REQUIRE(bb->counterB == 3);  // got one more tick.
   // E started running
@@ -79,7 +79,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
 
   // Tick#5: Makes E success
   bb->shouldE = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);  // not ticked.
   REQUIRE(bb->counterB == 3);  // not ticked.
   REQUIRE(bb->counterE == 2);  // got one more tick.
@@ -90,7 +90,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/1", "[final success]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 
   // Tick#6: One more tick should restart from the first
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // got ticked.
   root.UnbindTreeBlob();
 }
@@ -117,7 +117,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
   REQUIRE(bb->counterB == 0);
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A is still running, B & E has not started running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterB == 0);
@@ -130,7 +130,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
 
   // Tick#2: Make A failure.
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should failure, and B should started running, E should still not started.
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterB == 1);
@@ -142,7 +142,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
 
   // Tick#3
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should stay failure, but without ticked.
   // B should still running, got one more tick.
   REQUIRE(bb->counterA == 2);
@@ -157,7 +157,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
 
   // Tick#4: Makes B failure
   bb->shouldB = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);  // not ticked
   REQUIRE(bb->counterB == 3);  // got one more tick.
   // E started running
@@ -170,7 +170,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
 
   // Tick#5: Makes E failure
   bb->shouldE = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);  // not ticked.
   REQUIRE(bb->counterB == 3);  // not ticked.
   REQUIRE(bb->counterE == 2);  // got one more tick.
@@ -181,7 +181,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/2", "[final failure]", Entity,
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 
   // Tick#6: One more tick should restart from the first
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 3);  // got ticked.
   root.UnbindTreeBlob();
 }
@@ -212,7 +212,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/3", "[priority statefule selector final suc
   bb->shouldPriorityI = 3;
 
   // Tick#1
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 0);
   REQUIRE(bb->counterI == 1);
@@ -223,7 +223,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/3", "[priority statefule selector final suc
 
   // Tick#2: Make I failure.
   bb->shouldI = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 0);
   REQUIRE(bb->counterH == 1);
   REQUIRE(bb->counterI == 2);
@@ -234,7 +234,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/3", "[priority statefule selector final suc
 
   // Tick#3: Make H failure.
   bb->shouldH = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 1);
   REQUIRE(bb->counterH == 2);
   REQUIRE(bb->counterI == 2);  // skip ticked
@@ -245,7 +245,7 @@ TEMPLATE_TEST_CASE("StatefulSelector/3", "[priority statefule selector final suc
 
   // Tick#4: Make G SUCCESS.
   bb->shouldG = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterG == 2);
   REQUIRE(bb->counterH == 2);  // skip ticked.
   REQUIRE(bb->counterI == 2);  // skip ticked

@@ -25,6 +25,7 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   // Tick#1
   root.BindTreeBlob(e.blob);
   std::cout << "tick1" << std::endl;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should not started.
   REQUIRE(bb->counterA == 0);
@@ -35,6 +36,7 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   // Tick#2: Make C true.
   root.BindTreeBlob(e.blob);
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should started running.
   REQUIRE(bb->counterA == 1);
@@ -47,6 +49,7 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   // Tick#3: Make A Success.
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   // The whole tree should Success.
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
@@ -76,6 +79,7 @@ TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
   // Tick#1
   root.BindTreeBlob(e.blob);
 
+  ++ctx.seq;
   root.Tick(ctx);
   // A should not started.
   REQUIRE(bb->counterA == 0);
@@ -83,6 +87,7 @@ TEST_CASE("Condition/2", "[simplest condition - constructed from lambda]") {
 
   // Tick#2: Make C true.
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should started running.
   REQUIRE(bb->counterA == 1);
@@ -114,6 +119,7 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
   REQUIRE(bb->shouldC == false);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   // A should not started.
   REQUIRE(bb->counterA == 0);
@@ -121,6 +127,7 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
 
   // Tick#2: Make C true.
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should started running.
   REQUIRE(bb->counterA == 1);
@@ -131,6 +138,7 @@ TEST_CASE("Condition/3", "[simplest condition - if]") {
 
   // Tick#2: Make C false.
   bb->shouldC = false;
+  ++ctx.seq;
   root.Tick(ctx);
   // A should not change.
   REQUIRE(bb->counterA == 1);
@@ -160,11 +168,13 @@ TEST_CASE("Condition/4", "[simplest condition - and]") {
   root.BindTreeBlob(e.blob);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 
   // Tick#2: Make C true.
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 
@@ -172,6 +182,7 @@ TEST_CASE("Condition/4", "[simplest condition - and]") {
   bb->shouldC = true;
   bb->shouldD = true;
   bb->shouldF = true;
+  ++ctx.seq;
   root.Tick(ctx);
   // The whole tree should Success
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
@@ -198,17 +209,20 @@ TEST_CASE("Condition/5", "[simplest condition - or]") {
   root.BindTreeBlob(e.blob);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 
   // Tick#2: Make C true.
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 
   // Tick#3: Make only D true.
   bb->shouldC = false;
   bb->shouldD = true;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 
@@ -216,6 +230,7 @@ TEST_CASE("Condition/5", "[simplest condition - or]") {
   bb->shouldC = true;
   bb->shouldD = true;
   bb->shouldF = true;
+  ++ctx.seq;
   root.Tick(ctx);
   // The whole tree should Success
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
@@ -240,11 +255,13 @@ TEST_CASE("Condition/6", "[simplest condition - not]") {
   root.BindTreeBlob(e.blob);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
 
   // Tick#2: Make C true.
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
 
@@ -271,18 +288,21 @@ TEST_CASE("Condition/7", "[simplest condition - not2]") {
   REQUIRE(!bb->shouldC);
 
   // Tick#1
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 1);
 
   // Tick#2: Make A Success.
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
   REQUIRE(bb->counterA == 2);
 
   // Tick#3: Make C true.
   bb->shouldC = true;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
   REQUIRE(bb->counterA == 2);  // not ticked

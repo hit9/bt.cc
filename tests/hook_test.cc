@@ -42,7 +42,7 @@ TEMPLATE_TEST_CASE("Hook/2", "[hook OnEnter]", Entity, (EntityFixedBlob<16>)) {
   TestType e;
 
   root.BindTreeBlob(e.blob);
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->onEnterCalledA);
   root.UnbindTreeBlob();
 }
@@ -62,13 +62,13 @@ TEMPLATE_TEST_CASE("Hook/3", "[hook OnTerminate]", Entity, (EntityFixedBlob<16>)
   TestType e;
 
   root.BindTreeBlob(e.blob);
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(!bb->onTerminatedCalledA);
   root.UnbindTreeBlob();
 
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->onTerminatedCalledA);
   root.UnbindTreeBlob();
 }

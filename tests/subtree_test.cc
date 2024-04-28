@@ -35,7 +35,7 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
 
   // Tick#1: Make Action E Failure.
   bb->shouldE = bt::Status::FAILURE;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   // A should running.
   REQUIRE(bb->counterA == 1);
   REQUIRE(bb->counterE == 1);
@@ -44,7 +44,7 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
 
   // Tick#2: Make C true.
   bb->shouldC = true;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 2);
   REQUIRE(bb->counterE == 2);
   REQUIRE(bb->counterB == 0);  // B is blocked
@@ -52,7 +52,7 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
 
   // Tick#3: Make A success.
   bb->shouldA = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 3);
   REQUIRE(bb->counterE == 3);
   REQUIRE(bb->counterB == 1);  // B is started
@@ -60,7 +60,7 @@ TEMPLATE_TEST_CASE("SubTree/1", "[subtree test]", Entity, (EntityFixedBlob<32>))
 
   // Tick#4: Make B success.
   bb->shouldB = bt::Status::SUCCESS;
-  root.Tick(ctx);
+  ++ctx.seq;root.Tick(ctx);
   REQUIRE(bb->counterA == 4);
   REQUIRE(bb->counterE == 4);
   REQUIRE(bb->counterB == 2);  // B ok

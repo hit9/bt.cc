@@ -61,6 +61,7 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   // e1: Tick#1
   root.BindTreeBlob(e1.blob);
   bb->shouldA = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 1);
@@ -71,6 +72,7 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   // e2: Tick#1
   root.BindTreeBlob(e2.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
   REQUIRE(bb->counterA == 2);  // +1
@@ -81,6 +83,7 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   root.BindTreeBlob(e3.blob);
   bb->shouldA = bt::Status::FAILURE;
   bb->shouldB = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 3);  // +1
@@ -92,6 +95,7 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   // e1: Tick#2
   root.BindTreeBlob(e1.blob);
   bb->shouldB = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   REQUIRE(bb->counterA == 3);  // +0
@@ -102,6 +106,7 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   // e2: Tick#2
   root.BindTreeBlob(e2.blob);
   bb->shouldA = bt::Status::SUCCESS;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
   REQUIRE(bb->counterA == 4);  // +1
@@ -112,6 +117,7 @@ TEMPLATE_TEST_CASE("Blob/2", "[multiple entites]", Entity,
   // e3: Tick#2
   root.BindTreeBlob(e3.blob);
   bb->shouldE = bt::Status::FAILURE;
+  ++ctx.seq;
   root.Tick(ctx);
   REQUIRE(root.LastStatus() == bt::Status::FAILURE);
   REQUIRE(bb->counterA == 4);  // +0
