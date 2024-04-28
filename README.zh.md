@@ -151,7 +151,7 @@ while(...) {
 
   重要的一点是，行为树本身只存储树的结构信息、不含任何和实体相关的数据。
 
-* 执行状态码 <span id="status"></span> <a href="#a">[↑]</a>:
+* 执行状态码 <span id="status"></span> <a href="#ref">[↑]</a>:
 
   ```cpp
   bt::Status::RUNNING  // 执行中
@@ -159,7 +159,7 @@ while(...) {
   bt::Status::SUCCESS  // 已成功
   ```
 
-* 行为树节点的分类:  <span id="classes"></span> :  <a href="#a">[↑]</a>
+* 行为树节点的分类:  <span id="classes"></span> :  <a href="#ref">[↑]</a>
 
   ```
   Node                               所有节点的基类
@@ -200,7 +200,7 @@ while(...) {
 
   关于如何定义一个使用 TreeBlob 的行为节点, 请看下面的 [node blob](#node-blob).
 
-* **Action**  <span id="action"></span> <a href="#a">[↑]</a>
+* **Action**  <span id="action"></span> <a href="#ref">[↑]</a>
 
   要定义一个 `Action` 节点，只需要继承自 `bt::ActionNode`，并实现方法 `Update`：
 
@@ -250,7 +250,7 @@ while(...) {
 
   对于其他节点来说，要实现一个和实体相关的状态化的节点，都是如法炮制的。
 
-* **Condition**  <span id="condition"></span> <a href="#a">[↑]</a>
+* **Condition**  <span id="condition"></span> <a href="#ref">[↑]</a>
 
   条件节点没有子节点，当它的 `Check()` 方法返回 `true` 时，算作成功。
 
@@ -286,7 +286,7 @@ while(...) {
   ;
   ```
 
-* **Sequence** <span id="sequence"></span> <a href="#a">[↑]</a>
+* **Sequence** <span id="sequence"></span> <a href="#ref">[↑]</a>
 
   顺序节点会依次执行它的所有子节点，如果子节点全部成功，则它会成功，否则会立即失败。
 
@@ -302,7 +302,7 @@ while(...) {
   ;
   ```
 
-* **Selector**  <span id="selector"></span> <a href="#a">[↑]</a>
+* **Selector**  <span id="selector"></span> <a href="#ref">[↑]</a>
 
   选择节点会依次执行它的所有子节点，如果子节点全部失败，则它会失败，否则遇到一个成功的子节点，会立即成功。
 
@@ -320,7 +320,7 @@ while(...) {
   ;
   ```
 
-* **Parallel** <span id="parallel"></span> <a href="#a">[↑]</a>
+* **Parallel** <span id="parallel"></span> <a href="#ref">[↑]</a>
 
   并行节点会并行地执行所有子节点，即每次 `Tick()` 都会对所有子节点跑一次 `Tick()`，然后再综合子节点的运行结果。
   如果所有节点成功，则算作成功，否则如果至少一个子节点执行失败，则算作失败。
@@ -338,7 +338,7 @@ while(...) {
   ;
   ```
 
-* **RandomSelector**  <span id="random-selector"></span> <a href="#a">[↑]</a>
+* **RandomSelector**  <span id="random-selector"></span> <a href="#ref">[↑]</a>
 
   随机选择节点 会随机选择一个子节点来执行，直到遇到成功的。
 
@@ -355,7 +355,7 @@ while(...) {
   ;
   ```
 
-* **Priority**  <span id="priority"></span> <a href="#a">[↑]</a>
+* **Priority**  <span id="priority"></span> <a href="#ref">[↑]</a>
 
   默认的，节点之间是平权的，也就是优先级相等（都预设为 1）。
 
@@ -381,7 +381,7 @@ while(...) {
 
   所有复合节点，包括有状态节点，都会考虑其子节点的 `Priority()` 函数。
 
-* **有状态的组合节点**  <span id="stateful"></span> <a href="#a">[↑]</a>
+* **有状态的组合节点**  <span id="stateful"></span> <a href="#ref">[↑]</a>
 
   三种组合节点都有支持「有状态的」版本：`StatefulSequence`, `StatefulSelector` 和 `StatefulParallel`.
 
@@ -409,7 +409,7 @@ while(...) {
 
   有状态的组合节点的状态数据都存储在了 `NodeBlob` 中。
 
-* `Switch/Case` 是基于 `Selector` 和 `If` 的一种语法糖：  <span id="switchcase"></span> <a href="#a">[↑]</a>
+* `Switch/Case` 是基于 `Selector` 和 `If` 的一种语法糖：  <span id="switchcase"></span> <a href="#ref">[↑]</a>
 
   ```cpp
   // 只有一个 case 会成功，或者全部失败。
@@ -423,16 +423,16 @@ while(...) {
   ```
 
 
-* **Decorators** <span id="decorators"></span> <a href="#a">[↑]</a>
+* **Decorators** <span id="decorators"></span> <a href="#ref">[↑]</a>
 
-  * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#a">[↑]</a>
+  * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#ref">[↑]</a>
 
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()
     ```
 
-  * `Invert()` 会反转其装饰的子节点的执行状态:  <span id="invert"></span> <a href="#a">[↑]</a>
+  * `Invert()` 会反转其装饰的子节点的执行状态:  <span id="invert"></span> <a href="#ref">[↑]</a>
 
     ```cpp
     .Invert()
@@ -444,7 +444,7 @@ while(...) {
     //   FAILURE => SUCCESS
     ```
 
-  * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。  <span id="repeat"></span> <a href="#a">[↑]</a>
+  * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。  <span id="repeat"></span> <a href="#ref">[↑]</a>
 
     如果把节点从 开始 `RUNNING`、到 `SUCCESS` 或者 `FAILURE` 叫做一轮的话，`Repeat(n)` 的作用就是执行被修饰的子节点 `n` 轮。
 
@@ -454,7 +454,7 @@ while(...) {
     ._().Action<A>()
     ```
 
-  * `Timeout` 会对其修饰的子节点加一个执行时间限制，如果到时间期限子节点仍未返回成功，则它会返回失败，也不再 tick 子节点。   <span id="timeout"></span> <a href="#a">[↑]</a>
+  * `Timeout` 会对其修饰的子节点加一个执行时间限制，如果到时间期限子节点仍未返回成功，则它会返回失败，也不再 tick 子节点。   <span id="timeout"></span> <a href="#ref">[↑]</a>
 
     ```cpp
     using namespace std::chrono_literals;
@@ -463,7 +463,7 @@ while(...) {
     ._().Action<Task>()
     ```
 
-  * `Delay` 会在执行其子节点之前，等待一段时间。   <span id="delay"></span> <a href="#a">[↑]</a>
+  * `Delay` 会在执行其子节点之前，等待一段时间。   <span id="delay"></span> <a href="#ref">[↑]</a>
 
     ```cpp
     using namespace std::chrono_literals;
@@ -472,7 +472,7 @@ while(...) {
     ._().Action<Task>()
     ```
 
-  * `Retry` 在其装饰的子节点执行失败时会发起重试，最多重试 `n` 次，重试间隔是 `interval` 。  <span id="retry"></span> <a href="#a">[↑]</a>
+  * `Retry` 在其装饰的子节点执行失败时会发起重试，最多重试 `n` 次，重试间隔是 `interval` 。  <span id="retry"></span> <a href="#ref">[↑]</a>
 
     下面的代码中，在 `Task` 子树失败时会发起重试，最多执行 3 次，每次重试的间隔是 `1000ms`：
 
@@ -486,7 +486,7 @@ while(...) {
     ._().Action<Task>()
     ```
 
-  * **自定义装饰器**  <a href="#a">[↑]</a>
+  * **自定义装饰器**  <a href="#ref">[↑]</a>
 
     要定义一个自定义的装饰器，可以继承 `bt::DecoratorNode`:
 
@@ -505,7 +505,7 @@ while(...) {
     一些装饰节点需要利用状态化的数据，如果是实体相关的（也就是非行为树结构的数据），那么可以定义一个 `NodeBlob` 来搭配使用。
     方法和 [上面所讲的带状态的 Action 节点](#node-blob) 一样。
 
-* **子树**  <span id="subtree"></span> <a href="#a">[↑]</a>
+* **子树**  <span id="subtree"></span> <a href="#ref">[↑]</a>
 
   一个行为树可以挂载到另一颗行为树上，作为子树存在：
 
@@ -544,7 +544,7 @@ while(...) {
     .End();
   ```
 
-* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#a">[↑]</a>
+* **Tick 的上下文结构体 `Context`**  <span id="context"></span> <a href="#ref">[↑]</a>
 
   这个结构体会从根节点一路传递到每个被执行到的节点：
 
@@ -559,7 +559,7 @@ while(...) {
   上下文结构体的主要作用，是可以在行为内部接触外部数据，比如世界中的环境信息。
 
 
-* **钩子函数**  <span id="hooks"></span> <a href="#a">[↑]</a>
+* **钩子函数**  <span id="hooks"></span> <a href="#ref">[↑]</a>
 
   对于每个节点，都支持 3 种钩子函数：
 
@@ -578,7 +578,7 @@ while(...) {
   }
   ```
 
-* **可视化**  <span id="visualization"></span> <a href="#a">[↑]</a>
+* **可视化**  <span id="visualization"></span> <a href="#ref">[↑]</a>
 
   `bt.h` 实现了一个简单的实时把行为树运行状态可视化展示的函数，绿色的节点表示正在被 tick 的节点。
 
@@ -591,7 +591,7 @@ while(...) {
   root.Visualize(ctx.seq)
   ```
 
-* **黑板 ?**  <span id="blackboard"></span> <a href="#a">[↑]</a>
+* **黑板 ?**  <span id="blackboard"></span> <a href="#ref">[↑]</a>
 
   实际上，如果不面向非开发人员的话，行为树和黑板是不需要序列化机制的，也就是说，可以直接使用一个 `struct` 来作为黑板，简单而高效：
 
@@ -616,7 +616,7 @@ while(...) {
   }
   ```
 
-* **Tick 循环**   <span id="ticker-loop"></span> <a href="#a">[↑]</a>
+* **Tick 循环**   <span id="ticker-loop"></span> <a href="#ref">[↑]</a>
 
   `bt.h` 中内置了一个简单额 tick 主循环：
 
@@ -624,7 +624,7 @@ while(...) {
   root.TickForever(ctx, 100ms);
   ```
 
-* **自定义行为树的构建器 Builder**  <span id="custom-builder"></span> <a href="#a">[↑]</a>
+* **自定义行为树的构建器 Builder**  <span id="custom-builder"></span> <a href="#ref">[↑]</a>
 
   ```cpp
   // 假设我们要添加一个自定义的装饰节点
