@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <any>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -105,7 +106,7 @@ TEST_CASE("Builder/2", "[node id increment]") {
   root.Traverse(f, bt::NullTraversalCallback, bt::NullNodePtr);
 }
 
-TEST_CASE("Builder/3", "[node count]") {
+TEST_CASE("Builder/3", "[node count and size info]") {
   auto st = [&]() {  // n: 4
     bt::Tree subtree("Subtree");
     // clang-format off
@@ -142,6 +143,22 @@ TEST_CASE("Builder/3", "[node count]") {
   REQUIRE(root.NumNodes() == 18);
 
   // All id should <= n;
-  bt::TraversalCallback cb1 = [&](bt::Node& node,bt::Ptr<bt::Node>& ptr) { REQUIRE(node.Id() <= root.NumNodes()); };
-  root.Traverse(cb1, bt::NullTraversalCallback,bt::NullNodePtr);
+  bt::TraversalCallback cb1 = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
+    REQUIRE(node.Id() <= root.NumNodes());
+  };
+  root.Traverse(cb1, bt::NullTraversalCallback, bt::NullNodePtr);
+
+  // Test total size
+  std::size_t totalSize = 0;
+  std::size_t maxSize = 0;
+  bt::TraversalCallback cb2 = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
+    totalSize += node.Size();
+    maxSize = std::max(node.Size(), maxSize);
+  };
+  root.Traverse(cb2, bt::NullTraversalCallback, bt::NullNodePtr);
+  REQUIRE(totalSize == root.TreeSize());
+  REQUIRE(maxSize == root.MaxSizeNode());
+
+  REQUIRE(root.MaxSizeNodeBlob() == sizeof(bt::NodeBlob));
+  REQUIRE(root.Size() == sizeof(bt::Tree));
 }
