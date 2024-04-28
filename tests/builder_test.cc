@@ -96,11 +96,11 @@ TEST_CASE("Builder/2", "[node id increment]") {
   // clang-format on
 
   std::unordered_set<bt::NodeId> ids;
-  bt::Node::TraversalCallback f = [&](bt::Node& node) {
+  bt::TraversalCallback f = [&](bt::Node& node, bt::Ptr<bt::Node>& ptr) {
     REQUIRE(ids.find(node.Id()) == ids.end());
     ids.insert(node.Id());
   };
-  root.Traverse(f);
+  root.Traverse(f, bt::NullTraversalCallback, bt::NullNodePtr);
 }
 
 TEST_CASE("Builder/3", "[node count]") {
@@ -140,6 +140,6 @@ TEST_CASE("Builder/3", "[node count]") {
   REQUIRE(root.NumNodes() == 18);
 
   // All id should <= n;
-  bt::Node::TraversalCallback cb1 = [&](bt::Node& node) { REQUIRE(node.Id() <= root.NumNodes()); };
-  root.Traverse(cb1);
+  bt::TraversalCallback cb1 = [&](bt::Node& node,bt::Ptr<bt::Node>& ptr) { REQUIRE(node.Id() <= root.NumNodes()); };
+  root.Traverse(cb1, bt::NullTraversalCallback,bt::NullNodePtr);
 }
