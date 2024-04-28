@@ -59,8 +59,8 @@ root
 
 ```cpp
 struct Entity {
-  // TreeBlob 存储行为树中所有和实体相关的状态数据
-  bt::TreeBlob blob;
+  // DynamicTreeBlob 存储行为树中所有和实体相关的状态数据
+  bt::DynamicTreeBlob blob;
 
   // 或者用一个固定大小的 TreeBlob, 会直接内嵌到 Entity 结构体内
   // 最多 8 个节点 x 每个节点最多64个字节, 固定大小二维数组
@@ -176,7 +176,7 @@ while(...) {
    |   | ConditionNode               条件节点
   ```
 
-* **TreeBlob***   <span id="tree-blob"></span> <a href="#ref">[↑]</a>
+* **TreeBlob**   <span id="tree-blob"></span> <a href="#ref">[↑]</a>
 
   TreeBlob 负责存储一颗行为树的和实体相关的数据.
 
@@ -234,10 +234,13 @@ while(...) {
   ```cpp
   class A : public bt::ActionNode {
    public:
-    NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
     // 任何一个有实体状态的节点都应该定义一个类型成员, 叫做 Blob
     using Blob = ANodeBlob;
-    // 在这个类的方法中，可以用 getNodeBlob<ANodeBlob>() 来获取数据快的指针, 来查询和修改实体相关的数据。
+    // 需要重载这个方法, 返回一个指向基础类 NodeBlob 类型的指针
+    // getNodeBlob 是 bt.h 提供的方法, 定义在 `Node` 中
+    NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
+
+    // 在这个类的方法中，可以用 getNodeBlob<ANodeBlob>() 来获取数据块的指针, 来查询和修改实体相关的数据。
     bt::Status Update(const bt::Context& ctx) override {
         ANodeBlob* b = getNodeBlob<ANodeBlob>();
         b->data = 1; // 示例

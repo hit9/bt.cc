@@ -182,11 +182,11 @@ Reference: <span id="ref"></span>
    |   | ConditionNode               Tests a specific condition.
   ```
 
-* **TreeBlob***   <span id="tree-blob"></span> <a href="#ref">[↑]</a>
+* **TreeBlob**   <span id="tree-blob"></span> <a href="#ref">[↑]</a>
 
   A TreeBlob stores the entity-related states data for all nodes in a tree.
 
-  One bt tree and one entity corresponds to a TreeBlob instance.
+  One bt tree and one entity instance correspond to a TreeBlob instance.
 
   There are two kinds of tree blobs:
 
@@ -205,7 +205,7 @@ Reference: <span id="ref"></span>
      This requires compiling the built behavior tree first, executing it, outputting this information, and then filling
      it in the code that defines these FixedTreeBlobs in the entity.
 
-  To declare a stateful bt node on top of tree blob, checkout the following [node-blob](#node-blob).
+  To declare a stateful bt node on top of tree blob, checkout the following [node-blob](#node-blob) section.
 
 * **Action**  <span id="action"></span> <a href="#ref">[↑]</a>
 
@@ -243,9 +243,12 @@ Reference: <span id="ref"></span>
   ```cpp
   class A : public bt::ActionNode {
    public:
-    NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
     // Every stateful Node class should declare its own Blob type member.
     using Blob = ANodeBlob;
+    // Should override this method, returns a pointer to the base node blob type.
+    // getNodeBlob is a method provided by bt library, defined in class `Node`.
+    NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
+
     // Use getNodeBlob<ANodeBlob>() to access the pointer to this's node's data blob.
     bt::Status Update(const bt::Context& ctx) override {
         ANodeBlob* b = getNodeBlob<ANodeBlob>();
