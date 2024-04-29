@@ -4,6 +4,7 @@
 * Separates to bt.h and bt.cc.
 * Remove template Clock, use std::chrono::steady_clock.
 * Use printf instead of iostream
+* Rename project to `bt.cc`
 
 0.3.5
 -----
