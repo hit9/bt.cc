@@ -24,7 +24,6 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
 
   // Tick#1
   root.BindTreeBlob(e.blob);
-  std::cout << "tick1" << std::endl;
   ++ctx.seq;
   root.Tick(ctx);
   // A should not started.
@@ -32,7 +31,6 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   REQUIRE(bb->statusA == bt::Status::UNDEFINED);
   root.UnbindTreeBlob();
 
-  std::cout << "tick2" << std::endl;
   // Tick#2: Make C true.
   root.BindTreeBlob(e.blob);
   bb->shouldC = true;
@@ -45,7 +43,6 @@ TEST_CASE("Condition/1", "[simplest condition - constructed from template]") {
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   root.UnbindTreeBlob();
 
-  std::cout << "tick3" << std::endl;
   // Tick#3: Make A Success.
   root.BindTreeBlob(e.blob);
   bb->shouldA = bt::Status::SUCCESS;

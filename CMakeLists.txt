@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 option(BT_TEST "Enables testing" OFF)
 
-add_library(bt INTERFACE)
+add_library(bt SHARED bt.cc)
 set_target_properties(bt PROPERTIES PUBLIC_HEADER "bt.h")
 
 if(BT_TEST)

@@ -1,4 +1,4 @@
-# bt.h
+# bt.cc
 
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
@@ -13,7 +13,7 @@
 
 ## 安装
 
-只需要拷贝走头文件 `bt.h`
+只需要拷贝走 `bt.h` 和 `bt.cc`
 
 ## 特点
 
@@ -237,7 +237,7 @@ while(...) {
     // 任何一个有实体状态的节点都应该定义一个类型成员, 叫做 Blob
     using Blob = ANodeBlob;
     // 需要重载这个方法, 返回一个指向基础类 NodeBlob 类型的指针
-    // getNodeBlob 是 bt.h 提供的方法, 定义在 `Node` 中
+    // getNodeBlob 是库提供的方法, 定义在 `Node` 中
     NodeBlob* GetNodeBlob() const override { return getNodeBlob<ANodeBlob>(); }
 
     // 在这个类的方法中，可以用 getNodeBlob<ANodeBlob>() 来获取数据块的指针, 来查询和修改实体相关的数据。
@@ -580,7 +580,7 @@ while(...) {
 
 * **可视化**  <span id="visualization"></span> <a href="#ref">[↑]</a>
 
-  `bt.h` 实现了一个简单的实时把行为树运行状态可视化展示的函数，绿色的节点表示正在被 tick 的节点。
+  `bt.cc` 实现了一个简单的实时把行为树运行状态可视化展示的函数，绿色的节点表示正在被 tick 的节点。
 
   用法示例：
 
@@ -618,7 +618,7 @@ while(...) {
 
 * **Tick 循环**   <span id="ticker-loop"></span> <a href="#ref">[↑]</a>
 
-  `bt.h` 中内置了一个简单额 tick 主循环：
+  `bt.cc` 中内置了一个简单额 tick 主循环：
 
   ```cpp
   root.TickForever(ctx, 100ms);
@@ -659,9 +659,9 @@ while(...) {
 
 * **信号和事件** <span id="signals"></span> <a href="#ref">[↑]</a>
 
-  在行为树中释放和处理信号是常见的情况, 但是信号和事件的处理是一个复杂的事情, 我并不想让其和 bt.h 这个很小的库耦合起来.
+  在行为树中释放和处理信号是常见的情况, 但是信号和事件的处理是一个复杂的事情, 我并不想让其和 bt.cc 这个很小的库耦合起来.
 
-  一般来说, 要想把信号处理的带入 bt.h 中, 思路如下:
+  一般来说, 要想把信号处理的带入 bt.cc 中, 思路如下:
 
   1. 创建一个自定义的装饰节点, 比如说叫做 `OnSignalNode`.
   2. 创建一个自定义的 Builder 类, 添加一个方法叫做 `OnSignal`.
