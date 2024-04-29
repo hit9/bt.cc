@@ -1,8 +1,13 @@
+// Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
+// License: BSD, Version: 0.4.0.  https://github.com/hit9/bt.cc
+// A lightweight behavior tree library that separates data and behavior.
+
 #include "bt.h"
 
-#include <iostream>  // for cout, flush
-#include <random>    // for mt19937
-#include <thread>    // for this_thread::sleep_for
+#include <algorithm>  // for max
+#include <iostream>   // for cout, flush
+#include <random>     // for mt19937
+#include <thread>     // for this_thread::sleep_for
 
 namespace bt {
 
@@ -310,7 +315,8 @@ Status _InternalSelectorNodeBase::update(const Context& ctx) {
 
 static std::mt19937 rng(std::random_device{}());  // seed random
 
-Status _InternalRandomSelectorNodeBase::update(const Context& ctx) {
+Status _InternalRandomSelectorNodeBase::Update(const Context& ctx) {
+  refresh(ctx);
   // Sum of weights/priorities.
   unsigned int total = 0;
   for (int i = 0; i < children.size(); i++)
@@ -351,11 +357,6 @@ Status _InternalRandomSelectorNodeBase::update(const Context& ctx) {
   }
   // F if all children F.
   return Status::FAILURE;
-}
-
-Status _InternalRandomSelectorNodeBase::Update(const Context& ctx) {
-  refresh(ctx);
-  return update(ctx);
 }
 
 //////////////////////////////////////////////////////////////

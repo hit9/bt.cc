@@ -1,15 +1,12 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD. https://github.com/hit9/bt.h, Version: 0.3.5
-//
+// License: BSD, Version: 0.4.0.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
-//
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
 
-#include <algorithm>  // for max, min
 #include <any>
-#include <chrono>   // for milliseconds, high_resolution_clock
+#include <chrono>   // for milliseconds, steady_clock
 #include <cstring>  // for memset
 #include <functional>
 #include <memory>  // for unique_ptr
@@ -23,21 +20,12 @@
 #include <vector>
 
 namespace bt {
-
-////////////////////////////
-/// Status
-////////////////////////////
-
 enum class Status { UNDEFINED = 0, RUNNING = 1, SUCCESS = 2, FAILURE = 3 };
 
 using ull = unsigned long long;
 
 // Node instance's id type.
 using NodeId = unsigned int;
-
-////////////////////////////
-/// Context
-////////////////////////////
 
 // Tick/Update's Context.
 struct Context {
@@ -56,6 +44,10 @@ struct Context {
   Context(T data) : data(data), seq(0) {}
 };
 
+////////////////////////////
+/// TreeBlob
+////////////////////////////
+
 // NodeBlob is the base class to store node's internal entity-related data and states.
 struct NodeBlob {
   bool running = false;                   // is still running?
@@ -66,10 +58,6 @@ struct NodeBlob {
 // Concept TNodeBlob for all classes derived from NodeBlob.
 template <typename T>
 concept TNodeBlob = std::is_base_of_v<NodeBlob, T>;
-
-////////////////////////////
-/// TreeBlob
-////////////////////////////
 
 // ITreeBlob is an internal interface base class for FixedTreeBlob and DynamicTreeBlob.
 // A TreeBlob stores the entity-related states data for all nodes in a tree.
@@ -177,7 +165,6 @@ class Node {
   unsigned int priorityCurrentTick = 0;
   // tick seq when the priority cache was set.
   ull priorityCurrentTickSeq = 0;
-
   // holding a pointer to the root.
   IRootNode* root = nullptr;
   // size of this node, available after tree built.
@@ -195,10 +182,8 @@ class Node {
     const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
     return root->GetTreeBlob()->Make<B>(id, cb, root->NumNodes());  // get or alloc
   }
-
   // Internal method to visualize tree.
   virtual void makeVisualizeString(std::string& s, int depth, ull seq);
-
   // Internal onBuild method.
   // Separating from the public hook api OnBuild, so there's no need to call parent
   // class's OnBuild for custom OnBuild overridings.
@@ -215,9 +200,8 @@ class Node {
   Node(std::string_view name = "Node") : name(name) {}
   virtual ~Node() = default;
 
-  /////////////////////////////////////////
   // Simple Getters
-  /////////////////////////////////////////
+  // ~~~~~~~~~~~~~~
 
   // Returns the id of this node.
   NodeId Id() const { return id; }
@@ -233,38 +217,31 @@ class Node {
   // Internal method to query priority of this node in current tick.
   unsigned int GetPriorityCurrentTick(const Context& ctx);
 
-  /////////////////////////////////////////
   // API
-  /////////////////////////////////////////
+  // ~~~
 
   // Traverse the subtree of the current node recursively and execute the given function callback functions.
   // The callback function pre will be called pre-order, and the post will be called post-order.
   // Pass NullTraversalCallback for empty callbacks.
   virtual void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr);
-
   // Main entry function, should be called on every tick.
   Status Tick(const Context& ctx);
 
-  /////////////////////////////////////////
   // Public Virtual Functions To Override
-  /////////////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   // Hook function to be called on this node's first run.
   // Nice to call parent class' OnEnter before your implementation.
   virtual void OnEnter(const Context& ctx){};
-
   // Hook function to be called once this node goes into success or failure.
   // Nice to call parent class' OnTerminate after your implementation
   virtual void OnTerminate(const Context& ctx, Status status){};
-
   // Hook function to be called on this node's build is finished.
   // Nice to call parent class' OnBuild after your implementation
   virtual void OnBuild() {}
-
   // Main update function to be implemented by all subclasses.
   // It's the body part of function Tick().
   virtual Status Update(const Context& ctx) { return Status::SUCCESS; };
-
   // Returns the priority of this node, should be strictly larger than 0, the larger the higher.
   // By default, all nodes' priorities are equal, to 1.
   // Providing this method is primarily for selecting children by dynamic priorities.
@@ -273,10 +250,8 @@ class Node {
   // Another optimization is to separate calculation from getter, for example, pre-cache the result
   // somewhere on the blackboard, and just ask it from memory here.
   virtual unsigned int Priority(const Context& ctx) const { return 1; }
-
   // Hook function to be called on a blob's first allocation.
   virtual void OnBlobAllocated(NodeBlob* blob) const {}
-
   // Validate whether the node is builded correctly.
   // Returns error message, empty string for good.
   virtual std::string_view Validate() const { return ""; }
@@ -304,10 +279,8 @@ concept TLeafNode = std::is_base_of_v<LeafNode, T>;
 /// Node > LeafNode > ConditionNode
 /////////////////////////////////////
 
-// ConditionNode succeeds only if Check() returns true, it never returns
-// RUNNING.
-// The checker is stored directly on the tree structure.
-// Note that the provided checker should be independent with any entities's stateful data.
+// ConditionNode succeeds only if Check() returns true, it never returns RUNNING.
+// Note that checker should be independent with any entities's stateful data, it's stored on the tree.
 class ConditionNode : public LeafNode {
  public:
   using Checker = std::function<bool(const Context&)>;
@@ -321,7 +294,6 @@ class ConditionNode : public LeafNode {
  private:
   Checker checker = nullptr;
 };
-
 using Condition = ConditionNode;  // alias
 
 // Concept TCondition for all classes derived from Condition.
@@ -492,19 +464,18 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // Used as a temp container for q1 for "non-stateful && non-priorities" compositors.
   std::vector<int> simpleQ1Container;
 
-  // Although only considerable children's priorities are refreshed,
-  // and the q only picks considerable children, but p and q are still stateless with entities.
+  // Explains that: p and q are still stateless with entities, reason:
   // p and q are consistent with respect to "which child nodes to consider".
   // If we change the blob binding, the new tick won't be affected by previous blob.
 
+  void internalOnBuild() override;
   // Refresh priorities for considerable children.
   void refresh(const Context& ctx);
   // Enqueue considerable children.
   void enqueue();
   // update is an internal method to propagates tick() to children in the q1/q2.
   // it will be called by Update.
-  virtual Status update(const Context& ctx) = 0;
-  void internalOnBuild() override;
+  virtual Status update(const Context& ctx) { return bt::Status::UNDEFINED; }
 
  public:
   _InternalPriorityCompositeNode() {}
@@ -571,9 +542,6 @@ class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _Inte
 
 // Weighted random selector.
 class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityCompositeNode {
- protected:
-  Status update(const Context& ctx) override;
-
  public:
   Status Update(const Context& ctx) override;
 };
@@ -635,7 +603,7 @@ class DecoratorNode : public SingleNode {
   DecoratorNode(std::string_view name = "Decorator", Ptr<Node> child = nullptr)
       : SingleNode(name, std::move(child)) {}
 
-  // To create a custom DecoratorNode.
+  // To create a custom DecoratorNode: https://github.com/hit9/bt.cc#custom-decorator
   // You should derive from DecoratorNode and override the function Update.
   // Status Update(const Context&) override;
 };
@@ -682,7 +650,6 @@ class RepeatNode : public DecoratorNode {
   void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->cnt = 0; }
   // Reset counter on termination.
   void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<Blob>()->cnt = 0; }
-
   Status Update(const Context& ctx) override;
 };
 
@@ -697,7 +664,6 @@ class TimeoutNode : public DecoratorNode {
   struct Blob : NodeBlob {
     Timepoint startAt;  // timepoint when this node starts.
   };
-
   TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
@@ -715,7 +681,6 @@ class DelayNode : public DecoratorNode {
   struct Blob : NodeBlob {
     Timepoint firstRunAt;  // timepoint this node first run.
   };
-
   DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
@@ -738,7 +703,6 @@ class RetryNode : public DecoratorNode {
     int cnt = 0;            // Times already retried.
     Timepoint lastRetryAt;  // Timepoint last retried at.
   };
-
   RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
@@ -775,7 +739,6 @@ class RootNode : public SingleNode, public IRootNode {
 
   // Visualize the tree to console.
   void Visualize(ull seq);
-
   // Handy function to run tick loop forever.
   // Parameter interval specifies the time interval between ticks.
   // Parameter visualize enables debugging visualization on the console.
@@ -783,9 +746,8 @@ class RootNode : public SingleNode, public IRootNode {
   void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false,
                    std::function<void(const Context&)> post = nullptr);
 
-  //////////////////////////
   /// Blob Apis
-  //////////////////////////
+  /// ~~~~~~~~~
 
   // Binds a tree blob.
   void BindTreeBlob(ITreeBlob& b) { blob = &b; }
@@ -794,9 +756,8 @@ class RootNode : public SingleNode, public IRootNode {
   // Unbind current tree blob.
   void UnbindTreeBlob() { blob = nullptr; }
 
-  //////////////////////////
   /// Size Info
-  //////////////////////////
+  /// ~~~~~~~~~
 
   // Returns the total number of nodes in this tree.
   // Available once the tree is built.
@@ -910,9 +871,8 @@ class Builder : public _InternalBuilderBase {
     return static_cast<D&>(*this);
   }
 
-  ///////////////////////////////////
-  // General creators.
-  ///////////////////////////////////
+  // General creators
+  // ~~~~~~~~~~~~~~~~
 
   // C is a function to attach an arbitrary new Node.
   // It can be used to attach custom node implementation.
@@ -920,8 +880,7 @@ class Builder : public _InternalBuilderBase {
   //    root
   //    .C<MyCustomDecoratorNode>()
   //    ._().Action<A>()
-  //    .End()
-  //    ;
+  //    .End();
   template <TNode T, typename... Args>
   auto& C(Args... args) {
     if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
@@ -939,9 +898,8 @@ class Builder : public _InternalBuilderBase {
       return attachInternalNode(make<T>(true, std::move(inst)));
   }
 
-  ///////////////////////////////////
   // CompositeNode creators
-  ///////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~~~~~~
 
   // A SequenceNode executes its children one by one sequentially,
   // it succeeds only if all children succeed.
@@ -977,9 +935,8 @@ class Builder : public _InternalBuilderBase {
   // StatefulRandomSelector will skip already failed children during a round.
   auto& StatefulRandomSelector() { return C<StatefulRandomSelectorNode>("RandomSelector*"); }
 
-  ///////////////////////////////////
   // LeafNode creators
-  ///////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~
 
   // Creates an Action node by providing implemented Action class.
   // Code example::
@@ -1012,9 +969,8 @@ class Builder : public _InternalBuilderBase {
     return C<Impl>(std::forward<Args>(args)...);
   }
 
-  ///////////////////////////////////
-  // DecoratorNode creators.
-  ///////////////////////////////////
+  // DecoratorNode creators
+  // ~~~~~~~~~~~~~~~~~~~~~~
 
   // Inverts the status of decorated node.
   // Parameter `child` the node to be decorated.
@@ -1143,9 +1099,8 @@ class Builder : public _InternalBuilderBase {
   // Case creates a ConditionalRunNode from lambda function.
   auto& Case(ConditionNode::Checker checker) { return Case<ConditionNode>(checker); }
 
-  ///////////////////////////////////
-  // Subtree creators.
-  ///////////////////////////////////
+  // Subtree creators
+  // ~~~~~~~~~~~~~~~~
 
   // Attach a sub behavior tree into this tree.
   // Code example::
@@ -1160,8 +1115,7 @@ class Builder : public _InternalBuilderBase {
   //      .End();
   auto& Subtree(RootNode&& subtree) {
     onSubtreeAttach(subtree, root);
-    // move to the tree
-    return M<RootNode>(std::move(subtree));
+    return M<RootNode>(std::move(subtree));  // move
   }
 };
 

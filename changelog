@@ -1,3 +1,9 @@
+0.4.0
+-----
+
+* Separates to bt.h and bt.cc.
+* Remove template Clock, use std::chrono::steady_clock.
+
 0.3.5
 -----
 
