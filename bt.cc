@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.0.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.1.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #include "bt.h"
@@ -62,7 +62,7 @@ static const char statusRepr(Status s) {
 }
 
 void Node::makeVisualizeString(std::string& s, int depth, ull seq) {
-  auto b = GetNodeBlob();
+  const auto* b = GetNodeBlob();
   if (depth > 0) s += " |";
   for (int i = 1; i < depth; i++) s += "---|";
   if (depth > 0) s += "- ";
@@ -167,7 +167,7 @@ void _InternalStatefulCompositeNode::OnBlobAllocated(NodeBlob* blob) const {
   ptr->st.resize(children.size(), false);
 }
 
-_MixedQueueHelper::_MixedQueueHelper(Cmp cmp, const std::size_t n) {
+_MixedQueueHelper::_MixedQueueHelper(Cmp cmp, const std::size_t n) : use1(false) {
   // reserve capacity for q1.
   q1Container.reserve(n);
   q1 = &q1Container;
@@ -538,7 +538,7 @@ void _InternalBuilderBase::maintainSizeInfoOnRootBind(RootNode* root, std::size_
   root->maxSizeNodeBlob = blobSize;
 }
 
-void _InternalBuilderBase::maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root) {
+void _InternalBuilderBase::maintainSizeInfoOnSubtreeAttach(const RootNode& subtree, RootNode* root) {
   root->treeSize += subtree.treeSize;
   root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
   root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, subtree.maxSizeNodeBlob);
@@ -569,7 +569,7 @@ void _InternalBuilderBase::_maintainSizeInfoOnNodeAttach(Node& node, RootNode* r
   root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, nodeBlobSize);
 }
 
-void _InternalBuilderBase::validate(Node* node) {
+void _InternalBuilderBase::validate(const Node* node) {
   auto e = node->Validate();
   if (!e.empty()) {
     std::string s = "bt build: ";
@@ -581,7 +581,7 @@ void _InternalBuilderBase::validate(Node* node) {
 }
 void _InternalBuilderBase::validateIndent() {
   if (level > stack.size()) {
-    auto node = stack.top();
+    const auto* node = stack.top();
     std::string s = "bt build: too much indent ";
     s += "below ";
     s += node->Name();
@@ -594,6 +594,7 @@ void _InternalBuilderBase::pop() {
   onNodeBuild(stack.top());
   stack.pop();
 }
+
 // Adjust stack to current indent level.
 void _InternalBuilderBase::adjust() {
   validateIndent();
@@ -612,7 +613,7 @@ void _InternalBuilderBase::attachInternalNode(Ptr<InternalNode> p) {
   adjust();
   // Append to stack's top as a child, and replace the top.
   auto parent = stack.top();
-  stack.push(p.get());
+  stack.push(p.get());  // cppcheck-suppress danglingLifetime
   parent->Append(std::move(p));
   // resets level.
   level = 1;

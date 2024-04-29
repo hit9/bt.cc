@@ -56,4 +56,8 @@ run-benchmark: build-benchmark
 clean:
 	make -C build clean
 
+lint:
+	cppcheck bt.cc --enable=warning,style,performance,portability --inline-suppr --language=c++ --std=c++20
+	cppcheck bt.h --enable=warning,style,performance,portability --inline-suppr --language=c++ --std=c++20
+
 .PHONY: build build-test
