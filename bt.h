@@ -9,7 +9,6 @@
 
 #include <algorithm>  // for max, min
 #include <any>
-#include <cassert>  // for NDEBUG mode
 #include <chrono>   // for milliseconds, high_resolution_clock
 #include <cstring>  // for memset
 #include <functional>
@@ -20,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>  // for is_base_of_v
+#include <utility>      // for pair
 #include <vector>
 
 namespace bt {
@@ -84,7 +84,7 @@ class ITreeBlob {
   // returns nullptr if not exist.
   virtual void* get(const std::size_t idx) = 0;
   // pre-reserve enough capacity if need.
-  virtual void reserve(const std::size_t cap) = 0;
+  virtual void reserve(const std::size_t cap) {}
 
  public:
   virtual ~ITreeBlob() {}
@@ -119,7 +119,6 @@ class FixedTreeBlob final : public ITreeBlob {
   }
   bool exist(const std::size_t idx) override { return static_cast<bool>(buf[idx][0]); }
   void* get(const std::size_t idx) override { return &buf[idx][1]; }
-  void reserve(const std::size_t cap) override {}
 
  public:
   FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
@@ -179,23 +178,22 @@ class Node {
   // tick seq when the priority cache was set.
   ull priorityCurrentTickSeq = 0;
 
- protected:
-  NodeId id = 0;
   // holding a pointer to the root.
   IRootNode* root = nullptr;
   // size of this node, available after tree built.
   std::size_t size = 0;
 
+  // friend with _InternalBuilderBase to access member root, size and id etc.
+  friend class _InternalBuilderBase;
+
+ protected:
+  NodeId id = 0;
+
   // Internal helper method to return the raw pointer to the node blob.
   template <TNodeBlob B>
   B* getNodeBlob() const {
-    assert(id != 0);
-    assert(root != nullptr);
-    auto b = root->GetTreeBlob();
-    assert(b != nullptr);
     const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
-    // allocate, or get if exist
-    return b->Make<B>(id, cb, root->NumNodes());
+    return root->GetTreeBlob()->Make<B>(id, cb, root->NumNodes());  // get or alloc
   }
 
   // Internal method to visualize tree.
@@ -209,9 +207,6 @@ class Node {
   // firend with SingleNode and CompositeNode for accessbility to makeVisualizeString.
   friend class SingleNode;
   friend class CompositeNode;
-
-  // friend with _InternalBuilderBase to access member root, size and id etc.
-  friend class _InternalBuilderBase;
 
  public:
   // Every stateful Node class should declare its own Blob type member.
@@ -232,11 +227,9 @@ class Node {
   virtual std::string_view Name() const { return name; }
   // Returns last status of this node.
   bt::Status LastStatus() const { return GetNodeBlob()->lastStatus; }
-
   // Helps to access the node blob's pointer, which stores the entity-related data and states.
   // Any Node has a NodeBlob class should override this.
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
-
   // Internal method to query priority of this node in current tick.
   unsigned int GetPriorityCurrentTick(const Context& ctx);
 
@@ -422,11 +415,6 @@ class CompositeNode : public InternalNode {
 /// Node > InternalNode > CompositeNode > _Internal Impls
 ///////////////////////////////////////////////////////////////
 
-struct _InternalStatefulCompositeNodeBlob : NodeBlob {
-  // st[i] => should we skip considering children at index i ?
-  std::vector<bool> st;
-};
-
 // Always skip children that already succeeded or failure during current round.
 class _InternalStatefulCompositeNode : virtual public CompositeNode {
  protected:
@@ -435,7 +423,11 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
   void skip(const int i) { getNodeBlob<Blob>()->st[i] = true; }
 
  public:
-  using Blob = _InternalStatefulCompositeNodeBlob;
+  struct Blob : NodeBlob {
+    // st[i] => should we skip considering children at index i ?
+    std::vector<bool> st;
+  };
+
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
   void OnTerminate(const Context& ctx, Status status) override;
   void OnBlobAllocated(NodeBlob* blob) const override;
@@ -507,14 +499,11 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
   // Refresh priorities for considerable children.
   void refresh(const Context& ctx);
-
   // Enqueue considerable children.
   void enqueue();
-
   // update is an internal method to propagates tick() to children in the q1/q2.
   // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
-
   void internalOnBuild() override;
 
  public:
@@ -665,7 +654,6 @@ class ConditionalRunNode : public DecoratorNode {
   // Condition node to check.
   Ptr<Node> condition;
 
- protected:
  public:
   ConditionalRunNode(Ptr<ConditionNode> condition = nullptr, std::string_view name = "ConditionalRun",
                      Ptr<Node> child = nullptr)
@@ -673,11 +661,6 @@ class ConditionalRunNode : public DecoratorNode {
         condition(std::move(condition)) {}
   void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
   Status Update(const Context& ctx) override;
-};
-
-struct RepeatNodeBlob : NodeBlob {
-  // Count how many times already executed for this round.
-  int cnt = 0;
 };
 
 // RepeatNode repeats its child for exactly n times.
@@ -688,7 +671,9 @@ class RepeatNode : public DecoratorNode {
   int n;
 
  public:
-  using Blob = RepeatNodeBlob;
+  struct Blob : NodeBlob {
+    int cnt = 0;  // how many times of execution in this round.
+  };
   RepeatNode(int n, std::string_view name = "Repeat", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), n(n) {}
 
@@ -703,29 +688,21 @@ class RepeatNode : public DecoratorNode {
 
 using Timepoint = std::chrono::time_point<std::chrono::steady_clock>;
 
-struct TimeoutNodeBlob : NodeBlob {
-  // Time point of this node starts.
-  Timepoint startAt = Timepoint::min();
-};
-
 // Timeout runs its child for at most given duration, fails on timeout.
 class TimeoutNode : public DecoratorNode {
  protected:
   std::chrono::milliseconds duration;
 
  public:
-  using Blob = TimeoutNodeBlob;
+  struct Blob : NodeBlob {
+    Timepoint startAt;  // timepoint when this node starts.
+  };
+
   TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
-
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
   void OnEnter(const Context& ctx) override;
   Status Update(const Context& ctx) override;
-};
-
-struct DelayNodeBlob : NodeBlob {
-  // The time point this node first run.
-  Timepoint firstRunAt;
 };
 
 // DelayNode runs its child node after given duration.
@@ -735,7 +712,10 @@ class DelayNode : public DecoratorNode {
   std::chrono::milliseconds duration;
 
  public:
-  using Blob = DelayNodeBlob;
+  struct Blob : NodeBlob {
+    Timepoint firstRunAt;  // timepoint this node first run.
+  };
+
   DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
@@ -743,13 +723,6 @@ class DelayNode : public DecoratorNode {
   void OnEnter(const Context& ctx) override;
   void OnTerminate(const Context& ctx, Status status) override;
   Status Update(const Context& ctx) override;
-};
-
-struct RetryNodeBlob : NodeBlob {
-  // Times already retried.
-  int cnt = 0;
-  // Timepoint last retried at.
-  Timepoint lastRetryAt;
 };
 
 // RetryNode retries its child node on failure.
@@ -761,7 +734,11 @@ class RetryNode : public DecoratorNode {
   std::chrono::milliseconds interval;
 
  public:
-  using Blob = RetryNodeBlob;
+  struct Blob : NodeBlob {
+    int cnt = 0;            // Times already retried.
+    Timepoint lastRetryAt;  // Timepoint last retried at.
+  };
+
   RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
@@ -1147,9 +1124,7 @@ class Builder : public _InternalBuilderBase {
   //   ._().Case<Condition1>()
   //   ._()._().Action<A>()
   //   ._().Case<Condition2>()
-  //   ._()._().Sequence()
-  //   ._()._()._().Action<B>()
-  //   ._()._()._().Action<C>()
+  //   ._()._().Action<B>()
   //   ._().Case([=](const Context& ctx) { return false; })
   //   ._()._().Action<D>()
   //   .End();
@@ -1177,11 +1152,8 @@ class Builder : public _InternalBuilderBase {
   //
   //    bt::Tree subtree;
   //    subtree
-  //      .Parallel()
-  //      ._().Action<A>()
-  //      ._().Action<B>(;
+  //      .Action<B>()
   //      .End();
-  //
   //    root
   //      .Sequence()
   //      ._().Subtree(std::move(subtree))
@@ -1197,8 +1169,7 @@ class Builder : public _InternalBuilderBase {
 /// Tree
 ///////////////////////////////////////////////////////////////
 
-// Behavior Tree.
-// Please keep this class simple enough.
+// Behavior Tree, please keep this class simple enough.
 class Tree : public RootNode, public Builder<Tree> {
  public:
   Tree(std::string_view name = "Root") : RootNode(name), Builder() { bindRoot(*this); }
