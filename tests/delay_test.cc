@@ -7,8 +7,7 @@
 
 using namespace std::chrono_literals;
 
-TEMPLATE_TEST_CASE("Delay/1", "[simple delay]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::DelayNode::Blob)>)) {
+TEMPLATE_TEST_CASE("Delay/1", "[simple delay]", Entity, (EntityFixedBlob<16, sizeof(bt::DelayNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -26,7 +25,9 @@ TEMPLATE_TEST_CASE("Delay/1", "[simple delay]", Entity,
   REQUIRE(bb->counterA == 0);
   // Tick#1: A is not started.
   root.BindTreeBlob(e.blob);
-  ++ctx.seq;root.Tick(ctx);;
+  ++ctx.seq;
+  root.Tick(ctx);
+  ;
   REQUIRE(bb->counterA == 0);
   REQUIRE(root.LastStatus() == bt::Status::RUNNING);
   root.UnbindTreeBlob();
@@ -36,7 +37,9 @@ TEMPLATE_TEST_CASE("Delay/1", "[simple delay]", Entity,
 
   // Tick#2: A is started.
   root.BindTreeBlob(e.blob);
-  ++ctx.seq;root.Tick(ctx);;
+  ++ctx.seq;
+  root.Tick(ctx);
+  ;
   REQUIRE(bb->counterA == 1);
   root.UnbindTreeBlob();
 }
