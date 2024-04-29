@@ -19,7 +19,6 @@
 #include <stdexcept>  // for runtime_error
 #include <string>
 #include <string_view>
-#include <thread>       // for this_thread::sleep_for
 #include <type_traits>  // for is_base_of_v
 #include <vector>
 
@@ -702,78 +701,58 @@ class RepeatNode : public DecoratorNode {
   Status Update(const Context& ctx) override;
 };
 
-template <typename Clock = std::chrono::high_resolution_clock>
-using TimePoint = std::chrono::time_point<Clock>;
+using Timepoint = std::chrono::time_point<std::chrono::steady_clock>;
 
-template <typename Clock = std::chrono::high_resolution_clock>
 struct TimeoutNodeBlob : NodeBlob {
   // Time point of this node starts.
-  TimePoint<Clock> startAt = TimePoint<Clock>::min();
+  Timepoint startAt = Timepoint::min();
 };
 
 // Timeout runs its child for at most given duration, fails on timeout.
-template <typename Clock = std::chrono::high_resolution_clock>
 class TimeoutNode : public DecoratorNode {
  protected:
   std::chrono::milliseconds duration;
 
  public:
-  using Blob = TimeoutNodeBlob<Clock>;
+  using Blob = TimeoutNodeBlob;
   TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), duration(d) {}
 
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
-  void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->startAt = Clock::now(); };
-
-  Status Update(const Context& ctx) override {
-    // Check if timeout at first.
-    auto now = Clock::now();
-    if (now > getNodeBlob<Blob>()->startAt + duration) return Status::FAILURE;
-    return child->Tick(ctx);
-  }
+  void OnEnter(const Context& ctx) override;
+  Status Update(const Context& ctx) override;
 };
 
-template <typename Clock = std::chrono::high_resolution_clock>
 struct DelayNodeBlob : NodeBlob {
   // The time point this node first run.
-  TimePoint<Clock> firstRunAt;
+  Timepoint firstRunAt;
 };
 
 // DelayNode runs its child node after given duration.
-template <typename Clock = std::chrono::high_resolution_clock>
 class DelayNode : public DecoratorNode {
  protected:
   // Duration to wait.
   std::chrono::milliseconds duration;
 
  public:
-  using Blob = DelayNodeBlob<Clock>;
+  using Blob = DelayNodeBlob;
   DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay", Ptr<Node> c = nullptr)
       : DecoratorNode(name, std::move(c)), duration(duration) {}
 
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
-  void OnEnter(const Context& ctx) override { getNodeBlob<Blob>()->firstRunAt = Clock::now(); };
-  void OnTerminate(const Context& ctx, Status status) override {
-    getNodeBlob<Blob>()->firstRunAt = TimePoint<Clock>::min();
-  };
-
-  Status Update(const Context& ctx) override {
-    auto now = Clock::now();
-    if (now < getNodeBlob<Blob>()->firstRunAt + duration) return Status::RUNNING;
-    return child->Tick(ctx);
-  }
+  void OnEnter(const Context& ctx) override;
+  void OnTerminate(const Context& ctx, Status status) override;
+  Status Update(const Context& ctx) override;
 };
 
-template <typename Clock = std::chrono::high_resolution_clock>
 struct RetryNodeBlob : NodeBlob {
   // Times already retried.
   int cnt = 0;
   // Timepoint last retried at.
-  TimePoint<Clock> lastRetryAt;
+  Timepoint lastRetryAt;
 };
 
 // RetryNode retries its child node on failure.
-template <typename Clock = std::chrono::high_resolution_clock>
 class RetryNode : public DecoratorNode {
  protected:
   // Max retry times, -1 for unlimited.
@@ -782,45 +761,15 @@ class RetryNode : public DecoratorNode {
   std::chrono::milliseconds interval;
 
  public:
-  using Blob = RetryNodeBlob<Clock>;
+  using Blob = RetryNodeBlob;
   RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
             Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
 
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
-  void OnEnter(const Context& ctx) override {
-    auto b = getNodeBlob<Blob>();
-    b->cnt = 0;
-    b->lastRetryAt = TimePoint<Clock>::min();
-  }
-  void OnTerminate(const Context& ctx, Status status) override {
-    auto b = getNodeBlob<Blob>();
-    b->cnt = 0;
-    b->lastRetryAt = status == Status::FAILURE ? Clock::now() : TimePoint<Clock>::min();
-  }
-
-  Status Update(const Context& ctx) override {
-    auto b = getNodeBlob<Blob>();
-
-    if (maxRetries != -1 && b->cnt > maxRetries) return Status::FAILURE;
-
-    // If has failures before, and retry timepoint isn't arriving.
-    auto now = Clock::now();
-    if (b->cnt > 0 && now < b->lastRetryAt + interval) return Status::RUNNING;
-
-    // Time to run/retry.
-    auto status = child->Tick(ctx);
-    switch (status) {
-      case Status::RUNNING:
-        [[fallthrough]];
-      case Status::SUCCESS:
-        return status;
-      default:
-        // Failure
-        if (++b->cnt > maxRetries && maxRetries != -1) return Status::FAILURE;  // exeeds max retries.
-        return Status::RUNNING;                                                 // continues retry
-    }
-  }
+  void OnEnter(const Context& ctx) override;
+  void OnTerminate(const Context& ctx, Status status) override;
+  Status Update(const Context& ctx) override;
 };
 
 //////////////////////////////////////////////////////////////
@@ -850,6 +799,13 @@ class RootNode : public SingleNode, public IRootNode {
   // Visualize the tree to console.
   void Visualize(ull seq);
 
+  // Handy function to run tick loop forever.
+  // Parameter interval specifies the time interval between ticks.
+  // Parameter visualize enables debugging visualization on the console.
+  // Parameter is a hook to be called after each tick.
+  void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false,
+                   std::function<void(const Context&)> post = nullptr);
+
   //////////////////////////
   /// Blob Apis
   //////////////////////////
@@ -877,37 +833,6 @@ class RootNode : public SingleNode, public IRootNode {
   // Returns the max size of the node blob struct for this tree.
   // Available once the tree is built.
   std::size_t MaxSizeNodeBlob() const { return maxSizeNodeBlob; }
-
-  //////////////////////////
-  /// Ticking
-  //////////////////////////
-
-  // Handy function to run tick loop forever.
-  // Parameter interval specifies the time interval between ticks.
-  // Parameter visualize enables debugging visualization on the console.
-  // Parameter is a hook to be called after each tick.
-  template <typename Clock = std::chrono::high_resolution_clock>
-  void TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize = false,
-                   std::function<void(const Context&)> post = nullptr) {
-    auto lastTickAt = Clock::now();
-
-    while (true) {
-      auto nextTickAt = lastTickAt + interval;
-
-      // Time delta between last tick and current tick.
-      ctx.delta = Clock::now() - lastTickAt;
-      ++ctx.seq;
-      Tick(ctx);
-      if (post != nullptr) post(ctx);
-      if (visualize) Visualize(ctx.seq);
-
-      // Catch up with next tick.
-      lastTickAt = Clock::now();
-      if (lastTickAt < nextTickAt) {
-        std::this_thread::sleep_for(nextTickAt - lastTickAt);
-      }
-    }
-  }
 };
 
 //////////////////////////////////////////////////////////////
@@ -1168,10 +1093,7 @@ class Builder : public _InternalBuilderBase {
   //   .Timeout(3000ms)
   //   ._().Action<A>()
   //   .End();
-  template <typename Clock = std::chrono::high_resolution_clock>
-  auto& Timeout(std::chrono::milliseconds duration) {
-    return C<TimeoutNode<Clock>>(duration, "Timeout");
-  }
+  auto& Timeout(std::chrono::milliseconds duration) { return C<TimeoutNode>(duration, "Timeout"); }
 
   // Delay creates a DelayNode.
   // Wait for given duration before execution of decorated node.
@@ -1180,10 +1102,7 @@ class Builder : public _InternalBuilderBase {
   //   .Delay(3000ms)
   //   ._().Action<A>()
   //   .End();
-  template <typename Clock = std::chrono::high_resolution_clock>
-  auto& Delay(std::chrono::milliseconds duration) {
-    return C<DelayNode<Clock>>(duration, "Delay");
-  }
+  auto& Delay(std::chrono::milliseconds duration) { return C<DelayNode>(duration, "Delay"); }
 
   // Retry creates a RetryNode.
   // It executes the decorated node for at most n times.
@@ -1194,15 +1113,11 @@ class Builder : public _InternalBuilderBase {
   //   .Retry(1, 3000ms)
   //   ._().Action<A>()
   //   .End();
-  template <typename Clock = std::chrono::high_resolution_clock>
-  auto& Retry(int n, std::chrono::milliseconds interval) {
-    return C<RetryNode<Clock>>(n, interval, "Retry");
-  }
+  auto& Retry(int n, std::chrono::milliseconds interval) { return C<RetryNode>(n, interval, "Retry"); }
 
   // Alias for Retry(-1, interval)
-  template <typename Clock = std::chrono::high_resolution_clock>
   auto& RetryForever(std::chrono::milliseconds interval) {
-    return C<RetryNode<Clock>>(-1, interval, "RetryForever");
+    return C<RetryNode>(-1, interval, "RetryForever");
   }
 
   // If creates a ConditionalRunNode.

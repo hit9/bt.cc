@@ -8,7 +8,7 @@
 using namespace std::chrono_literals;
 
 TEMPLATE_TEST_CASE("Delay/1", "[simple delay]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::DelayNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::DelayNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

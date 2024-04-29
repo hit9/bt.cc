@@ -8,7 +8,7 @@
 using namespace std::chrono_literals;
 
 TEMPLATE_TEST_CASE("Retry/1", "[simple retry success]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -38,7 +38,7 @@ TEMPLATE_TEST_CASE("Retry/1", "[simple retry success]", Entity,
 }
 
 TEMPLATE_TEST_CASE("Retry/2", "[simple retry final failure]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -84,7 +84,7 @@ TEMPLATE_TEST_CASE("Retry/2", "[simple retry final failure]", Entity,
 }
 
 TEMPLATE_TEST_CASE("Retry/3", "[simple retry final success ]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -119,7 +119,7 @@ TEMPLATE_TEST_CASE("Retry/3", "[simple retry final success ]", Entity,
 }
 
 TEMPLATE_TEST_CASE("Retry/4", "[simple retry forever ]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::RetryNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::RetryNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

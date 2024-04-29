@@ -8,7 +8,7 @@
 using namespace std::chrono_literals;
 
 TEMPLATE_TEST_CASE("Timeout/1", "[simple timeout success]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -37,7 +37,7 @@ TEMPLATE_TEST_CASE("Timeout/1", "[simple timeout success]", Entity,
 }
 
 TEMPLATE_TEST_CASE("Timeout/2", "[simple timeout failure]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);
@@ -66,7 +66,7 @@ TEMPLATE_TEST_CASE("Timeout/2", "[simple timeout failure]", Entity,
 }
 
 TEMPLATE_TEST_CASE("Timeout/3", "[simple timeout timedout]", Entity,
-                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode<>::Blob)>)) {
+                   (EntityFixedBlob<16, sizeof(bt::TimeoutNode::Blob)>)) {
   bt::Tree root;
   auto bb = std::make_shared<Blackboard>();
   bt::Context ctx(bb);

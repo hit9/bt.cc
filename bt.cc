@@ -2,6 +2,7 @@
 
 #include <iostream>  // for cout, flush
 #include <random>    // for mt19937
+#include <thread>    // for this_thread::sleep_for
 
 namespace bt {
 
@@ -424,6 +425,65 @@ Status RepeatNode::Update(const Context& ctx) {
   return Status::RUNNING;
 }
 
+void TimeoutNode::OnEnter(const Context& ctx) {
+  getNodeBlob<Blob>()->startAt = std::chrono::steady_clock::now();
+}
+
+Status TimeoutNode::Update(const Context& ctx) {
+  // Check if timeout at first.
+  auto now = std::chrono::steady_clock::now();
+  if (now > getNodeBlob<Blob>()->startAt + duration) return Status::FAILURE;
+  return child->Tick(ctx);
+}
+
+void DelayNode::OnEnter(const Context& ctx) {
+  getNodeBlob<Blob>()->firstRunAt = std::chrono::steady_clock::now();
+}
+void DelayNode::OnTerminate(const Context& ctx, Status status) {
+  getNodeBlob<Blob>()->firstRunAt = Timepoint::min();
+}
+
+Status DelayNode::Update(const Context& ctx) {
+  auto now = std::chrono::steady_clock::now();
+  if (now < getNodeBlob<Blob>()->firstRunAt + duration) return Status::RUNNING;
+  return child->Tick(ctx);
+}
+
+void RetryNode::OnEnter(const Context& ctx) {
+  auto b = getNodeBlob<Blob>();
+  b->cnt = 0;
+  b->lastRetryAt = Timepoint::min();
+}
+
+void RetryNode::OnTerminate(const Context& ctx, Status status) {
+  auto b = getNodeBlob<Blob>();
+  b->cnt = 0;
+  b->lastRetryAt = status == Status::FAILURE ? std::chrono::steady_clock::now() : Timepoint::min();
+}
+
+Status RetryNode::Update(const Context& ctx) {
+  auto b = getNodeBlob<Blob>();
+
+  if (maxRetries != -1 && b->cnt > maxRetries) return Status::FAILURE;
+
+  // If has failures before, and retry timepoint isn't arriving.
+  auto now = std::chrono::steady_clock::now();
+  if (b->cnt > 0 && now < b->lastRetryAt + interval) return Status::RUNNING;
+
+  // Time to run/retry.
+  auto status = child->Tick(ctx);
+  switch (status) {
+    case Status::RUNNING:
+      [[fallthrough]];
+    case Status::SUCCESS:
+      return status;
+    default:
+      // Failure
+      if (++b->cnt > maxRetries && maxRetries != -1) return Status::FAILURE;  // exeeds max retries.
+      return Status::RUNNING;                                                 // continues retry
+  }
+}
+
 //////////////////////////////////////////////////////////////
 /// Node > SingleNode > RootNode
 ///////////////////////////////////////////////////////////////
@@ -436,6 +496,28 @@ void RootNode::Visualize(ull seq) {
   std::string s;
   makeVisualizeString(s, 0, seq);
   std::cout << s << std::flush;
+}
+
+void RootNode::TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize,
+                           std::function<void(const Context&)> post) {
+  auto lastTickAt = std::chrono::steady_clock::now();
+
+  while (true) {
+    auto nextTickAt = lastTickAt + interval;
+
+    // Time delta between last tick and current tick.
+    ctx.delta = std::chrono::steady_clock::now() - lastTickAt;
+    ++ctx.seq;
+    Tick(ctx);
+    if (post != nullptr) post(ctx);
+    if (visualize) Visualize(ctx.seq);
+
+    // Catch up with next tick.
+    lastTickAt = std::chrono::steady_clock::now();
+    if (lastTickAt < nextTickAt) {
+      std::this_thread::sleep_for(nextTickAt - lastTickAt);
+    }
+  }
 }
 
 //////////////////////////////////////////////////////////////
