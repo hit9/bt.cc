@@ -77,10 +77,9 @@
 #include <chrono>   // for milliseconds, high_resolution_clock
 #include <cstring>  // for memset
 #include <functional>
-#include <iostream>  // for cout, flush
-#include <memory>    // for unique_ptr
-#include <queue>     // for priority_queue
-#include <random>    // for mt19937
+#include <memory>  // for unique_ptr
+#include <queue>   // for priority_queue
+#include <random>  // for mt19937
 #include <stack>
 #include <stdexcept>  // for runtime_error
 #include <string>
@@ -96,21 +95,6 @@ namespace bt {
 ////////////////////////////
 
 enum class Status { UNDEFINED = 0, RUNNING = 1, SUCCESS = 2, FAILURE = 3 };
-
-// Returns char representation of given status.
-static const char statusRepr(Status s) {
-  switch (s) {
-    case Status::UNDEFINED:
-      return 'U';
-    case Status::RUNNING:
-      return 'R';
-    case Status::SUCCESS:
-      return 'S';
-    case Status::FAILURE:
-      return 'F';
-  }
-  return 'U';
-}
 
 using ull = unsigned long long;
 
@@ -175,14 +159,15 @@ class ITreeBlob {
   // Parameter cb is an optional function to be called after the blob is first allocated.
   template <TNodeBlob B>
   B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0) {
-    if (cap) reserve(cap);
-    std::size_t idx = id - 1;
-    if (exist(idx)) return static_cast<B*>(get(idx));
-    auto p = static_cast<B*>(allocate(idx, sizeof(B)));
-    new (p) B();  // call constructor
-    if (cb != nullptr) cb(p);
-    return p;
+    auto [p, b] = make(id, sizeof(B), cap);
+    if (!b) return static_cast<B*>(p);
+    auto q = new (p) B();  // call constructor
+    if (cb != nullptr) cb(q);
+    return q;
   }
+
+ private:
+  std::pair<void*, bool> make(const NodeId id, size_t size, const std::size_t cap = 0);
 };
 
 // FixedTreeBlob is just a continuous buffer, implements ITreeBlob.
@@ -213,26 +198,10 @@ class DynamicTreeBlob final : public ITreeBlob {
   std::vector<bool> e;                              // index => exist, dynamic
 
  protected:
-  void* allocate(const std::size_t idx, const std::size_t size) override {
-    if (m.size() <= idx) {
-      m.resize(idx + 1);
-      e.resize(idx + 1, false);
-    }
-    auto p = std::make_unique_for_overwrite<unsigned char[]>(size);
-    auto rp = p.get();
-    std::fill_n(rp, size, 0);
-    m[idx] = std::move(p);
-    e[idx] = true;
-    return rp;
-  };
+  void* allocate(const std::size_t idx, const std::size_t size) override;
   bool exist(const std::size_t idx) override { return e.size() > idx && e[idx]; }
   void* get(const std::size_t idx) override { return m[idx].get(); }
-  void reserve(const std::size_t cap) override {
-    if (m.capacity() < cap) {
-      m.reserve(cap);
-      e.reserve(cap);
-    }
-  }
+  void reserve(const std::size_t cap) override;
 
  public:
   DynamicTreeBlob() {}
@@ -296,18 +265,7 @@ class Node {
   }
 
   // Internal method to visualize tree.
-  virtual void makeVisualizeString(std::string& s, int depth, ull seq) {
-    auto b = GetNodeBlob();
-    if (depth > 0) s += " |";
-    for (int i = 1; i < depth; i++) s += "---|";
-    if (depth > 0) s += "- ";
-    if (b->lastSeq == seq) s += "\033[32m";  // color if catches up with seq.
-    s += Name();
-    s.push_back('(');
-    s.push_back(statusRepr(b->lastStatus));
-    s.push_back(')');
-    if (b->lastSeq == seq) s += "\033[0m";
-  }
+  virtual void makeVisualizeString(std::string& s, int depth, ull seq);
 
   // Internal onBuild method.
   // Separating from the public hook api OnBuild, so there's no need to call parent
@@ -346,15 +304,7 @@ class Node {
   virtual NodeBlob* GetNodeBlob() const { return getNodeBlob<NodeBlob>(); }
 
   // Internal method to query priority of this node in current tick.
-  unsigned int GetPriorityCurrentTick(const Context& ctx) {
-    if (ctx.seq != priorityCurrentTickSeq) priorityCurrentTick = 0;
-    // try cache in this tick firstly.
-    if (!priorityCurrentTick) {
-      priorityCurrentTick = Priority(ctx);
-      priorityCurrentTickSeq = ctx.seq;
-    }
-    return priorityCurrentTick;
-  }
+  unsigned int GetPriorityCurrentTick(const Context& ctx);
 
   /////////////////////////////////////////
   // API
@@ -363,29 +313,10 @@ class Node {
   // Traverse the subtree of the current node recursively and execute the given function callback functions.
   // The callback function pre will be called pre-order, and the post will be called post-order.
   // Pass NullTraversalCallback for empty callbacks.
-  virtual void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) {
-    pre(*this, ptr);
-    post(*this, ptr);
-  }
+  virtual void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr);
 
   // Main entry function, should be called on every tick.
-  Status Tick(const Context& ctx) {
-    auto b = GetNodeBlob();
-    // First run of current round.
-    if (!b->running) OnEnter(ctx);
-    b->running = true;
-
-    auto status = Update(ctx);
-    b->lastStatus = status;
-    b->lastSeq = ctx.seq;
-
-    // Last run of current round.
-    if (status == Status::FAILURE || status == Status::SUCCESS) {
-      OnTerminate(ctx, status);
-      b->running = false;  // reset
-    }
-    return status;
-  }
+  Status Tick(const Context& ctx);
 
   /////////////////////////////////////////
   // Public Virtual Functions To Override
@@ -511,22 +442,12 @@ class SingleNode : public InternalNode {
  protected:
   Ptr<Node> child;
 
-  void makeVisualizeString(std::string& s, int depth, ull seq) override {
-    Node::makeVisualizeString(s, depth, seq);
-    if (child != nullptr) {
-      s.push_back('\n');
-      child->makeVisualizeString(s, depth + 1, seq);
-    }
-  }
+  void makeVisualizeString(std::string& s, int depth, ull seq) override;
 
  public:
   SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
       : InternalNode(name), child(std::move(child)) {}
-  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
-    pre(*this, ptr);
-    if (child != nullptr) child->Traverse(pre, post, child);
-    post(*this, ptr);
-  }
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
   std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
   void Append(Ptr<Node> node) override { child = std::move(node); }
   unsigned int Priority(const Context& ctx) const override { return child->GetPriorityCurrentTick(ctx); }
@@ -550,37 +471,17 @@ class CompositeNode : public InternalNode {
   // Internal hook function to be called after a child goes failure.
   virtual void onChildFailure(const int i){};
 
-  void makeVisualizeString(std::string& s, int depth, ull seq) override {
-    Node::makeVisualizeString(s, depth, seq);
-    for (auto& child : children) {
-      if (child != nullptr) {
-        s.push_back('\n');
-        child->makeVisualizeString(s, depth + 1, seq);
-      }
-    }
-  }
+  void makeVisualizeString(std::string& s, int depth, ull seq) override;
 
  public:
   CompositeNode(std::string_view name = "CompositeNode", PtrList<Node>&& cs = {}) : InternalNode(name) {
     children.swap(cs);
   }
-  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
-    pre(*this, ptr);
-    for (auto& child : children)
-      if (child != nullptr) child->Traverse(pre, post, child);
-    post(*this, ptr);
-  }
-
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
   void Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
   std::string_view Validate() const override { return children.empty() ? "children empty" : ""; }
-
   // Returns the max priority of considerable children.
-  unsigned int Priority(const Context& ctx) const final override {
-    unsigned int ans = 0;
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) ans = std::max(ans, children[i]->GetPriorityCurrentTick(ctx));
-    return ans;
-  }
+  unsigned int Priority(const Context& ctx) const final override;
 };
 
 //////////////////////////////////////////////////////////////
@@ -602,14 +503,8 @@ class _InternalStatefulCompositeNode : virtual public CompositeNode {
  public:
   using Blob = _InternalStatefulCompositeNodeBlob;
   NodeBlob* GetNodeBlob() const override { return getNodeBlob<Blob>(); }
-  void OnTerminate(const Context& ctx, Status status) override {
-    auto& t = getNodeBlob<Blob>()->st;
-    std::fill(t.begin(), t.end(), false);
-  }
-  void OnBlobAllocated(NodeBlob* blob) const override {
-    auto ptr = static_cast<Blob*>(blob);
-    ptr->st.resize(children.size(), false);
-  }
+  void OnTerminate(const Context& ctx, Status status) override;
+  void OnBlobAllocated(NodeBlob* blob) const override;
 };
 
 // _MixedQueueHelper is a helper queue wrapper for _InternalPriorityCompositeNode .
@@ -644,46 +539,13 @@ class _MixedQueueHelper {
 
  public:
   _MixedQueueHelper() {}
-  _MixedQueueHelper(Cmp cmp, const std::size_t n) {
-    // reserve capacity for q1.
-    q1Container.reserve(n);
-    q1 = &q1Container;
-    // reserve capacity for q2.
-    decltype(q2) _q2(cmp);
-    q2.swap(_q2);
-    q2.reserve(n);
-  }
+  _MixedQueueHelper(Cmp cmp, const std::size_t n);
   void setflag(bool u1) { use1 = u1; }
-  int pop() {
-    if (use1) return (*q1)[q1Front++];
-    int v = q2.top();
-    q2.pop();
-    return v;
-  }
-  void push(int v) {
-    if (use1) {
-      if (q1 != &q1Container) throw std::runtime_error("bt: cant push on outside q1 container");
-      return q1->push_back(v);
-    }
-    q2.push(v);
-  }
-  bool empty() const {
-    if (use1) return q1Front == q1->size();
-    return q2.empty();
-  }
-  void clear() {
-    if (use1) {
-      if (q1 != &q1Container) throw std::runtime_error("bt: cant clear on outside q1 container");
-      q1->resize(0);
-      q1Front = 0;
-      return;
-    }
-    q2.clear();
-  }
-  void setQ1Container(std::vector<int>* c) {
-    q1 = c;
-    q1Front = 0;
-  }
+  int pop();
+  void push(int v);
+  bool empty() const;
+  void clear();
+  void setQ1Container(std::vector<int>* c);
   void resetQ1Container(void) { q1 = &q1Container; }
 };
 
@@ -694,15 +556,12 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // p[i] stands for i'th child's priority.
   // Since p will be refreshed on each tick, so it's stateless.
   std::vector<unsigned int> p;
-
   // q contains a simple queue and a simple queue, depending on:
   // if priorities of considerable children are all equal in this tick.
   _MixedQueueHelper q;
-
   // Are all priorities of considerable children equal on this tick?
   // Refreshed by function refresh on every tick.
   bool areAllEqual;
-
   // simpleQ1Container contains [0...n-1]
   // Used as a temp container for q1 for "non-stateful && non-priorities" compositors.
   std::vector<int> simpleQ1Container;
@@ -713,65 +572,20 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
   // If we change the blob binding, the new tick won't be affected by previous blob.
 
   // Refresh priorities for considerable children.
-  void refresh(const Context& ctx) {
-    areAllEqual = true;
-    // v is the first valid priority value.
-    unsigned int v = 0;
+  void refresh(const Context& ctx);
 
-    for (int i = 0; i < children.size(); i++) {
-      if (!considerable(i)) continue;
-      p[i] = children[i]->GetPriorityCurrentTick(ctx);
-      if (!v) v = p[i];
-      if (v != p[i]) areAllEqual = false;
-    }
-  }
-
-  void enqueue() {
-    // if all priorities are equal, use q1 O(N)
-    // otherwise, use q2 O(n*logn)
-    q.setflag(areAllEqual);
-
-    // We have to consider all children, and all priorities are equal,
-    // then, we should just use a pre-exist vector to avoid a O(n) copy to q1.
-    if ((!isParatialConsidered()) && areAllEqual) {
-      q.setQ1Container(&simpleQ1Container);
-      return;  // no need to perform enqueue
-    }
-
-    q.resetQ1Container();
-
-    // Clear and enqueue.
-    q.clear();
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) q.push(i);
-  }
+  // Enqueue considerable children.
+  void enqueue();
 
   // update is an internal method to propagates tick() to children in the q1/q2.
   // it will be called by Update.
   virtual Status update(const Context& ctx) = 0;
 
-  void internalOnBuild() override {
-    CompositeNode::internalOnBuild();
-    // pre-allocate capacity for p.
-    p.resize(children.size());
-    // initialize simpleQ1Container;
-    for (int i = 0; i < children.size(); i++) simpleQ1Container.push_back(i);
-    // Compare priorities between children, where a and b are indexes.
-    // priority from large to smaller, so use `less`: pa < pb
-    // order: from small to larger, so use `greater`: a > b
-    auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
-    q = _MixedQueueHelper(cmp, children.size());
-  }
+  void internalOnBuild() override;
 
  public:
   _InternalPriorityCompositeNode() {}
-
-  Status Update(const Context& ctx) override {
-    refresh(ctx);
-    enqueue();
-    // propagates ticks
-    return update(ctx);
-  }
+  Status Update(const Context& ctx) override;
 };
 
 //////////////////////////////////////////////////////////////
@@ -780,23 +594,7 @@ class _InternalPriorityCompositeNode : virtual public CompositeNode {
 
 class _InternalSequenceNodeBase : virtual public _InternalPriorityCompositeNode {
  protected:
-  Status update(const Context& ctx) override {
-    // propagates ticks, one by one sequentially.
-    while (!q.empty()) {
-      auto i = q.pop();
-      auto status = children[i]->Tick(ctx);
-      if (status == Status::RUNNING) return Status::RUNNING;
-      // F if any child F.
-      if (status == Status::FAILURE) {
-        onChildFailure(i);
-        return Status::FAILURE;
-      }
-      // S
-      onChildSuccess(i);
-    }
-    // S if all children S.
-    return Status::SUCCESS;
-  }
+  Status update(const Context& ctx) override;
 };
 
 // SequenceNode runs children one by one, and succeeds only if all children succeed.
@@ -823,23 +621,7 @@ class StatefulSequenceNode final : public _InternalStatefulCompositeNode, public
 
 class _InternalSelectorNodeBase : virtual public _InternalPriorityCompositeNode {
  protected:
-  Status update(const Context& ctx) override {
-    // select a success children.
-    while (!q.empty()) {
-      auto i = q.pop();
-      auto status = children[i]->Tick(ctx);
-      if (status == Status::RUNNING) return Status::RUNNING;
-      // S if any child S.
-      if (status == Status::SUCCESS) {
-        onChildSuccess(i);
-        return Status::SUCCESS;
-      }
-      // F
-      onChildFailure(i);
-    }
-    // F if all children F.
-    return Status::FAILURE;
-  }
+  Status update(const Context& ctx) override;
 };
 
 // SelectorNode succeeds if any child succeeds.
@@ -864,59 +646,13 @@ class StatefulSelectorNode : public _InternalStatefulCompositeNode, public _Inte
 /// Node > InternalNode > CompositeNode > RandomSelectorNode
 ///////////////////////////////////////////////////////////////
 
-static std::mt19937 rng(std::random_device{}());  // seed random
-
 // Weighted random selector.
 class _InternalRandomSelectorNodeBase : virtual public _InternalPriorityCompositeNode {
  protected:
-  Status update(const Context& ctx) override {
-    // Sum of weights/priorities.
-    unsigned int total = 0;
-    for (int i = 0; i < children.size(); i++)
-      if (considerable(i)) total += p[i];
-
-    // random select one, in range [1, total]
-    std::uniform_int_distribution<unsigned int> distribution(1, total);
-
-    auto select = [&]() -> int {
-      unsigned int v = distribution(rng);  // gen random unsigned int between [0, sum]
-      unsigned int s = 0;                  // sum of iterated children.
-      for (int i = 0; i < children.size(); i++) {
-        if (!considerable(i)) continue;
-        s += p[i];
-        if (v <= s) return i;
-      }
-      return 0;  // won't reach here.
-    };
-
-    // While still have children considerable.
-    // total reaches 0 only if no children left,
-    // notes that Priority() always returns a positive value.
-    while (total) {
-      int i = select();
-      auto status = children[i]->Tick(ctx);
-      if (status == Status::RUNNING) return Status::RUNNING;
-      // S if any child S.
-      if (status == Status::SUCCESS) {
-        onChildSuccess(i);
-        return Status::SUCCESS;
-      }
-      // Failure, it shouldn't be considered any more in this tick.
-      onChildFailure(i);
-      // remove its weight from total, won't be consider again.
-      total -= p[i];
-      // updates the upper bound of distribution.
-      distribution.param(std::uniform_int_distribution<unsigned int>::param_type(1, total));
-    }
-    // F if all children F.
-    return Status::FAILURE;
-  }
+  Status update(const Context& ctx) override;
 
  public:
-  Status Update(const Context& ctx) override {
-    refresh(ctx);
-    return update(ctx);
-  }
+  Status Update(const Context& ctx) override;
 };
 
 // RandomSelectorNode selects children via weighted random selection.
@@ -943,29 +679,8 @@ class StatefulRandomSelectorNode final : virtual public _InternalStatefulComposi
 ///////////////////////////////////////////////////////////////
 
 class _InternalParallelNodeBase : virtual public _InternalPriorityCompositeNode {
-  Status update(const Context& ctx) override {
-    // Propagates tick to all considerable children.
-    int cntFailure = 0, cntSuccess = 0, total = 0;
-    while (!q.empty()) {
-      auto i = q.pop();
-      auto status = children[i]->Tick(ctx);
-      total++;
-      if (status == Status::FAILURE) {
-        cntFailure++;
-        onChildFailure(i);
-      }
-      if (status == Status::SUCCESS) {
-        cntSuccess++;
-        onChildSuccess(i);
-      }
-    }
-
-    // S if all children S.
-    if (cntSuccess == total) return Status::SUCCESS;
-    // F if any child F.
-    if (cntFailure > 0) return Status::FAILURE;
-    return Status::RUNNING;
-  }
+ protected:
+  Status update(const Context& ctx) override;
 };
 
 // ParallelNode succeeds if all children succeed but runs all children
@@ -1007,18 +722,7 @@ class InvertNode : public DecoratorNode {
  public:
   InvertNode(std::string_view name = "Invert", Ptr<Node> child = nullptr)
       : DecoratorNode(name, std::move(child)) {}
-
-  Status Update(const Context& ctx) override {
-    auto status = child->Tick(ctx);
-    switch (status) {
-      case Status::RUNNING:
-        return Status::RUNNING;
-      case Status::FAILURE:
-        return Status::SUCCESS;
-      default:
-        return Status::FAILURE;
-    }
-  }
+  Status Update(const Context& ctx) override;
 };
 
 // ConditionalRunNode executes its child if given condition returns true.
@@ -1033,17 +737,8 @@ class ConditionalRunNode : public DecoratorNode {
                      Ptr<Node> child = nullptr)
       : DecoratorNode(std::string(name) + '<' + std::string(condition->Name()) + '>', std::move(child)),
         condition(std::move(condition)) {}
-
-  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override {
-    pre(*this, ptr);
-    if (condition != nullptr) condition->Traverse(pre, post, condition);
-    if (child != nullptr) child->Traverse(pre, post, child);
-    post(*this, ptr);
-  }
-  Status Update(const Context& ctx) override {
-    if (condition->Tick(ctx) == Status::SUCCESS) return child->Tick(ctx);
-    return Status::FAILURE;
-  }
+  void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
+  Status Update(const Context& ctx) override;
 };
 
 struct RepeatNodeBlob : NodeBlob {
@@ -1069,16 +764,7 @@ class RepeatNode : public DecoratorNode {
   // Reset counter on termination.
   void OnTerminate(const Context& ctx, Status status) override { getNodeBlob<Blob>()->cnt = 0; }
 
-  Status Update(const Context& ctx) override {
-    if (n == 0) return Status::SUCCESS;
-    auto status = child->Tick(ctx);
-    if (status == Status::RUNNING) return Status::RUNNING;
-    if (status == Status::FAILURE) return Status::FAILURE;
-    // Count success until n times, -1 will never stop.
-    if (++(getNodeBlob<Blob>()->cnt) == n) return Status::SUCCESS;
-    // Otherwise, it's still running.
-    return Status::RUNNING;
-  }
+  Status Update(const Context& ctx) override;
 };
 
 template <typename Clock = std::chrono::high_resolution_clock>
@@ -1226,6 +912,9 @@ class RootNode : public SingleNode, public IRootNode {
   RootNode(std::string_view name = "Root") : SingleNode(name) {}
   Status Update(const Context& ctx) override { return child->Tick(ctx); }
 
+  // Visualize the tree to console.
+  void Visualize(ull seq);
+
   //////////////////////////
   /// Blob Apis
   //////////////////////////
@@ -1253,21 +942,6 @@ class RootNode : public SingleNode, public IRootNode {
   // Returns the max size of the node blob struct for this tree.
   // Available once the tree is built.
   std::size_t MaxSizeNodeBlob() const { return maxSizeNodeBlob; }
-
-  //////////////////////////
-  /// Visualization
-  //////////////////////////
-
-  // Visualize the tree to console.
-  void Visualize(ull seq) {
-    // CSI[2J clears screen.
-    // CSI[H moves the cursor to top-left corner
-    std::cout << "\x1B[2J\x1B[H" << std::flush;
-    // Make a string.
-    std::string s;
-    makeVisualizeString(s, 0, seq);
-    std::cout << s << std::flush;
-  }
 
   //////////////////////////
   /// Ticking
@@ -1312,19 +986,8 @@ class _InternalBuilderBase {
   // unique inside this builder instance.
   NodeId nextNodeId = 0;
 
-  void maintainNodeBindInfo(Node& node, RootNode* root) {
-    node.root = root;
-    root->n++;
-    node.id = ++nextNodeId;
-  }
-
-  void maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize, std::size_t blobSize) {
-    root->size = rootNodeSize;
-    root->treeSize += rootNodeSize;
-    root->maxSizeNode = rootNodeSize;
-    root->maxSizeNodeBlob = blobSize;
-  }
-
+  void maintainNodeBindInfo(Node& node, RootNode* root);
+  void maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize, std::size_t blobSize);
   template <TNode T>
   void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
     node.size = sizeof(T);
@@ -1332,12 +995,7 @@ class _InternalBuilderBase {
     root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
     root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));
   }
-
-  void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root) {
-    root->treeSize += subtree.treeSize;
-    root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
-    root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, subtree.maxSizeNodeBlob);
-  }
+  void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root);
 
  protected:
   template <TNode T>
@@ -1345,20 +1003,9 @@ class _InternalBuilderBase {
     maintainNodeBindInfo(node, root);
     maintainSizeInfoOnNodeAttach<T>(node, root);
   }
-  void onRootAttach(RootNode* root, std::size_t size, std::size_t blobSize) {
-    maintainNodeBindInfo(*root, root);
-    maintainSizeInfoOnRootBind(root, size, blobSize);
-  }
-  void onSubtreeAttach(RootNode& subtree, RootNode* root) {
-    // Resets root in sub tree recursively.
-    TraversalCallback pre = [&](Node& node, Ptr<Node>& ptr) { maintainNodeBindInfo(node, root); };
-    subtree.Traverse(pre, NullTraversalCallback, NullNodePtr);
-    maintainSizeInfoOnSubtreeAttach(subtree, root);
-  }
-  void onNodeBuild(Node* node) {
-    node->internalOnBuild();
-    node->OnBuild();
-  }
+  void onRootAttach(RootNode* root, std::size_t size, std::size_t blobSize);
+  void onSubtreeAttach(RootNode& subtree, RootNode* root);
+  void onNodeBuild(Node* node);
 };
 
 // Builder helps to build a tree.

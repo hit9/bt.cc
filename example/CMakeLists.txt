@@ -7,4 +7,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories("..")
 
 # Targets
-add_executable(bt_example main.cc)
+add_executable(bt_example main.cc ../bt.cc)
