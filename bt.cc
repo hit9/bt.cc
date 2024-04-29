@@ -1,6 +1,7 @@
 #include "bt.h"
 
 #include <iostream>  // for cout, flush
+#include <random>    // for mt19937
 
 namespace bt {
 
@@ -475,6 +476,63 @@ void _InternalBuilderBase::onSubtreeAttach(RootNode& subtree, RootNode* root) {
 void _InternalBuilderBase::onNodeBuild(Node* node) {
   node->internalOnBuild();
   node->OnBuild();
+}
+
+void _InternalBuilderBase::_maintainSizeInfoOnNodeAttach(Node& node, RootNode* root, std::size_t nodeSize,
+                                                         std::size_t nodeBlobSize) {
+  node.size = nodeSize;
+  root->treeSize += nodeSize;
+  root->maxSizeNode = std::max(root->maxSizeNode, nodeSize);
+  root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, nodeBlobSize);
+}
+
+void _InternalBuilderBase::validate(Node* node) {
+  auto e = node->Validate();
+  if (!e.empty()) {
+    std::string s = "bt build: ";
+    s += node->Name();
+    s += ' ';
+    s += e;
+    throw std::runtime_error(s);
+  }
+}
+void _InternalBuilderBase::validateIndent() {
+  if (level > stack.size()) {
+    auto node = stack.top();
+    std::string s = "bt build: too much indent ";
+    s += "below ";
+    s += node->Name();
+    throw std::runtime_error(s);
+  }
+}
+
+void _InternalBuilderBase::pop() {
+  validate(stack.top());  // validate before pop
+  onNodeBuild(stack.top());
+  stack.pop();
+}
+// Adjust stack to current indent level.
+void _InternalBuilderBase::adjust() {
+  validateIndent();
+  while (level < stack.size()) pop();
+}
+void _InternalBuilderBase::attachLeafNode(Ptr<LeafNode> p) {
+  adjust();
+  // Append to stack's top as a child.
+  onNodeBuild(p.get());
+  stack.top()->Append(std::move(p));
+  // resets level.
+  level = 1;
+}
+
+void _InternalBuilderBase::attachInternalNode(Ptr<InternalNode> p) {
+  adjust();
+  // Append to stack's top as a child, and replace the top.
+  auto parent = stack.top();
+  stack.push(p.get());
+  parent->Append(std::move(p));
+  // resets level.
+  level = 1;
 }
 
 }  // namespace bt

@@ -1,72 +1,8 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD. https://github.com/hit9/bt.h
+// License: BSD. https://github.com/hit9/bt.h, Version: 0.3.5
 //
 // A lightweight behavior tree library that separates data and behavior.
 //
-// Requirements: at least C++20.
-//
-// Features
-// ~~~~~~~~
-//
-// 1. Nodes store no data states, behaviors and data are separated.
-// 2. Builds a behavior tree in tree structure codes, concise and expressive,
-//    and supports to extend the builder.
-// 3. Built-in multiple decorators, and supports custom decoration nodes,
-// 4. Supports composite nodes with priority child nodes, and random selector.
-// 5. Also supports continuous memory fixed sized tree blob.
-//
-// Code Example
-// ~~~~~~~~~~~~
-//
-// To structure a tree:
-//
-//   bt::Tree root;
-//   root
-//   .Sequence()
-//   ._().Action<A>()
-//   ._().Repeat(3)
-//   ._()._().Action<B>()
-//   .End();
-//
-// Prepares a TreeBlob, e.g. for each entity:
-//
-//   // A TreeBlob holds all the internal state data.
-//   bt::DynamicTreeBlob blob;
-//
-//   // Or use a fixed size tree blob:
-//   bt::FixedTreeBlob<8, 64> blob;
-//
-// Run ticking:
-//
-//   bt::Context ctx;
-//
-//   // In the ticking loop.
-//   while(...) {
-//     // for each blob
-//     for (auto& blob : allBlobs) {
-//       root.BindTreeBlob(blob);
-//       root.Tick(ctx)
-//       root.UnbindTreeBlob();
-//     }
-//   }
-//
-// Classes Structure
-// ~~~~~~~~~~~~~~~~~
-//
-//   Node
-//    | InternalNode
-//    |   | SingleNode
-//    |   |  | RootNode
-//    |   |  | DecoratorNode
-//    |   | CompositeNode
-//    |   |  | SelectorNode
-//    |   |  | ParallelNode
-//    |   |  | SequenceNode
-//    | LeafNode
-//    |   | ActionNode
-//    |   | ConditionNode
-
-// Version: 0.3.5
 
 #ifndef HIT9_BT_H
 #define HIT9_BT_H
@@ -79,7 +15,6 @@
 #include <functional>
 #include <memory>  // for unique_ptr
 #include <queue>   // for priority_queue
-#include <random>  // for mt19937
 #include <stack>
 #include <stdexcept>  // for runtime_error
 #include <string>
@@ -979,7 +914,6 @@ class RootNode : public SingleNode, public IRootNode {
 /// Tree Builder
 ///////////////////////////////////////////////////////////////
 
-// A internal proxy base class to setup Node's internal bindings.
 class _InternalBuilderBase {
  private:
   // Node id incrementer for a tree.
@@ -988,16 +922,22 @@ class _InternalBuilderBase {
 
   void maintainNodeBindInfo(Node& node, RootNode* root);
   void maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize, std::size_t blobSize);
+  void _maintainSizeInfoOnNodeAttach(Node& node, RootNode* root, std::size_t nodeSize,
+                                     std::size_t nodeBlobSize);
   template <TNode T>
   void maintainSizeInfoOnNodeAttach(T& node, RootNode* root) {
-    node.size = sizeof(T);
-    root->treeSize += sizeof(T);
-    root->maxSizeNode = std::max(root->maxSizeNode, sizeof(T));
-    root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, sizeof(typename T::Blob));
+    _maintainSizeInfoOnNodeAttach(node, root, sizeof(T), sizeof(typename T::Blob));
   }
   void maintainSizeInfoOnSubtreeAttach(RootNode& subtree, RootNode* root);
 
  protected:
+  std::stack<InternalNode*> stack;
+  // indent level to insert new node, starts from 1.
+  int level = 1;
+  RootNode* root = nullptr;
+
+  _InternalBuilderBase() : level(1) {}
+
   template <TNode T>
   void onNodeAttach(T& node, RootNode* root) {
     maintainNodeBindInfo(node, root);
@@ -1006,53 +946,24 @@ class _InternalBuilderBase {
   void onRootAttach(RootNode* root, std::size_t size, std::size_t blobSize);
   void onSubtreeAttach(RootNode& subtree, RootNode* root);
   void onNodeBuild(Node* node);
+
+  // Validate node.
+  void validate(Node* node);
+  // Validate indent level.
+  void validateIndent();
+  // Pops an internal node from the stack.
+  void pop();
+  // Adjust stack to current indent level.
+  void adjust();
+
+  void attachLeafNode(Ptr<LeafNode> p);
+  void attachInternalNode(Ptr<InternalNode> p);
 };
 
 // Builder helps to build a tree.
 // The template parameter D is the derived class, a behavior tree class.
 template <typename D = void>
 class Builder : public _InternalBuilderBase {
- private:
-  std::stack<InternalNode*> stack;
-  // indent level to insert new node, starts from 1.
-  int level;
-  RootNode* root = nullptr;
-  // Validate node.
-  void validate(Node* node) {
-    auto e = node->Validate();
-    if (!e.empty()) {
-      std::string s = "bt build: ";
-      s += node->Name();
-      s += ' ';
-      s += e;
-      throw std::runtime_error(s);
-    }
-  }
-
-  // Validate indent level.
-  void validateIndent() {
-    if (level > stack.size()) {
-      auto node = stack.top();
-      std::string s = "bt build: too much indent ";
-      s += "below ";
-      s += node->Name();
-      throw std::runtime_error(s);
-    }
-  }
-
-  // pops an internal node from the stack.
-  void pop() {
-    validate(stack.top());  // validate before pop
-    onNodeBuild(stack.top());
-    stack.pop();
-  }
-
-  // Adjust stack to current indent level.
-  void adjust() {
-    validateIndent();
-    while (level < stack.size()) pop();
-  }
-
  protected:
   // Bind a tree root onto this builder.
   void bindRoot(RootNode& r) {
@@ -1063,24 +974,13 @@ class Builder : public _InternalBuilderBase {
 
   // Creates a leaf node.
   auto& attachLeafNode(Ptr<LeafNode> p) {
-    adjust();
-    // Append to stack's top as a child.
-    onNodeBuild(p.get());
-    stack.top()->Append(std::move(p));
-    // resets level.
-    level = 1;
+    _InternalBuilderBase::attachLeafNode(std::move(p));
     return *static_cast<D*>(this);
   }
 
   // Creates an internal node with optional children.
   auto& attachInternalNode(Ptr<InternalNode> p) {
-    adjust();
-    // Append to stack's top as a child, and replace the top.
-    auto parent = stack.top();
-    stack.push(p.get());
-    parent->Append(std::move(p));
-    // resets level.
-    level = 1;
+    _InternalBuilderBase::attachInternalNode(std::move(p));
     return *static_cast<D*>(this);
   }
 
@@ -1094,18 +994,18 @@ class Builder : public _InternalBuilderBase {
   };
 
  public:
-  Builder() : level(1), root(nullptr) {}
+  Builder() : _InternalBuilderBase() {}
   ~Builder() {}
+
+  // Should be called on the end of the build process.
+  void End() {
+    while (stack.size()) pop();  // clears the stack
+  }
 
   // Increases indent level to append node.
   auto& _() {
     level++;
     return static_cast<D&>(*this);
-  }
-
-  // Should be called on the end of the build process.
-  void End() {
-    while (stack.size()) pop();  // clears the stack
   }
 
   ///////////////////////////////////
