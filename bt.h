@@ -422,17 +422,13 @@ class _MixedQueueHelper {
   };
 
  private:
-  // use a pre-allocated vector instead of a std::queue
-  // The q1 will be pushed all and then poped all, so a simple vector is enough,
-  // and neither needs a circular queue.
-  // And here we use a pointer, allowing temporarily replace q1's container from
-  // outside existing container.
+  // use a pre-allocated vector instead of a std::queue, q1 will be pushed all and then poped all,
+  // so a simple vector is enough, and neither needs a circular queue.
+  // And here we use a pointer, allowing temporarily replace q1's container from outside existing container.
   std::vector<int>* q1;
   std::vector<int> q1Container;
   int q1Front = 0;
-
   _priority_queue<int, std::vector<int>> q2;
-
   bool use1;  // using q1? otherwise q2
 
  public:
@@ -1076,7 +1072,6 @@ class Builder : public _InternalBuilderBase {
 
   // Attach a sub behavior tree into this tree.
   // Code example::
-  //
   //    bt::Tree subtree;
   //    subtree
   //      .Action<B>()
