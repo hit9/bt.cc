@@ -1,4 +1,4 @@
-# bt.h
+# bt.cc
 
 ![](https://github.com/hit9/bt/actions/workflows/tests.yml/badge.svg)
 ![](https://img.shields.io/badge/license-BSD3-brightgreen)
@@ -15,7 +15,7 @@ Requires at least C++20.
 
 ## Installation
 
-Just copy the header file `bt.h` and include it.
+Copy away `bt.h` and `bt.cc`.
 
 ## Features
 
@@ -592,7 +592,7 @@ Reference: <span id="ref"></span>
 
 * **Visualization**  <span id="visualization"></span> <a href="#ref">[↑]</a>
 
-  There's a simple real time behavior tree visualization function implemented in `bt.h`.
+  There's a simple real time behavior tree visualization function implemented in `bt.cc`.
 
   It simply displays the tree structure and execution status on the console.
   The nodes colored in green are those currently executing and are synchronized with the latest tick cycles.
@@ -635,7 +635,7 @@ Reference: <span id="ref"></span>
 
 * **Ticker Loop**   <span id="ticker-loop"></span> <a href="#ref">[↑]</a>
 
-  There's a simple builtin ticker loop implemented in `bt.h`, to use it:
+  There's a simple builtin ticker loop implemented in `bt.cc`, to use it:
 
   ```cpp
   root.TickForever(ctx, 100ms);
@@ -678,7 +678,7 @@ Reference: <span id="ref"></span>
   It's a common case to emit and receive signals in a behavior tree.
   But signal (or event) handling is a complex stuff, I don't want to couple with it in this small library.
 
-  General ideas to introduce signal handling into bt.h is:
+  General ideas to introduce signal handling into bt.cc is:
 
   1. Creates a custom decorator node, supposed named `OnSignalNode`.
   2. Creates a custom builder class, and add a method named `OnSignal`.
@@ -686,7 +686,7 @@ Reference: <span id="ref"></span>
   4. The data passing along with the fired signal, can be placed onto the blackboard temporary.
   5. You can move the OnSignal node as high as possible to make the entire behavior tree more event-driven.
 
-  Here's an example in detail to combine my tiny signal library [blinker.h](https://github.com/hit9/blinker.h) with bt.h,
+  Here's an example in detail to combine my tiny signal library [blinker.h](https://github.com/hit9/blinker.h) with bt.cc,
   please checkout the code example in folder [example/onsignal](example/onsignal).
 
   ```cpp
