@@ -5,7 +5,6 @@
 #include "bt.h"
 
 #include <algorithm>  // for max
-#include <iostream>   // for cout, flush
 #include <random>     // for mt19937
 #include <thread>     // for this_thread::sleep_for
 
@@ -15,7 +14,7 @@ namespace bt {
 /// TreeBlob
 /////////////////
 
-std::pair<void*, bool> ITreeBlob::make(const NodeId id, size_t size, const std::size_t cap) {
+std::pair<void*, bool> ITreeBlob::make(const NodeId id, const size_t size, const std::size_t cap) {
   if (cap) reserve(cap);
   std::size_t idx = id - 1;
   if (exist(idx)) return {get(idx), false};
@@ -492,11 +491,11 @@ Status RetryNode::Update(const Context& ctx) {
 void RootNode::Visualize(ull seq) {
   // CSI[2J clears screen.
   // CSI[H moves the cursor to top-left corner
-  std::cout << "\x1B[2J\x1B[H" << std::flush;
+  printf("\x1B[2J\x1B[H");
   // Make a string.
   std::string s;
   makeVisualizeString(s, 0, seq);
-  std::cout << s << std::flush;
+  printf("%s", s.c_str());
 }
 
 void RootNode::TickForever(Context& ctx, std::chrono::nanoseconds interval, bool visualize,

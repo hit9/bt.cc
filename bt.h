@@ -834,19 +834,16 @@ class Builder : public _InternalBuilderBase {
     root = &r;
     onRootAttach(root, sizeof(D), sizeof(typename D::Blob));
   }
-
   // Creates a leaf node.
   auto& attachLeafNode(Ptr<LeafNode> p) {
     _InternalBuilderBase::attachLeafNode(std::move(p));
     return *static_cast<D*>(this);
   }
-
   // Creates an internal node with optional children.
   auto& attachInternalNode(Ptr<InternalNode> p) {
     _InternalBuilderBase::attachInternalNode(std::move(p));
     return *static_cast<D*>(this);
   }
-
   // make a new node onto this tree, returns the unique_ptr.
   // Any node creation should use this function.
   template <TNode T, typename... Args>
@@ -864,7 +861,6 @@ class Builder : public _InternalBuilderBase {
   void End() {
     while (stack.size()) pop();  // clears the stack
   }
-
   // Increases indent level to append node.
   auto& _() {
     level++;
@@ -888,7 +884,6 @@ class Builder : public _InternalBuilderBase {
     else  // InternalNode.
       return attachInternalNode(make<T>(false, std::forward<Args>(args)...));
   }
-
   // Attach a node through move, rarely used.
   template <TNode T>
   auto& M(T&& inst) {
@@ -904,33 +899,26 @@ class Builder : public _InternalBuilderBase {
   // A SequenceNode executes its children one by one sequentially,
   // it succeeds only if all children succeed.
   auto& Sequence() { return C<SequenceNode>("Sequence"); }
-
   // A StatefulSequenceNode behaves like a sequence node, executes its children sequentially, succeeds if
   // all children succeed, fails if any child fails. What's the difference is, a StatefulSequenceNode skips
   // the succeeded children instead of always starting from the first child.
   auto& StatefulSequence() { return C<StatefulSequenceNode>("Sequence*"); }
-
   // A SelectorNode succeeds if any child succeeds, fails only if all children fail.
   auto& Selector() { return C<SelectorNode>("Selector"); }
-
   // A StatefulSelectorNode behaves like a selector node, executes its children sequentially, succeeds if
   // any child succeeds, fails if all child fail. What's the difference is, a StatefulSelectorNode skips the
   // failure children instead of always starting from the first child.
   auto& StatefulSelector() { return C<StatefulSelectorNode>("Selector*"); }
-
   // A ParallelNode executes its children parallelly.
   // It succeeds if all children succeed, and fails if any child fails.
   auto& Parallel() { return C<ParallelNode>("Parallel"); }
-
   // A StatefulParallelNode behaves like a parallel node, executes its children parallelly, succeeds if all
   // succeed, fails if all child fail. What's the difference is, a StatefulParallelNode will skip the
   // "already success" children instead of executing every child all the time.
   auto& StatefulParallel() { return C<StatefulParallelNode>("Parallel*"); }
-
   // A RandomSelectorNode determines a child via weighted random selection.
   // It continues to randomly select a child, propagating tick, until some child succeeds.
   auto& RandomSelector() { return C<RandomSelectorNode>("RandomSelector"); }
-
   // A StatefulRandomSelector behaves like a random selector node, the difference is, a
   // StatefulRandomSelector will skip already failed children during a round.
   auto& StatefulRandomSelector() { return C<StatefulRandomSelectorNode>("RandomSelector*"); }
@@ -947,7 +935,6 @@ class Builder : public _InternalBuilderBase {
   auto& Action(Args&&... args) {
     return C<Impl>(std::forward<Args>(args)...);
   }
-
   // Creates a ConditionNode from a lambda function.
   // Code example::
   //   root
@@ -956,7 +943,6 @@ class Builder : public _InternalBuilderBase {
   //   ._().Action<A>()
   //   .End();
   auto& Condition(ConditionNode::Checker checker) { return C<ConditionNode>(checker); }
-
   // Creates a ConditionNode by providing implemented Condition class.
   // Code example::
   //   root
@@ -980,7 +966,6 @@ class Builder : public _InternalBuilderBase {
   //   ._().Condition<A>()
   //   .End();
   auto& Invert() { return C<InvertNode>("Invert"); }
-
   // Alias to Invert, just named 'Not'.
   // Code exapmle::
   //   root
@@ -988,7 +973,6 @@ class Builder : public _InternalBuilderBase {
   //   ._().Condition<A>()
   //   .End();
   auto& Not() { return C<InvertNode>("Not"); }
-
   // Creates a invert condition of given Condition class.
   // Code exapmle::
   //   root
@@ -1000,7 +984,6 @@ class Builder : public _InternalBuilderBase {
   auto& Not(ConditionArgs... args) {
     return C<InvertNode>("Not", make<Condition>(false, std::forward<ConditionArgs>(args)...));
   }
-
   // Repeat creates a RepeatNode.
   // It will repeat the decorated node for exactly n times.
   // Providing n=-1 means to repeat forever.
@@ -1011,14 +994,12 @@ class Builder : public _InternalBuilderBase {
   //   ._().Action<A>()
   //   .End();
   auto& Repeat(int n) { return C<RepeatNode>(n, "Repeat"); }
-
   // Alias to Repeat.
   // Code exapmle::
   //   root
   //   .Loop(3)
   //   ._().Action<A>();
   auto& Loop(int n) { return C<RepeatNode>(n, "Loop"); }
-
   // Timeout creates a TimeoutNode.
   // It executes the decorated node for at most given duration.
   // Code exapmle::
@@ -1027,7 +1008,6 @@ class Builder : public _InternalBuilderBase {
   //   ._().Action<A>()
   //   .End();
   auto& Timeout(std::chrono::milliseconds duration) { return C<TimeoutNode>(duration, "Timeout"); }
-
   // Delay creates a DelayNode.
   // Wait for given duration before execution of decorated node.
   // Code exapmle::
@@ -1036,7 +1016,6 @@ class Builder : public _InternalBuilderBase {
   //   ._().Action<A>()
   //   .End();
   auto& Delay(std::chrono::milliseconds duration) { return C<DelayNode>(duration, "Delay"); }
-
   // Retry creates a RetryNode.
   // It executes the decorated node for at most n times.
   // A retry will only be initiated if the decorated node fails.
@@ -1047,12 +1026,10 @@ class Builder : public _InternalBuilderBase {
   //   ._().Action<A>()
   //   .End();
   auto& Retry(int n, std::chrono::milliseconds interval) { return C<RetryNode>(n, interval, "Retry"); }
-
   // Alias for Retry(-1, interval)
   auto& RetryForever(std::chrono::milliseconds interval) {
     return C<RetryNode>(-1, interval, "RetryForever");
   }
-
   // If creates a ConditionalRunNode.
   // It executes the decorated node only if the condition goes true.
   // Code example::
@@ -1065,14 +1042,12 @@ class Builder : public _InternalBuilderBase {
     auto condition = make<Condition>(false, std::forward<ConditionArgs>(args)...);
     return C<ConditionalRunNode>(std::move(condition), "If");
   }
-
   // If creates a ConditionalRunNode from lambda function.
   // Code example::
   //  root
   //  .If([=](const Context& ctx) { return false; })
   //  .End();
   auto& If(ConditionNode::Checker checker) { return If<ConditionNode>(checker); }
-
   // Switch is just an alias to Selector.
   // Code example::
   //   root
@@ -1085,17 +1060,14 @@ class Builder : public _InternalBuilderBase {
   //   ._()._().Action<D>()
   //   .End();
   auto& Switch() { return C<SelectorNode>("Switch"); }
-
   // Stateful version `Switch` based on StatefulSelectorNode.
   auto& StatefulSwitch() { return C<StatefulSelectorNode>("Switch*"); }
-
   // Alias to If, for working alongs with Switch.
   template <TCondition Condition, typename... ConditionArgs>
   auto& Case(ConditionArgs&&... args) {
     auto condition = make<Condition>(false, std::forward<ConditionArgs>(args)...);
     return C<ConditionalRunNode>(std::move(condition), "Case");
   }
-
   // Case creates a ConditionalRunNode from lambda function.
   auto& Case(ConditionNode::Checker checker) { return Case<ConditionNode>(checker); }
 
