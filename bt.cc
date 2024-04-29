@@ -7,6 +7,7 @@
 #include <algorithm>  // for max
 #include <random>     // for mt19937
 #include <thread>     // for this_thread::sleep_for
+#include <cstdio>     // for printf
 
 namespace bt {
 
