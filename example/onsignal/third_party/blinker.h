@@ -64,7 +64,7 @@
 //        board.Flip();
 //      }
 
-// Version: 0.1.5
+// Version: 0.1.7
 
 #ifndef HIT9_BLINKER_H
 #define HIT9_BLINKER_H
@@ -125,7 +125,7 @@ class SignalTrie {
     auto t = this;  // t is the node walked through
     for (const auto& p : parts) {
       // Creates a node if not exist.
-      if (t->children.find(p) == t->children.end()) t->children[p] = new SignalTrie();
+      if (auto [it, inserted] = t->children.try_emplace(p, nullptr); inserted) it->second = new SignalTrie();
       // Mark this signal id to its signature.
       t->signature[id] = 1;
       t = t->children[p];
@@ -135,7 +135,7 @@ class SignalTrie {
   }
   // Match signals by given pattern, returns a signature of matched signal ids.
   Signature<N> Match(std::string_view pattern) const {
-    Signature<N> signature;
+    Signature<N> sig;
     std::vector<std::string> parts;
     split(pattern, parts, '.');
     auto t = this;
@@ -145,13 +145,13 @@ class SignalTrie {
         return t->signature;
       else {  // match by exact name
         // match failure, returns empty signature
-        if (t->children.find(p) == t->children.end()) return signature;
+        if (t->children.find(p) == t->children.end()) return sig;
         t = t->children.at(p);
       }
     }
     // The last node, matches a single signal.
-    signature[t->id] = 1;
-    return signature;
+    sig[t->id] = 1;
+    return sig;
   }
 };
 
@@ -195,7 +195,7 @@ class IBoardPoller {
 
 class Signal {
  private:
-  std::string_view name;
+  std::string name;
   const SignalId id;
   // Reference to the board belongs to.
   IBoardEmitter* board;
@@ -261,7 +261,8 @@ class Board : public IBoardPoller<N>, public IBoardEmitter {
   }
   [[nodiscard]] std::unique_ptr<Connection<N>> Connect(const std::vector<std::string_view>& patterns) {
     Signature<N> signature;
-    for (auto& pattern : patterns) signature |= tree.Match(pattern);
+    for (const auto& pattern : patterns)
+      signature |= tree.Match(pattern);  // cppcheck-suppress useStlAlgorithm
     return std::make_unique<Connection<N>>(signature, this);
   }
   // Emits a signal to backend buffer by signal id.
