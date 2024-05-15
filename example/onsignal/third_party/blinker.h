@@ -64,7 +64,7 @@
 //        board.Flip();
 //      }
 
-// Version: 0.1.7
+// Version: 0.1.8
 
 #ifndef HIT9_BLINKER_H
 #define HIT9_BLINKER_H
@@ -172,7 +172,7 @@ class Buffer {
   void Emit(SignalId id, std::any data) { fired[id] = 1, d[id] = data; }
 
   // Poll fired signals matching given signature.
-  int Poll(const Signature<N>& signature, Callback cb, SignalId maxId) {
+  int Poll(const Signature<N>& signature, const Callback& cb, SignalId maxId) {
     auto match = signature & fired;
     for (int i = 1; i < maxId; i++)
       if (match[i]) cb(i, d[i]);
@@ -190,7 +190,7 @@ template <std::size_t N = DefaultNSignal>
 class IBoardPoller {
  public:
   // Poll fired signals matching given signature from frontend buffer.
-  virtual int Poll(const Signature<N>& signature, Callback cb) = 0;
+  virtual int Poll(const Signature<N>& signature, Callback& cb) = 0;
 };
 
 class Signal {
@@ -202,7 +202,7 @@ class Signal {
 
  public:
   Signal(std::string_view name, const SignalId id, IBoardEmitter* board) : name(name), id(id), board(board) {}
-  std::string_view Name() const { return name; }
+  std::string_view Name() const { return name; }  // cppcheck-suppress returnByReference
   SignalId Id() const { return id; }
   // Emits this signal.
   void Emit(std::any data) { board->Emit(id, data); }
@@ -221,7 +221,8 @@ class Connection {
   // Poll from board's frontend buffer for subscribed signals.
   // If there's some signal fired, the given callback function will be called, and returns a positive count of
   // fired signals.
-  int Poll(Callback cb) { return board->Poll(signature, cb); }
+  int Poll(Callback& cb) { return board->Poll(signature, cb); }
+  inline int Poll(Callback&& cb) { return board->Poll(signature, cb); }
 };
 
 // The board of signals.
@@ -268,7 +269,7 @@ class Board : public IBoardPoller<N>, public IBoardEmitter {
   // Emits a signal to backend buffer by signal id.
   void Emit(SignalId id, std::any data) override final { backend->Emit(id, data); }
   // Poll fired signals matching given signature from frontend buffer.
-  int Poll(const Signature<N>& signature, Callback cb) override final {
+  int Poll(const Signature<N>& signature, Callback& cb) override final {
     return frontend->Poll(signature, cb, nextId);
   }
   // Flips the internal double buffers.
