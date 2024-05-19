@@ -4,16 +4,8 @@ project(bt)
 
 set(CMAKE_CXX_STANDARD 20)
 
-option(BT_TEST "Enables testing" OFF)
-
 add_library(bt SHARED bt.cc)
 set_target_properties(bt PROPERTIES PUBLIC_HEADER "bt.h")
-
-if(BT_TEST)
-  add_subdirectory(tests EXCLUDE_FROM_ALL)
-  add_subdirectory(example EXCLUDE_FROM_ALL)
-  add_subdirectory(example/onsignal EXCLUDE_FROM_ALL)
-endif()
 
 install(
   TARGETS bt
