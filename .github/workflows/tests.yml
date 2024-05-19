@@ -33,6 +33,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install gcc-13
+      run: |
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y && sudo apt-get update -y && sudo apt-get install gcc-13 g++-13 -y
+        fi;
+        exit 0
+      shell: bash
+
     - name: Install Conan
       run: pip install conan
 
@@ -70,4 +78,4 @@ jobs:
 
     - name: Run Benchmark
       working-directory: ./tests/build
-      run: ./tests/bt_benchmark
+      run: ./bt_benchmark
