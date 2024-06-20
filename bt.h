@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.1.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.2.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #ifndef HIT9_BT_H
@@ -73,7 +73,11 @@ class ITreeBlob {
   virtual void reserve(const std::size_t cap) {}
 
  public:
-  virtual ~ITreeBlob() {}
+  // virtual destructor is required for unique_ptr.
+  // this also disables move, but we don't declare default move constructor generation here, since there's no
+  // member stored here.
+  virtual ~ITreeBlob() = default;
+
   // Returns a pointer to given NodeBlob B for the node with given id.
   // Allocates if not exist.
   // Parameter cb is an optional function to be called after the blob is first allocated.
@@ -196,7 +200,13 @@ class Node {
   using Blob = NodeBlob;
 
   explicit Node(std::string_view name = "Node") : name(name) {}
+  // Destructor is required by unique_ptr.
+  // And this disabled default generation for move constructors.
   virtual ~Node() = default;
+  // We have to declare move constructor and assignment methods generation explicitly.
+  // So that the sub classes will support fully move semantics.
+  Node(Node&&) noexcept = default;             // move constructor
+  Node& operator=(Node&&) noexcept = default;  // move assignment operator
 
   // Simple Getters
   // ~~~~~~~~~~~~~~
@@ -852,7 +862,6 @@ class Builder : public _InternalBuilderBase {
 
  public:
   Builder() : _InternalBuilderBase() {}  // cppcheck-suppress uninitMemberVar
-  ~Builder() {}
 
   // Should be called on the end of the build process.
   void End() {
@@ -882,6 +891,7 @@ class Builder : public _InternalBuilderBase {
       return attachInternalNode(make<T>(false, std::forward<Args>(args)...));
   }
   // Attach a node through move, rarely used.
+  // The inst should be a node object that supports move semantics.
   template <TNode T>
   auto& M(T&& inst) {
     if constexpr (std::is_base_of_v<LeafNode, T>)  // LeafNode
@@ -1083,7 +1093,7 @@ class Builder : public _InternalBuilderBase {
   //      .End();
   auto& Subtree(RootNode&& subtree) {
     onSubtreeAttach(subtree, root);
-    return M<RootNode>(std::move(subtree));  // move
+    return M<RootNode>(std::move(subtree));  // move the subtree object
   }
 };
 

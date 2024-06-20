@@ -1,3 +1,4 @@
+#include <string>
 
 #include "bt.h"
 
@@ -145,4 +146,10 @@ class I : public bt::ActionNode {
     auto bb = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
     return bb->shouldPriorityI;
   }
+};
+
+class J : public bt::ActionNode {
+ public:
+  std::string s;
+  J(const std::string& name, const std::string& s) : bt::ActionNode(name), s(s) {}
 };
