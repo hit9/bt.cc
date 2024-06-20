@@ -1,3 +1,9 @@
+0.4.2
+-----
+
+* Enable default move constructor and move assigment generation for class Node.
+* Remove unnessary destructor for class Builder.
+
 0.4.1
 -----
 
