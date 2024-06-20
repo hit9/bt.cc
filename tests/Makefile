@@ -18,4 +18,7 @@ run:
 clean:
 	make -C build clean
 
+run-benchmark:
+	cd build && ./bt_benchmark
+
 .PHONY: build
