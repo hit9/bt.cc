@@ -485,6 +485,14 @@ Status RetryNode::Update(const Context& ctx) {
   }
 }
 
+Status ForceSuccessNode::Update(const Context& ctx) {
+  return (child->Update(ctx) == Status::RUNNING) ? Status::RUNNING : Status::SUCCESS;
+}
+
+Status ForceFailureNode::Update(const Context& ctx) {
+  return (child->Update(ctx) == Status::RUNNING) ? Status::RUNNING : Status::FAILURE;
+}
+
 //////////////////////////////////////////////////////////////
 /// Node > SingleNode > RootNode
 ///////////////////////////////////////////////////////////////
