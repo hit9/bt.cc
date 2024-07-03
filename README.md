@@ -120,6 +120,7 @@ Reference: <span id="ref"></span>
   - [Timeout](#timeout)
   - [Delay](#delay)
   - [Retry](#retry)
+  - [ForceSuccess/ForceFailure](#force-success-and-force-failure)
   - [Custom Decorator](#custom-decorator)
 - [Sub Tree](#subtree)
 - [Tick Context](#context)
@@ -497,6 +498,16 @@ Reference: <span id="ref"></span>
     .Retry(3, 1000ms)
     ._().Action<Task>()
     ```
+
+  * `ForceSuccess` executes its child node and checks its status,
+     returns `RUNNING` if the decorated node is `RUNNING`, otherwise always returns `SUCCESS`. <span id="force-success-and-force-failure"></span> <a href="#ref">[↑]</a>
+
+    ```cpp
+    .ForceSuccess()
+    ._().Actino<Task>()
+    ```
+
+    `ForceFailure` returns `RUNNING` if the decorated node is `RUNNING`, otherwise always returns `FAILURE`.
 
   * **Custom Decorator** <span id="custom-decorator"></span> <a href="#ref">[↑]</a>
 

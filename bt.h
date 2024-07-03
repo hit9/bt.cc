@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.2.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.3.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #ifndef HIT9_BT_H
@@ -720,6 +720,22 @@ class RetryNode : public DecoratorNode {
   Status Update(const Context& ctx) override;
 };
 
+// ForceSuccessNode returns RUNNING if the decorated node is RUNNING, else always SUCCESS.
+class ForceSuccessNode : public DecoratorNode {
+ public:
+  ForceSuccessNode(std::string_view name = "ForceSuccess", Ptr<Node> child = nullptr)
+      : DecoratorNode(name, std::move(child)) {}
+  Status Update(const Context& ctx) override;
+};
+
+// ForceFailureNode returns Failure if the decorated node is RUNNING, else always FAILURE.
+class ForceFailureNode : public DecoratorNode {
+ public:
+  ForceFailureNode(std::string_view name = "ForceFailure", Ptr<Node> child = nullptr)
+      : DecoratorNode(name, std::move(child)) {}
+  Status Update(const Context& ctx) override;
+};
+
 //////////////////////////////////////////////////////////////
 /// Node > SingleNode > RootNode
 ///////////////////////////////////////////////////////////////
@@ -1037,6 +1053,14 @@ class Builder : public _InternalBuilderBase {
   auto& RetryForever(std::chrono::milliseconds interval) {
     return C<RetryNode>(-1, interval, "RetryForever");
   }
+  // Forces a node to be success.
+  // It executes the decorated node and checks its status.
+  // Returns RUNNING if the decorated node is RUNNING, else always returns SUCCESS.
+  auto& ForceSuccess() { return C<ForceSuccessNode>("ForceSuccess"); }
+  // Forces a node to be failure.
+  // It executes the decorated node and checks its status.
+  // Returns RUNNING if the decorated node is RUNNING, else always returns FAILURE.
+  auto& ForceFailure() { return C<ForceFailureNode>("ForceFailure"); }
   // If creates a ConditionalRunNode.
   // It executes the decorated node only if the condition goes true.
   // Code example::

@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.1.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.3.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #include "bt.h"
@@ -483,6 +483,14 @@ Status RetryNode::Update(const Context& ctx) {
       if (++b->cnt > maxRetries && maxRetries != -1) return Status::FAILURE;  // exeeds max retries.
       return Status::RUNNING;                                                 // continues retry
   }
+}
+
+Status ForceSuccessNode::Update(const Context& ctx) {
+  return (child->Update(ctx) == Status::RUNNING) ? Status::RUNNING : Status::SUCCESS;
+}
+
+Status ForceFailureNode::Update(const Context& ctx) {
+  return (child->Update(ctx) == Status::RUNNING) ? Status::RUNNING : Status::FAILURE;
 }
 
 //////////////////////////////////////////////////////////////

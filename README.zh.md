@@ -114,6 +114,7 @@ while(...) {
   - [Timeout 超时](#timeout)
   - [Delay 延时](#delay)
   - [Retry 重试](#retry)
+  - [ForceSuccess/ForceFailure 强制成功 和 强制失败](#force-success-and-force-failure)
   - [自定义装饰器](#custom-decorator)
 - [子树](#subtree)
 - [Tick 上下文](#context)
@@ -484,6 +485,14 @@ while(...) {
 
     .Retry(3, 1000ms)
     ._().Action<Task>()
+    ```
+
+  * `ForceSuccess` 会执行它装饰的节点, 如果仍在执行, 则返回执行, 否则强制返回成功. <span id="force-success-and-force-failure"></span> <a href="#ref">[↑]</a>
+    `ForceFailure` 是类似的, 如果所装饰的节点仍在执行, 则返回执行, 否则强制返回失败.
+
+    ```cpp
+    .ForceSuccess()
+    ._().Actino<Task>()
     ```
 
   * **自定义装饰器**  <a href="#ref">[↑]</a>
