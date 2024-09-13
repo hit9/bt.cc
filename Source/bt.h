@@ -1340,25 +1340,25 @@ namespace bt
 	}
 
 	template <typename D>
-	template <TCondition Condition, typename... ConditionArgs>
+	template <TCondition TCondition, typename... ConditionArgs>
 	auto& Builder<D>::Not(ConditionArgs... args)
 	{
-		return C<InvertNode>("Not", Make<Condition>(false, std::forward<ConditionArgs>(args)...));
+		return C<InvertNode>("Not", Make<TCondition>(false, std::forward<ConditionArgs>(args)...));
 	}
 
 	template <typename D>
-	template <TCondition Condition, typename... ConditionArgs>
+	template <TCondition TCondition, typename... ConditionArgs>
 	auto& Builder<D>::If(ConditionArgs&&... args)
 	{
-		auto condition = Make<Condition>(false, std::forward<ConditionArgs>(args)...);
+		auto condition = Make<TCondition>(false, std::forward<ConditionArgs>(args)...);
 		return C<ConditionalRunNode>(std::move(condition), "If");
 	}
 
 	template <typename D>
-	template <TCondition Condition, typename... ConditionArgs>
+	template <TCondition TCondition, typename... ConditionArgs>
 	auto& Builder<D>::Case(ConditionArgs&&... args)
 	{
-		auto condition = Make<Condition>(false, std::forward<ConditionArgs>(args)...);
+		auto condition = Make<TCondition>(false, std::forward<ConditionArgs>(args)...);
 		return C<ConditionalRunNode>(std::move(condition), "Case");
 	}
 
@@ -1400,7 +1400,7 @@ namespace bt
 		if (!skipActtach)
 			OnNodeAttach<T>(*p, root);
 		return p;
-	};
+	}
 
 } // namespace bt
 
