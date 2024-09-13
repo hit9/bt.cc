@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "bt.h"
-#include "third_party/blinker.h"
+#include "third_party/Blinker.h"
 
 // Max number of nodes in the board.
 const std::size_t N = 1024;
@@ -22,7 +22,7 @@ struct Blackboard
 };
 
 // Signal board
-blinker::Board<N> board;
+Blinker::Board<N> board;
 
 // Signals (shared ptrs)
 auto signalAA = board.NewSignal("a.a");
@@ -33,7 +33,7 @@ class OnSignalNode : public bt::DecoratorNode
 {
 private:
 	// Connection to subscrible signals
-	std::unique_ptr<blinker::Connection<N>> connection;
+	std::unique_ptr<Blinker::Connection<N>> connection;
 
 public:
 	OnSignalNode(const std::string& name, std::initializer_list<std::string_view> patterns)
@@ -47,7 +47,7 @@ public:
 	{
 		auto status = bt::Status::FAILURE;
 		// Poll interested signals from board
-		connection->Poll([&](const blinker::SignalId id, std::any data) {
+		connection->Poll([&](const Blinker::SignalId id, std::any data) {
 			auto blackboard = std::any_cast<std::shared_ptr<Blackboard>>(ctx.data);
 			blackboard->signalData = data;
 			status = child->Tick(ctx);

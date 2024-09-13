@@ -48,7 +48,7 @@ jobs:
       run: conan profile detect
 
     - name: Install Requirements
-      working-directory: ./tests
+      working-directory: ./Tests
       run: >
         conan install .
         --output-folder=./build
@@ -56,7 +56,7 @@ jobs:
         -s build_type=${{ matrix.build_type }}
 
     - name: Configure CMake
-      working-directory: ./tests
+      working-directory: ./Tests
       run: >
         cmake -B build -S .
         -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
@@ -65,17 +65,17 @@ jobs:
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
 
     - name: Build Tests
-      working-directory: ./tests/build
+      working-directory: ./Tests/build
       run: make bt_tests
 
     - name: Run Tests
-      working-directory: ./tests/build
+      working-directory: ./Tests/build
       run: ctest --test-dir . --output-on-failure
 
     - name: Build benchmark
-      working-directory: ./tests/build
+      working-directory: ./Tests/build
       run: make bt_benchmark
 
     - name: Run Benchmark
-      working-directory: ./tests/build
+      working-directory: ./Tests/build
       run: ./bt_benchmark

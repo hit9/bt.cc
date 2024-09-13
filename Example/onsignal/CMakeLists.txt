@@ -4,7 +4,7 @@ project(bt_example_onsignal CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories("../..")
+include_directories("../../Source")
 
 # Targets
-add_executable(bt_example_onsignal main.cc ../../bt.cc)
+add_executable(bt_example_onsignal main.cc ../../Source/bt.cc)
