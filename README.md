@@ -11,11 +11,11 @@ A lightweight behavior tree library that separates data and behavior.
 
 Requires at least C++20.
 
-![](misc/visualization.jpg)
+![](Misc/visualization.jpg)
 
 ## Installation
 
-Copy away `bt.h` and `bt.cc`.
+Copy away `bt.h` and `bt.cc` in the `Source` folder.
 
 ## Features
 

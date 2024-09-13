@@ -9,11 +9,11 @@
 
 需要至少 C++20
 
-![](misc/visualization.jpg)
+![](Misc/visualization.jpg)
 
 ## 安装
 
-只需要拷贝走 `bt.h` 和 `bt.cc`
+只需要拷贝走 `Source` 目录下的 `bt.h` 和 `bt.cc`
 
 ## 特点
 
