@@ -12,7 +12,7 @@ include_directories("../Source" ".")
 find_package(Catch2 CONFIG REQUIRED)
 
 # Targets
-file(GLOB TEST_SOURCES *_test.cc ..Source/bt.cc)
+file(GLOB TEST_SOURCES *_test.cc ../Source/bt.cc)
 file(GLOB BENCHMARK_SOURCES *_benchmark.cc ../Source/bt.cc)
 add_executable(bt_tests ${TEST_SOURCES})
 add_executable(bt_benchmark ${BENCHMARK_SOURCES})
