@@ -16,17 +16,17 @@ namespace bt
 	/// TreeBlob
 	/////////////////
 
-	std::pair<void*, bool> ITreeBlob::make(const NodeId id, const size_t size, const std::size_t cap)
+	std::pair<void*, bool> ITreeBlob::Make(const NodeId id, const size_t size, const std::size_t cap)
 	{
 		if (cap)
-			reserve(cap);
+			Reserve(cap);
 		std::size_t idx = id - 1;
-		if (exist(idx))
-			return { get(idx), false };
-		return { allocate(idx, size), true };
+		if (Exist(idx))
+			return { Get(idx), false };
+		return { Allocate(idx, size), true };
 	}
 
-	void* DynamicTreeBlob::allocate(const std::size_t idx, const std::size_t size)
+	void* DynamicTreeBlob::Allocate(const std::size_t idx, const std::size_t size)
 	{
 		if (m.size() <= idx)
 		{
@@ -41,7 +41,7 @@ namespace bt
 		return rp;
 	}
 
-	void DynamicTreeBlob::reserve(const std::size_t cap)
+	void DynamicTreeBlob::Reserve(const std::size_t cap)
 	{
 		if (m.capacity() < cap)
 		{
@@ -71,7 +71,7 @@ namespace bt
 		return 'U';
 	}
 
-	void Node::makeVisualizeString(std::string& s, int depth, ull seq)
+	void Node::MakeVisualizeString(std::string& s, int depth, ull seq)
 	{
 		const auto* b = GetNodeBlob();
 		if (depth > 0)
@@ -134,13 +134,13 @@ namespace bt
 	/// Node > InternalNode > SingleNode
 	////////////////////////////////////////////////
 
-	void SingleNode::makeVisualizeString(std::string& s, int depth, ull seq)
+	void SingleNode::MakeVisualizeString(std::string& s, int depth, ull seq)
 	{
-		Node::makeVisualizeString(s, depth, seq);
+		Node::MakeVisualizeString(s, depth, seq);
 		if (child != nullptr)
 		{
 			s.push_back('\n');
-			child->makeVisualizeString(s, depth + 1, seq);
+			child->MakeVisualizeString(s, depth + 1, seq);
 		}
 	}
 
@@ -156,15 +156,15 @@ namespace bt
 	/// Node > InternalNode > CompositeNode
 	////////////////////////////////////////////////
 
-	void CompositeNode::makeVisualizeString(std::string& s, int depth, ull seq)
+	void CompositeNode::MakeVisualizeString(std::string& s, int depth, ull seq)
 	{
-		Node::makeVisualizeString(s, depth, seq);
+		Node::MakeVisualizeString(s, depth, seq);
 		for (auto& child : children)
 		{
 			if (child != nullptr)
 			{
 				s.push_back('\n');
-				child->makeVisualizeString(s, depth + 1, seq);
+				child->MakeVisualizeString(s, depth + 1, seq);
 			}
 		}
 	}
@@ -182,7 +182,7 @@ namespace bt
 	{
 		unsigned int ans = 0;
 		for (int i = 0; i < children.size(); i++)
-			if (considerable(i))
+			if (Considerable(i))
 				ans = std::max(ans, children[i]->GetPriorityCurrentTick(ctx));
 		return ans;
 	}
@@ -191,19 +191,19 @@ namespace bt
 	/// Node > InternalNode > CompositeNode > _Internal Impls
 	///////////////////////////////////////////////////////////////
 
-	void _InternalStatefulCompositeNode::OnTerminate(const Context& ctx, Status status)
+	void InternalStatefulCompositeNode::OnTerminate(const Context& ctx, Status status)
 	{
-		auto& t = getNodeBlob<Blob>()->st;
+		auto& t = GetNodeBlobHelper<Blob>()->st;
 		std::fill(t.begin(), t.end(), false);
 	}
 
-	void _InternalStatefulCompositeNode::OnBlobAllocated(NodeBlob* blob) const
+	void InternalStatefulCompositeNode::OnBlobAllocated(NodeBlob* blob) const
 	{
 		auto ptr = static_cast<Blob*>(blob);
 		ptr->st.resize(children.size(), false);
 	}
 
-	_MixedQueueHelper::_MixedQueueHelper(Cmp cmp, const std::size_t n)
+	MixedQueueHelper::MixedQueueHelper(Cmp cmp, const std::size_t n)
 		: use1(false)
 	{
 		// reserve capacity for q1.
@@ -212,10 +212,10 @@ namespace bt
 		// reserve capacity for q2.
 		decltype(q2) _q2(cmp);
 		q2.swap(_q2);
-		q2.reserve(n);
+		q2.Reserve(n);
 	}
 
-	int _MixedQueueHelper::pop()
+	int MixedQueueHelper::Pop()
 	{
 		if (use1)
 			return (*q1)[q1Front++];
@@ -224,7 +224,7 @@ namespace bt
 		return v;
 	}
 
-	void _MixedQueueHelper::push(int v)
+	void MixedQueueHelper::Push(int v)
 	{
 		if (use1)
 		{
@@ -235,14 +235,14 @@ namespace bt
 		q2.push(v);
 	}
 
-	bool _MixedQueueHelper::empty() const
+	bool MixedQueueHelper::Empty() const
 	{
 		if (use1)
 			return q1Front == q1->size();
 		return q2.empty();
 	}
 
-	void _MixedQueueHelper::clear()
+	void MixedQueueHelper::Clear()
 	{
 		if (use1)
 		{
@@ -252,16 +252,16 @@ namespace bt
 			q1Front = 0;
 			return;
 		}
-		q2.clear();
+		q2.Clear();
 	}
 
-	void _MixedQueueHelper::setQ1Container(std::vector<int>* c)
+	void MixedQueueHelper::SetQ1Container(std::vector<int>* c)
 	{
 		q1 = c;
 		q1Front = 0;
 	}
 
-	void _InternalPriorityCompositeNode::refresh(const Context& ctx)
+	void InternalPriorityCompositeNode::Refresh(const Context& ctx)
 	{
 		areAllEqual = true;
 		// v is the first valid priority value.
@@ -269,7 +269,7 @@ namespace bt
 
 		for (int i = 0; i < children.size(); i++)
 		{
-			if (!considerable(i))
+			if (!Considerable(i))
 				continue;
 			p[i] = children[i]->GetPriorityCurrentTick(ctx);
 			if (!v)
@@ -279,32 +279,32 @@ namespace bt
 		}
 	}
 
-	void _InternalPriorityCompositeNode::enqueue()
+	void InternalPriorityCompositeNode::Enqueue()
 	{
 		// if all priorities are equal, use q1 O(N)
 		// otherwise, use q2 O(n*logn)
-		q.setflag(areAllEqual);
+		q.SetFlag(areAllEqual);
 
 		// We have to consider all children, and all priorities are equal,
 		// then, we should just use a pre-exist vector to avoid a O(n) copy to q1.
-		if ((!isParatialConsidered()) && areAllEqual)
+		if ((!IsParatialConsidered()) && areAllEqual)
 		{
-			q.setQ1Container(&simpleQ1Container);
+			q.SetQ1Container(&simpleQ1Container);
 			return; // no need to perform enqueue
 		}
 
-		q.resetQ1Container();
+		q.ResetQ1Container();
 
 		// Clear and enqueue.
-		q.clear();
+		q.Clear();
 		for (int i = 0; i < children.size(); i++)
-			if (considerable(i))
-				q.push(i);
+			if (Considerable(i))
+				q.Push(i);
 	}
 
-	void _InternalPriorityCompositeNode::internalOnBuild()
+	void InternalPriorityCompositeNode::InternalOnBuild()
 	{
-		CompositeNode::internalOnBuild();
+		CompositeNode::InternalOnBuild();
 		// pre-allocate capacity for p.
 		p.resize(children.size());
 		// initialize simpleQ1Container;
@@ -314,38 +314,38 @@ namespace bt
 		// priority from large to smaller, so use `less`: pa < pb
 		// order: from small to larger, so use `greater`: a > b
 		auto cmp = [&](const int a, const int b) { return p[a] < p[b] || a > b; };
-		q = _MixedQueueHelper(cmp, children.size());
+		q = MixedQueueHelper(cmp, children.size());
 	}
 
-	Status _InternalPriorityCompositeNode::Update(const Context& ctx)
+	Status InternalPriorityCompositeNode::Update(const Context& ctx)
 	{
-		refresh(ctx);
-		enqueue();
+		Refresh(ctx);
+		Enqueue();
 		// propagates ticks
-		return update(ctx);
+		return InternalUpdate(ctx);
 	}
 
 	//////////////////////////////////////////////////////////////
 	/// Node > InternalNode > CompositeNode > SequenceNode
 	///////////////////////////////////////////////////////////////
 
-	Status _InternalSequenceNodeBase::update(const Context& ctx)
+	Status InternalSequenceNodeBase::InternalUpdate(const Context& ctx)
 	{
 		// propagates ticks, one by one sequentially.
-		while (!q.empty())
+		while (!q.Empty())
 		{
-			auto i = q.pop();
+			auto i = q.Pop();
 			auto status = children[i]->Tick(ctx);
 			if (status == Status::RUNNING)
 				return Status::RUNNING;
 			// F if any child F.
 			if (status == Status::FAILURE)
 			{
-				onChildFailure(i);
+				OnChildFailure(i);
 				return Status::FAILURE;
 			}
 			// S
-			onChildSuccess(i);
+			OnChildSuccess(i);
 		}
 		// S if all children S.
 		return Status::SUCCESS;
@@ -355,23 +355,23 @@ namespace bt
 	/// Node > InternalNode > CompositeNode > SelectorNode
 	///////////////////////////////////////////////////////////////
 
-	Status _InternalSelectorNodeBase::update(const Context& ctx)
+	Status InternalSelectorNodeBase::InternalUpdate(const Context& ctx)
 	{
 		// select a success children.
-		while (!q.empty())
+		while (!q.Empty())
 		{
-			auto i = q.pop();
+			auto i = q.Pop();
 			auto status = children[i]->Tick(ctx);
 			if (status == Status::RUNNING)
 				return Status::RUNNING;
 			// S if any child S.
 			if (status == Status::SUCCESS)
 			{
-				onChildSuccess(i);
+				OnChildSuccess(i);
 				return Status::SUCCESS;
 			}
 			// F
-			onChildFailure(i);
+			OnChildFailure(i);
 		}
 		// F if all children F.
 		return Status::FAILURE;
@@ -383,13 +383,13 @@ namespace bt
 
 	static std::mt19937 rng(std::random_device{}()); // seed random
 
-	Status _InternalRandomSelectorNodeBase::Update(const Context& ctx)
+	Status InternalRandomSelectorNodeBase::Update(const Context& ctx)
 	{
-		refresh(ctx);
+		Refresh(ctx);
 		// Sum of weights/priorities.
 		unsigned int total = 0;
 		for (int i = 0; i < children.size(); i++)
-			if (considerable(i))
+			if (Considerable(i))
 				total += p[i];
 
 		// random select one, in range [1, total]
@@ -400,7 +400,7 @@ namespace bt
 			unsigned int s = 0;					// sum of iterated children.
 			for (int i = 0; i < children.size(); i++)
 			{
-				if (!considerable(i))
+				if (!Considerable(i))
 					continue;
 				s += p[i];
 				if (v <= s)
@@ -421,11 +421,11 @@ namespace bt
 			// S if any child S.
 			if (status == Status::SUCCESS)
 			{
-				onChildSuccess(i);
+				OnChildSuccess(i);
 				return Status::SUCCESS;
 			}
 			// Failure, it shouldn't be considered any more in this tick.
-			onChildFailure(i);
+			OnChildFailure(i);
 			// remove its weight from total, won't be consider again.
 			total -= p[i];
 			// updates the upper bound of distribution.
@@ -439,24 +439,24 @@ namespace bt
 	/// Node > InternalNode > CompositeNode > ParallelNode
 	///////////////////////////////////////////////////////////////
 
-	Status _InternalParallelNodeBase::update(const Context& ctx)
+	Status InternalParallelNodeBase::InternalUpdate(const Context& ctx)
 	{
 		// Propagates tick to all considerable children.
 		int cntFailure = 0, cntSuccess = 0, total = 0;
-		while (!q.empty())
+		while (!q.Empty())
 		{
-			auto i = q.pop();
+			auto i = q.Pop();
 			auto status = children[i]->Tick(ctx);
 			total++;
 			if (status == Status::FAILURE)
 			{
 				cntFailure++;
-				onChildFailure(i);
+				OnChildFailure(i);
 			}
 			if (status == Status::SUCCESS)
 			{
 				cntSuccess++;
-				onChildSuccess(i);
+				OnChildSuccess(i);
 			}
 		}
 
@@ -514,7 +514,7 @@ namespace bt
 		if (status == Status::FAILURE)
 			return Status::FAILURE;
 		// Count success until n times, -1 will never stop.
-		if (++(getNodeBlob<Blob>()->cnt) == n)
+		if (++(GetNodeBlobHelper<Blob>()->cnt) == n)
 			return Status::SUCCESS;
 		// Otherwise, it's still running.
 		return Status::RUNNING;
@@ -522,52 +522,52 @@ namespace bt
 
 	void TimeoutNode::OnEnter(const Context& ctx)
 	{
-		getNodeBlob<Blob>()->startAt = std::chrono::steady_clock::now();
+		GetNodeBlobHelper<Blob>()->startAt = std::chrono::steady_clock::now();
 	}
 
 	Status TimeoutNode::Update(const Context& ctx)
 	{
 		// Check if timeout at first.
 		auto now = std::chrono::steady_clock::now();
-		if (now > getNodeBlob<Blob>()->startAt + duration)
+		if (now > GetNodeBlobHelper<Blob>()->startAt + duration)
 			return Status::FAILURE;
 		return child->Tick(ctx);
 	}
 
 	void DelayNode::OnEnter(const Context& ctx)
 	{
-		getNodeBlob<Blob>()->firstRunAt = std::chrono::steady_clock::now();
+		GetNodeBlobHelper<Blob>()->firstRunAt = std::chrono::steady_clock::now();
 	}
 	void DelayNode::OnTerminate(const Context& ctx, Status status)
 	{
-		getNodeBlob<Blob>()->firstRunAt = Timepoint::min();
+		GetNodeBlobHelper<Blob>()->firstRunAt = Timepoint::min();
 	}
 
 	Status DelayNode::Update(const Context& ctx)
 	{
 		auto now = std::chrono::steady_clock::now();
-		if (now < getNodeBlob<Blob>()->firstRunAt + duration)
+		if (now < GetNodeBlobHelper<Blob>()->firstRunAt + duration)
 			return Status::RUNNING;
 		return child->Tick(ctx);
 	}
 
 	void RetryNode::OnEnter(const Context& ctx)
 	{
-		auto b = getNodeBlob<Blob>();
+		auto b = GetNodeBlobHelper<Blob>();
 		b->cnt = 0;
 		b->lastRetryAt = Timepoint::min();
 	}
 
 	void RetryNode::OnTerminate(const Context& ctx, Status status)
 	{
-		auto b = getNodeBlob<Blob>();
+		auto b = GetNodeBlobHelper<Blob>();
 		b->cnt = 0;
 		b->lastRetryAt = status == Status::FAILURE ? std::chrono::steady_clock::now() : Timepoint::min();
 	}
 
 	Status RetryNode::Update(const Context& ctx)
 	{
-		auto b = getNodeBlob<Blob>();
+		auto b = GetNodeBlobHelper<Blob>();
 
 		if (maxRetries != -1 && b->cnt > maxRetries)
 			return Status::FAILURE;
@@ -614,7 +614,7 @@ namespace bt
 		printf("\x1B[2J\x1B[H");
 		// Make a string.
 		std::string s;
-		makeVisualizeString(s, 0, seq);
+		MakeVisualizeString(s, 0, seq);
 		printf("%s", s.c_str());
 	}
 
@@ -649,13 +649,13 @@ namespace bt
 	/// Tree Builder
 	///////////////////////////////////////////////////////////////
 
-	void _InternalBuilderBase::maintainNodeBindInfo(Node& node, RootNode* root)
+	void InternalBuilderBase::MaintainNodeBindInfo(Node& node, RootNode* root)
 	{
 		node.root = root;
 		root->n++;
 		node.id = ++nextNodeId;
 	}
-	void _InternalBuilderBase::maintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize,
+	void InternalBuilderBase::MaintainSizeInfoOnRootBind(RootNode* root, std::size_t rootNodeSize,
 		std::size_t blobSize)
 	{
 		root->size = rootNodeSize;
@@ -664,34 +664,34 @@ namespace bt
 		root->maxSizeNodeBlob = blobSize;
 	}
 
-	void _InternalBuilderBase::maintainSizeInfoOnSubtreeAttach(const RootNode& subtree, RootNode* root)
+	void InternalBuilderBase::MaintainSizeInfoOnSubtreeAttach(const RootNode& subtree, RootNode* root)
 	{
 		root->treeSize += subtree.treeSize;
 		root->maxSizeNode = std::max(root->maxSizeNode, subtree.maxSizeNode);
 		root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, subtree.maxSizeNodeBlob);
 	}
 
-	void _InternalBuilderBase::onRootAttach(RootNode* root, std::size_t size, std::size_t blobSize)
+	void InternalBuilderBase::OnRootAttach(RootNode* root, std::size_t size, std::size_t blobSize)
 	{
-		maintainNodeBindInfo(*root, root);
-		maintainSizeInfoOnRootBind(root, size, blobSize);
+		MaintainNodeBindInfo(*root, root);
+		MaintainSizeInfoOnRootBind(root, size, blobSize);
 	}
 
-	void _InternalBuilderBase::onSubtreeAttach(RootNode& subtree, RootNode* root)
+	void InternalBuilderBase::OnSubtreeAttach(RootNode& subtree, RootNode* root)
 	{
 		// Resets root in sub tree recursively.
-		TraversalCallback pre = [&](Node& node, Ptr<Node>& ptr) { maintainNodeBindInfo(node, root); };
+		TraversalCallback pre = [&](Node& node, Ptr<Node>& ptr) { MaintainNodeBindInfo(node, root); };
 		subtree.Traverse(pre, NullTraversalCallback, NullNodePtr);
-		maintainSizeInfoOnSubtreeAttach(subtree, root);
+		MaintainSizeInfoOnSubtreeAttach(subtree, root);
 	}
 
-	void _InternalBuilderBase::onNodeBuild(Node* node)
+	void InternalBuilderBase::OnNodeBuild(Node* node)
 	{
-		node->internalOnBuild();
+		node->InternalOnBuild();
 		node->OnBuild();
 	}
 
-	void _InternalBuilderBase::_maintainSizeInfoOnNodeAttach(Node& node, RootNode* root, std::size_t nodeSize,
+	void InternalBuilderBase::MaintainSizeInfoOnNodeAttach(Node& node, RootNode* root, std::size_t nodeSize,
 		std::size_t nodeBlobSize)
 	{
 		node.size = nodeSize;
@@ -700,7 +700,7 @@ namespace bt
 		root->maxSizeNodeBlob = std::max(root->maxSizeNodeBlob, nodeBlobSize);
 	}
 
-	void _InternalBuilderBase::validate(const Node* node)
+	void InternalBuilderBase::Validate(const Node* node)
 	{
 		auto e = node->Validate();
 		if (!e.empty())
@@ -712,7 +712,7 @@ namespace bt
 			throw std::runtime_error(s);
 		}
 	}
-	void _InternalBuilderBase::validateIndent()
+	void InternalBuilderBase::ValidateIndent()
 	{
 		if (level > stack.size())
 		{
@@ -724,33 +724,33 @@ namespace bt
 		}
 	}
 
-	void _InternalBuilderBase::pop()
+	void InternalBuilderBase::Pop()
 	{
-		validate(stack.top()); // validate before pop
-		onNodeBuild(stack.top());
+		Validate(stack.top()); // validate before pop
+		OnNodeBuild(stack.top());
 		stack.pop();
 	}
 
 	// Adjust stack to current indent level.
-	void _InternalBuilderBase::adjust()
+	void InternalBuilderBase::Adjust()
 	{
-		validateIndent();
+		ValidateIndent();
 		while (level < stack.size())
-			pop();
+			Pop();
 	}
-	void _InternalBuilderBase::attachLeafNode(Ptr<LeafNode> p)
+	void InternalBuilderBase::AttachLeafNode(Ptr<LeafNode> p)
 	{
-		adjust();
+		Adjust();
 		// Append to stack's top as a child.
-		onNodeBuild(p.get());
+		OnNodeBuild(p.get());
 		stack.top()->Append(std::move(p));
 		// resets level.
 		level = 1;
 	}
 
-	void _InternalBuilderBase::attachInternalNode(Ptr<InternalNode> p)
+	void InternalBuilderBase::AttachInternalNode(Ptr<InternalNode> p)
 	{
-		adjust();
+		Adjust();
 		// Append to stack's top as a child, and replace the top.
 		auto parent = stack.top();
 		stack.push(p.get()); // cppcheck-suppress danglingLifetime

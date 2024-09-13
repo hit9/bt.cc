@@ -107,7 +107,7 @@ class MyTree : public bt::RootNode, public bt::Builder<MyTree>
 {
 public:
 	MyTree(std::string name = "Root")
-		: bt::RootNode(name) { bindRoot(*this); }
+		: bt::RootNode(name) { BindRoot(*this); }
 	auto& OnSignal(std::initializer_list<std::string_view> patterns)
 	{
 		return C<OnSignalNode>("OnSignal", patterns);

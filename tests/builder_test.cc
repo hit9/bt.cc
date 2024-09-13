@@ -28,7 +28,7 @@ class MyTree : public bt::RootNode, public bt::Builder<MyTree>
 {
 public:
 	MyTree(std::string_view name = "Root")
-		: bt::RootNode(name), Builder() { bindRoot(*this); }
+		: bt::RootNode(name), Builder() { BindRoot(*this); }
 	auto& Counter() { return C<CounterDecorator>(); }
 };
 
