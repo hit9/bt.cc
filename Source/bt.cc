@@ -50,12 +50,22 @@ namespace bt
 		}
 	}
 
+	bool DynamicTreeBlob::Exist(const std::size_t idx)
+	{
+		return e.size() > idx && e[idx];
+	}
+
+	void* DynamicTreeBlob::Get(const std::size_t idx)
+	{
+		return m[idx].get();
+	}
+
 	////////////////////////////
 	/// Node
 	////////////////////////////
 
 	// Returns char representation of given status.
-	static const char statusRepr(Status s)
+	static const char StatusRepr(Status s)
 	{
 		switch (s)
 		{
@@ -84,7 +94,7 @@ namespace bt
 			s += "\033[32m"; // color if catches up with seq.
 		s += Name();
 		s.push_back('(');
-		s.push_back(statusRepr(b->lastStatus));
+		s.push_back(StatusRepr(b->lastStatus));
 		s.push_back(')');
 		if (b->lastSeq == seq)
 			s += "\033[0m";
@@ -130,9 +140,29 @@ namespace bt
 		return status;
 	}
 
+	////////////////////////////////////
+	/// Node > LeafNode > ConditionNode
+	/////////////////////////////////////
+
+	ConditionNode::ConditionNode(Checker checker, std::string_view name)
+		: LeafNode(name), checker(checker) {}
+
+	Status ConditionNode::Update(const Context& ctx)
+	{
+		return Check(ctx) ? Status::SUCCESS : Status::FAILURE;
+	}
+
+	bool ConditionNode::Check(const Context& ctx)
+	{
+		return checker != nullptr && checker(ctx);
+	}
+
 	////////////////////////////////////////////////
 	/// Node > InternalNode > SingleNode
 	////////////////////////////////////////////////
+
+	SingleNode::SingleNode(std::string_view name, Ptr<Node> child)
+		: InternalNode(name), child(std::move(child)) {}
 
 	void SingleNode::MakeVisualizeString(std::string& s, int depth, ull seq)
 	{
@@ -152,9 +182,30 @@ namespace bt
 		post(*this, ptr);
 	}
 
+	std::string_view SingleNode::Validate() const
+	{
+		return child == nullptr ? "no child node provided" : "";
+	}
+
+	void SingleNode::Append(Ptr<Node> node)
+	{
+		child = std::move(node);
+	}
+
+	unsigned int SingleNode::Priority(const Context& ctx) const
+	{
+		return child->GetPriorityCurrentTick(ctx);
+	}
+
 	////////////////////////////////////////////////
 	/// Node > InternalNode > CompositeNode
 	////////////////////////////////////////////////
+
+	CompositeNode::CompositeNode(std::string_view name, PtrList<Node>&& cs)
+		: InternalNode(name)
+	{
+		children.swap(cs);
+	}
 
 	void CompositeNode::MakeVisualizeString(std::string& s, int depth, ull seq)
 	{
@@ -187,9 +238,29 @@ namespace bt
 		return ans;
 	}
 
+	void CompositeNode::Append(Ptr<Node> node)
+	{
+		children.push_back(std::move(node));
+	}
+
+	std::string_view CompositeNode::Validate() const
+	{
+		return children.empty() ? "children empty" : "";
+	}
+
 	//////////////////////////////////////////////////////////////
-	/// Node > InternalNode > CompositeNode > _Internal Impls
+	/// Node > InternalNode > CompositeNode > Internal Impls
 	///////////////////////////////////////////////////////////////
+
+	bool InternalStatefulCompositeNode::Considerable(int i) const
+	{
+		return !(GetNodeBlobHelper<Blob>()->st[i]);
+	}
+
+	void InternalStatefulCompositeNode::Skip(const int i)
+	{
+		GetNodeBlobHelper<Blob>()->st[i] = true;
+	}
 
 	void InternalStatefulCompositeNode::OnTerminate(const Context& ctx, Status status)
 	{
@@ -329,6 +400,9 @@ namespace bt
 	/// Node > InternalNode > CompositeNode > SequenceNode
 	///////////////////////////////////////////////////////////////
 
+	SequenceNode::SequenceNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+
 	Status InternalSequenceNodeBase::InternalUpdate(const Context& ctx)
 	{
 		// propagates ticks, one by one sequentially.
@@ -351,9 +425,20 @@ namespace bt
 		return Status::SUCCESS;
 	}
 
+	StatefulSequenceNode::StatefulSequenceNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+
+	void StatefulSequenceNode::OnChildSuccess(const int i)
+	{
+		Skip(i);
+	}
+
 	//////////////////////////////////////////////////////////////
 	/// Node > InternalNode > CompositeNode > SelectorNode
 	///////////////////////////////////////////////////////////////
+
+	SelectorNode::SelectorNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
 
 	Status InternalSelectorNodeBase::InternalUpdate(const Context& ctx)
 	{
@@ -377,9 +462,20 @@ namespace bt
 		return Status::FAILURE;
 	}
 
+	StatefulSelectorNode::StatefulSelectorNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+
+	void StatefulSelectorNode::OnChildFailure(const int i)
+	{
+		Skip(i);
+	}
+
 	//////////////////////////////////////////////////////////////
 	/// Node > InternalNode > CompositeNode > RandomSelectorNode
 	///////////////////////////////////////////////////////////////
+
+	RandomSelectorNode::RandomSelectorNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
 
 	static std::mt19937 rng(std::random_device{}()); // seed random
 
@@ -435,9 +531,20 @@ namespace bt
 		return Status::FAILURE;
 	}
 
+	StatefulRandomSelectorNode::StatefulRandomSelectorNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+
+	void StatefulRandomSelectorNode::OnChildFailure(const int i)
+	{
+		Skip(i);
+	}
+
 	//////////////////////////////////////////////////////////////
 	/// Node > InternalNode > CompositeNode > ParallelNode
 	///////////////////////////////////////////////////////////////
+
+	ParallelNode::ParallelNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
 
 	Status InternalParallelNodeBase::InternalUpdate(const Context& ctx)
 	{
@@ -469,9 +576,23 @@ namespace bt
 		return Status::RUNNING;
 	}
 
+	StatefulParallelNode::StatefulParallelNode(std::string_view name, PtrList<Node>&& cs)
+		: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+
+	void StatefulParallelNode::OnChildSuccess(const int i)
+	{
+		Skip(i);
+	}
+
 	//////////////////////////////////////////////////////////////
 	/// Node > InternalNode > CompositeNode > Decorator
 	///////////////////////////////////////////////////////////////
+
+	DecoratorNode::DecoratorNode(std::string_view name, Ptr<Node> child)
+		: SingleNode(name, std::move(child)) {}
+
+	InvertNode::InvertNode(std::string_view name, Ptr<Node> child)
+		: DecoratorNode(name, std::move(child)) {}
 
 	Status InvertNode::Update(const Context& ctx)
 	{
@@ -486,6 +607,10 @@ namespace bt
 				return Status::FAILURE;
 		}
 	}
+
+	ConditionalRunNode::ConditionalRunNode(Ptr<ConditionNode> condition,
+		std::string_view name, Ptr<Node> child)
+		: DecoratorNode(std::string(name) + '<' + std::string(condition->Name()) + '>', std::move(child)), condition(std::move(condition)) {}
 
 	void ConditionalRunNode::Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr)
 	{
@@ -504,6 +629,9 @@ namespace bt
 		return Status::FAILURE;
 	}
 
+	RepeatNode::RepeatNode(int n, std::string_view name, Ptr<Node> child)
+		: DecoratorNode(name, std::move(child)), n(n) {}
+
 	Status RepeatNode::Update(const Context& ctx)
 	{
 		if (n == 0)
@@ -520,6 +648,30 @@ namespace bt
 		return Status::RUNNING;
 	}
 
+	NodeBlob* RepeatNode::GetNodeBlob() const
+	{
+		return GetNodeBlobHelper<Blob>();
+	}
+
+	void RepeatNode::OnEnter(const Context& ctx)
+	{
+		GetNodeBlobHelper<Blob>()->cnt = 0;
+	}
+
+	void RepeatNode::OnTerminate(const Context& ctx, Status status)
+	{
+		GetNodeBlobHelper<Blob>()->cnt = 0;
+	}
+
+	TimeoutNode::TimeoutNode(std::chrono::milliseconds d, std::string_view name,
+		Ptr<Node> child)
+		: DecoratorNode(name, std::move(child)), duration(d) {}
+
+	NodeBlob* TimeoutNode::GetNodeBlob() const
+	{
+		return GetNodeBlobHelper<Blob>();
+	}
+
 	void TimeoutNode::OnEnter(const Context& ctx)
 	{
 		GetNodeBlobHelper<Blob>()->startAt = std::chrono::steady_clock::now();
@@ -534,10 +686,20 @@ namespace bt
 		return child->Tick(ctx);
 	}
 
+	DelayNode::DelayNode(std::chrono::milliseconds duration, std::string_view name,
+		Ptr<Node> c)
+		: DecoratorNode(name, std::move(c)), duration(duration) {}
+
+	NodeBlob* DelayNode::GetNodeBlob() const
+	{
+		return GetNodeBlobHelper<Blob>();
+	}
+
 	void DelayNode::OnEnter(const Context& ctx)
 	{
 		GetNodeBlobHelper<Blob>()->firstRunAt = std::chrono::steady_clock::now();
 	}
+
 	void DelayNode::OnTerminate(const Context& ctx, Status status)
 	{
 		GetNodeBlobHelper<Blob>()->firstRunAt = Timepoint::min();
@@ -549,6 +711,15 @@ namespace bt
 		if (now < GetNodeBlobHelper<Blob>()->firstRunAt + duration)
 			return Status::RUNNING;
 		return child->Tick(ctx);
+	}
+
+	RetryNode::RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name,
+		Ptr<Node> child)
+		: DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
+
+	NodeBlob* RetryNode::GetNodeBlob() const
+	{
+		return GetNodeBlobHelper<Blob>();
 	}
 
 	void RetryNode::OnEnter(const Context& ctx)
@@ -593,10 +764,16 @@ namespace bt
 		}
 	}
 
+	ForceSuccessNode::ForceSuccessNode(std::string_view name, Ptr<Node> child)
+		: DecoratorNode(name, std::move(child)) {}
+
 	Status ForceSuccessNode::Update(const Context& ctx)
 	{
 		return (child->Update(ctx) == Status::RUNNING) ? Status::RUNNING : Status::SUCCESS;
 	}
+
+	ForceFailureNode::ForceFailureNode(std::string_view name, Ptr<Node> child)
+		: DecoratorNode(name, std::move(child)) {}
 
 	Status ForceFailureNode::Update(const Context& ctx)
 	{
@@ -606,6 +783,14 @@ namespace bt
 	//////////////////////////////////////////////////////////////
 	/// Node > SingleNode > RootNode
 	///////////////////////////////////////////////////////////////
+
+	RootNode::RootNode(std::string_view name)
+		: SingleNode(name) {}
+
+	Status RootNode::Update(const Context& ctx)
+	{
+		return child->Tick(ctx);
+	}
 
 	void RootNode::Visualize(ull seq)
 	{
@@ -757,6 +942,16 @@ namespace bt
 		parent->Append(std::move(p));
 		// resets level.
 		level = 1;
+	}
+
+	//////////////////////////////////////////////////////////////
+	/// Tree
+	///////////////////////////////////////////////////////////////
+
+	Tree::Tree(std::string_view name)
+		: RootNode(name), Builder()
+	{
+		BindRoot(*this);
 	}
 
 } // namespace bt

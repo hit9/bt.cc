@@ -87,16 +87,7 @@ namespace bt
 		// Allocates if not exist.
 		// Parameter cb is an optional function to be called after the blob is first allocated.
 		template <TNodeBlob B>
-		B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0)
-		{
-			auto [p, b] = Make(id, sizeof(B), cap);
-			if (!b)
-				return static_cast<B*>(p);
-			auto q = new (p) B(); // call constructor
-			if (cb != nullptr)
-				cb(q);
-			return q;
-		}
+		B* Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap = 0);
 
 	protected:
 		// Allocates memory for given index, returns the pointer to the node blob.
@@ -121,21 +112,12 @@ namespace bt
 	class FixedTreeBlob final : public ITreeBlob
 	{
 	public:
-		FixedTreeBlob() { memset(buf, 0, sizeof(buf)); }
+		FixedTreeBlob();
 
 	protected:
-		void* Allocate(const std::size_t idx, const std::size_t size) override
-		{
-			if (idx >= NumNodes)
-				throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
-			if (size > MaxSizeNodeBlob)
-				throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
-			buf[idx][0] = true;
-			return Get(idx);
-		}
-
-		bool  Exist(const std::size_t idx) override { return static_cast<bool>(buf[idx][0]); }
-		void* Get(const std::size_t idx) override { return &buf[idx][1]; }
+		void* Allocate(const std::size_t idx, const std::size_t size) override;
+		bool  Exist(const std::size_t idx) override;
+		void* Get(const std::size_t idx) override;
 
 	private:
 		unsigned char buf[NumNodes][MaxSizeNodeBlob + 1];
@@ -149,8 +131,8 @@ namespace bt
 
 	protected:
 		void* Allocate(const std::size_t idx, const std::size_t size) override;
-		bool  Exist(const std::size_t idx) override { return e.size() > idx && e[idx]; }
-		void* Get(const std::size_t idx) override { return m[idx].get(); }
+		bool  Exist(const std::size_t idx) override;
+		void* Get(const std::size_t idx) override;
 		void  Reserve(const std::size_t cap) override;
 
 	private:
@@ -187,6 +169,7 @@ namespace bt
 	// Type of the callback function for node traversal.
 	// Parameters: current walking node and its unique pointer from parent (NullNodePtr for root).
 	using TraversalCallback = std::function<void(Node& currentNode, Ptr<Node>& currentNodePtr)>;
+
 	static TraversalCallback NullTraversalCallback = [](Node&, Ptr<Node>&) {};
 
 	// The most base class of all behavior nodes.
@@ -281,11 +264,7 @@ namespace bt
 
 		// Internal helper method to return the raw pointer to the node blob.
 		template <TNodeBlob B>
-		B* GetNodeBlobHelper() const
-		{
-			const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
-			return root->GetTreeBlob()->Make<B>(id, cb, root->NumNodes()); // get or alloc
-		}
+		B* GetNodeBlobHelper() const;
 
 		// Internal method to visualize tree.
 		virtual void MakeVisualizeString(std::string& s, int depth, ull seq);
@@ -345,13 +324,13 @@ namespace bt
 	public:
 		using Checker = std::function<bool(const Context&)>;
 
-		explicit ConditionNode(Checker checker = nullptr, std::string_view name = "Condition")
-			: LeafNode(name), checker(checker) {}
+		explicit ConditionNode(Checker checker = nullptr, std::string_view name = "Condition");
 
-		Status Update(const Context& ctx) override { return Check(ctx) ? Status::SUCCESS : Status::FAILURE; }
+		Status Update(const Context& ctx) override;
 
 		// Check if condition is satisfied.
-		virtual bool Check(const Context& ctx) { return checker != nullptr && checker(ctx); };
+		// This method could be overrided.
+		virtual bool Check(const Context& ctx);
 
 	private:
 		Checker checker = nullptr;
@@ -414,13 +393,12 @@ namespace bt
 		void MakeVisualizeString(std::string& s, int depth, ull seq) override;
 
 	public:
-		explicit SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr)
-			: InternalNode(name), child(std::move(child)) {}
+		explicit SingleNode(std::string_view name = "SingleNode", Ptr<Node> child = nullptr);
 
 		void			 Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
-		std::string_view Validate() const override { return child == nullptr ? "no child node provided" : ""; }
-		void			 Append(Ptr<Node> node) override { child = std::move(node); }
-		unsigned int	 Priority(const Context& ctx) const override { return child->GetPriorityCurrentTick(ctx); }
+		std::string_view Validate() const override;
+		void			 Append(Ptr<Node> node) override;
+		unsigned int	 Priority(const Context& ctx) const override;
 	};
 
 	////////////////////////////////////////////////
@@ -431,14 +409,12 @@ namespace bt
 	class CompositeNode : public InternalNode
 	{
 	public:
-		explicit CompositeNode(std::string_view name = "CompositeNode", PtrList<Node>&& cs = {})
-			: InternalNode(name)
-		{
-			children.swap(cs);
-		}
+		explicit CompositeNode(std::string_view name = "CompositeNode", PtrList<Node>&& cs = {});
+
 		void			 Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
-		void			 Append(Ptr<Node> node) override { children.push_back(std::move(node)); }
-		std::string_view Validate() const override { return children.empty() ? "children empty" : ""; }
+		void			 Append(Ptr<Node> node) override;
+		std::string_view Validate() const override;
+
 		// Returns the max priority of considerable children.
 		unsigned int Priority(const Context& ctx) const final override;
 
@@ -480,8 +456,8 @@ namespace bt
 
 	protected:
 		bool IsParatialConsidered() const override { return true; }
-		bool Considerable(int i) const override { return !(GetNodeBlobHelper<Blob>()->st[i]); }
-		void Skip(const int i) { GetNodeBlobHelper<Blob>()->st[i] = true; }
+		bool Considerable(int i) const override;
+		void Skip(const int i);
 	};
 
 	// MixedQueueHelper is a helper queue wrapper for InternalPriorityCompositeNode .
@@ -582,8 +558,7 @@ namespace bt
 	class SequenceNode final : public InternalSequenceNodeBase
 	{
 	public:
-		explicit SequenceNode(std::string_view name = "Sequence", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit SequenceNode(std::string_view name = "Sequence", PtrList<Node>&& cs = {});
 	};
 
 	// StatefulSequenceNode behaves like a SequenceNode, but instead of ticking children from the first, it
@@ -593,11 +568,10 @@ namespace bt
 		public InternalSequenceNodeBase
 	{
 	protected:
-		void OnChildSuccess(const int i) override { Skip(i); }
+		void OnChildSuccess(const int i) override;
 
 	public:
-		explicit StatefulSequenceNode(std::string_view name = "Sequence*", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit StatefulSequenceNode(std::string_view name = "Sequence*", PtrList<Node>&& cs = {});
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -614,20 +588,20 @@ namespace bt
 	class SelectorNode final : public InternalSelectorNodeBase
 	{
 	public:
-		explicit SelectorNode(std::string_view name = "Selector", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit SelectorNode(std::string_view name = "Selector", PtrList<Node>&& cs = {});
 	};
 
 	// StatefulSelectorNode behaves like a SelectorNode, but instead of ticking children from the first, it
 	// starts from the running child instead.
-	class StatefulSelectorNode : public InternalStatefulCompositeNode, public InternalSelectorNodeBase
+	class StatefulSelectorNode :
+		public InternalStatefulCompositeNode,
+		public InternalSelectorNodeBase
 	{
-	protected:
-		void OnChildFailure(const int i) override { Skip(i); }
-
 	public:
-		explicit StatefulSelectorNode(std::string_view name = "Selector*", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit StatefulSelectorNode(std::string_view name = "Selector*", PtrList<Node>&& cs = {});
+
+	protected:
+		void OnChildFailure(const int i) override;
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -645,8 +619,7 @@ namespace bt
 	class RandomSelectorNode final : public InternalRandomSelectorNodeBase
 	{
 	public:
-		explicit RandomSelectorNode(std::string_view name = "RandomSelector", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit RandomSelectorNode(std::string_view name = "RandomSelector", PtrList<Node>&& cs = {});
 	};
 
 	// StatefulRandomSelectorNode behaves like RandomSelectorNode.
@@ -655,12 +628,11 @@ namespace bt
 		virtual public InternalStatefulCompositeNode,
 		virtual public InternalRandomSelectorNodeBase
 	{
-	protected:
-		void OnChildFailure(const int i) override { Skip(i); }
-
 	public:
-		explicit StatefulRandomSelectorNode(std::string_view name = "RandomSelector*", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit StatefulRandomSelectorNode(std::string_view name = "RandomSelector*", PtrList<Node>&& cs = {});
+
+	protected:
+		void OnChildFailure(const int i) override;
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -678,8 +650,7 @@ namespace bt
 	class ParallelNode final : public InternalParallelNodeBase
 	{
 	public:
-		explicit ParallelNode(std::string_view name = "Parallel", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit ParallelNode(std::string_view name = "Parallel", PtrList<Node>&& cs = {});
 	};
 
 	// StatefulParallelNode behaves like a ParallelNode, but instead of ticking every child, it only tick the
@@ -688,12 +659,11 @@ namespace bt
 		public InternalStatefulCompositeNode,
 		public InternalParallelNodeBase
 	{
-	protected:
-		void OnChildSuccess(const int i) override { Skip(i); }
-
 	public:
-		explicit StatefulParallelNode(std::string_view name = "Parallel*", PtrList<Node>&& cs = {})
-			: CompositeNode(name, std::move(cs)), InternalPriorityCompositeNode() {}
+		explicit StatefulParallelNode(std::string_view name = "Parallel*", PtrList<Node>&& cs = {});
+
+	protected:
+		void OnChildSuccess(const int i);
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -704,8 +674,7 @@ namespace bt
 	class DecoratorNode : public SingleNode
 	{
 	public:
-		explicit DecoratorNode(std::string_view name = "Decorator", Ptr<Node> child = nullptr)
-			: SingleNode(name, std::move(child)) {}
+		explicit DecoratorNode(std::string_view name = "Decorator", Ptr<Node> child = nullptr);
 
 		// To create a custom DecoratorNode: https://github.com/hit9/bt.cc#custom-decorator
 		// You should derive from DecoratorNode and override the function Update.
@@ -716,8 +685,7 @@ namespace bt
 	class InvertNode : public DecoratorNode
 	{
 	public:
-		explicit InvertNode(std::string_view name = "Invert", Ptr<Node> child = nullptr)
-			: DecoratorNode(name, std::move(child)) {}
+		explicit InvertNode(std::string_view name = "Invert", Ptr<Node> child = nullptr);
 		Status Update(const Context& ctx) override;
 	};
 
@@ -726,8 +694,7 @@ namespace bt
 	{
 	public:
 		explicit ConditionalRunNode(Ptr<ConditionNode> condition = nullptr,
-			std::string_view name = "ConditionalRun", Ptr<Node> child = nullptr)
-			: DecoratorNode(std::string(name) + '<' + std::string(condition->Name()) + '>', std::move(child)), condition(std::move(condition)) {}
+			std::string_view name = "ConditionalRun", Ptr<Node> child = nullptr);
 
 		void Traverse(TraversalCallback& pre, TraversalCallback& post, Ptr<Node>& ptr) override;
 
@@ -749,16 +716,15 @@ namespace bt
 			int cnt = 0;
 		};
 
-		explicit RepeatNode(int n, std::string_view name = "Repeat", Ptr<Node> child = nullptr)
-			: DecoratorNode(name, std::move(child)), n(n) {}
+		explicit RepeatNode(int n, std::string_view name = "Repeat", Ptr<Node> child = nullptr);
 
-		NodeBlob* GetNodeBlob() const override { return GetNodeBlobHelper<Blob>(); }
+		NodeBlob* GetNodeBlob() const override;
 
 		// Clears counter on enter.
-		void OnEnter(const Context& ctx) override { GetNodeBlobHelper<Blob>()->cnt = 0; }
+		void OnEnter(const Context& ctx) override;
 
 		// Reset counter on termination.
-		void OnTerminate(const Context& ctx, Status status) override { GetNodeBlobHelper<Blob>()->cnt = 0; }
+		void OnTerminate(const Context& ctx, Status status) override;
 
 		Status Update(const Context& ctx) override;
 
@@ -780,10 +746,9 @@ namespace bt
 		};
 
 		explicit TimeoutNode(std::chrono::milliseconds d, std::string_view name = "Timeout",
-			Ptr<Node> child = nullptr)
-			: DecoratorNode(name, std::move(child)), duration(d) {}
+			Ptr<Node> child = nullptr);
 
-		NodeBlob* GetNodeBlob() const override { return GetNodeBlobHelper<Blob>(); }
+		NodeBlob* GetNodeBlob() const override;
 		void	  OnEnter(const Context& ctx) override;
 		Status	  Update(const Context& ctx) override;
 
@@ -803,10 +768,9 @@ namespace bt
 		};
 
 		explicit DelayNode(std::chrono::milliseconds duration, std::string_view name = "Delay",
-			Ptr<Node> c = nullptr)
-			: DecoratorNode(name, std::move(c)), duration(duration) {}
+			Ptr<Node> c = nullptr);
 
-		NodeBlob* GetNodeBlob() const override { return GetNodeBlobHelper<Blob>(); }
+		NodeBlob* GetNodeBlob() const override;
 		void	  OnEnter(const Context& ctx) override;
 		void	  OnTerminate(const Context& ctx, Status status) override;
 		Status	  Update(const Context& ctx) override;
@@ -829,10 +793,9 @@ namespace bt
 		};
 
 		RetryNode(int maxRetries, std::chrono::milliseconds interval, std::string_view name = "Retry",
-			Ptr<Node> child = nullptr)
-			: DecoratorNode(name, std::move(child)), maxRetries(maxRetries), interval(interval) {}
+			Ptr<Node> child = nullptr);
 
-		NodeBlob* GetNodeBlob() const override { return GetNodeBlobHelper<Blob>(); }
+		NodeBlob* GetNodeBlob() const override;
 		void	  OnEnter(const Context& ctx) override;
 		void	  OnTerminate(const Context& ctx, Status status) override;
 		Status	  Update(const Context& ctx) override;
@@ -848,8 +811,7 @@ namespace bt
 	class ForceSuccessNode : public DecoratorNode
 	{
 	public:
-		ForceSuccessNode(std::string_view name = "ForceSuccess", Ptr<Node> child = nullptr)
-			: DecoratorNode(name, std::move(child)) {}
+		ForceSuccessNode(std::string_view name = "ForceSuccess", Ptr<Node> child = nullptr);
 		Status Update(const Context& ctx) override;
 	};
 
@@ -857,8 +819,7 @@ namespace bt
 	class ForceFailureNode : public DecoratorNode
 	{
 	public:
-		ForceFailureNode(std::string_view name = "ForceFailure", Ptr<Node> child = nullptr)
-			: DecoratorNode(name, std::move(child)) {}
+		ForceFailureNode(std::string_view name = "ForceFailure", Ptr<Node> child = nullptr);
 		Status Update(const Context& ctx) override;
 	};
 
@@ -867,13 +828,14 @@ namespace bt
 	///////////////////////////////////////////////////////////////
 
 	// RootNode is a SingleNode.
-	class RootNode : public SingleNode, public IRootNode
+	class RootNode :
+		public SingleNode,
+		public IRootNode
 	{
 	public:
-		explicit RootNode(std::string_view name = "Root")
-			: SingleNode(name) {}
+		explicit RootNode(std::string_view name = "Root");
 
-		Status Update(const Context& ctx) override { return child->Tick(ctx); }
+		Status Update(const Context& ctx) override;
 
 		// Visualize the tree to console.
 		void Visualize(ull seq);
@@ -948,11 +910,7 @@ namespace bt
 			: level(1) {}
 
 		template <TNode T>
-		void OnNodeAttach(T& node, RootNode* root)
-		{
-			MaintainNodeBindInfo(node, root);
-			MaintainSizeInfoOnNodeAttach<T>(node, root);
-		}
+		void OnNodeAttach(T& node, RootNode* root);
 
 		void OnRootAttach(RootNode* root, std::size_t size, std::size_t blobSize);
 		void OnSubtreeAttach(RootNode& subtree, RootNode* root);
@@ -986,10 +944,7 @@ namespace bt
 			std::size_t nodeBlobSize);
 
 		template <TNode T>
-		void MaintainSizeInfoOnNodeAttach(T& node, RootNode* root)
-		{
-			MaintainSizeInfoOnNodeAttach(node, root, sizeof(T), sizeof(typename T::Blob));
-		}
+		void MaintainSizeInfoOnNodeAttach(T& node, RootNode* root);
 
 		void MaintainSizeInfoOnSubtreeAttach(const RootNode& subtree, RootNode* root);
 	};
@@ -1004,11 +959,7 @@ namespace bt
 			: InternalBuilderBase() {} // cppcheck-suppress uninitMemberVar
 
 		// Should be called on the end of the build process.
-		void End()
-		{
-			while (stack.size())
-				Pop(); // clears the stack
-		}
+		void End();
 
 		// Increases indent level to append node.
 		auto& _()
@@ -1028,24 +979,12 @@ namespace bt
 		//    ._().Action<A>()
 		//    .End();
 		template <TNode T, typename... Args>
-		auto& C(Args... args)
-		{
-			if constexpr (std::is_base_of_v<LeafNode, T>) // LeafNode
-				return AttachLeafNode(Make<T>(false, std::forward<Args>(args)...));
-			else // InternalNode.
-				return AttachInternalNode(Make<T>(false, std::forward<Args>(args)...));
-		}
+		auto& C(Args... args);
 
 		// Attach a node through move, rarely used.
 		// The inst should be a node object that supports move semantics.
 		template <TNode T>
-		auto& M(T&& inst)
-		{
-			if constexpr (std::is_base_of_v<LeafNode, T>) // LeafNode
-				return AttachLeafNode(Make<T>(true, std::move(inst)));
-			else // InternalNode.
-				return AttachInternalNode(Make<T>(true, std::move(inst)));
-		}
+		auto& M(T&& inst);
 
 		// CompositeNode creators
 		// ~~~~~~~~~~~~~~~~~~~~~~
@@ -1093,10 +1032,7 @@ namespace bt
 		//  .Action<MyActionClass>()
 		//  .End();
 		template <TAction Impl, typename... Args>
-		auto& Action(Args&&... args)
-		{
-			return C<Impl>(std::forward<Args>(args)...);
-		}
+		auto& Action(Args&&... args);
 
 		// Creates a ConditionNode from a lambda function.
 		// Code example::
@@ -1115,10 +1051,7 @@ namespace bt
 		//   ._().Action<A>()
 		//   .End();
 		template <TCondition Impl, typename... Args>
-		auto& Condition(Args&&... args)
-		{
-			return C<Impl>(std::forward<Args>(args)...);
-		}
+		auto& Condition(Args&&... args);
 
 		// DecoratorNode creators
 		// ~~~~~~~~~~~~~~~~~~~~~~
@@ -1148,10 +1081,7 @@ namespace bt
 		//   ._().Action<DoSomething>()
 		//   .End();
 		template <TCondition Condition, typename... ConditionArgs>
-		auto& Not(ConditionArgs... args)
-		{
-			return C<InvertNode>("Not", Make<Condition>(false, std::forward<ConditionArgs>(args)...));
-		}
+		auto& Not(ConditionArgs... args);
 
 		// Repeat creates a RepeatNode.
 		// It will repeat the decorated node for exactly n times.
@@ -1224,11 +1154,7 @@ namespace bt
 		//   ._().Action(DoSomething)()
 		//   .End();
 		template <TCondition Condition, typename... ConditionArgs>
-		auto& If(ConditionArgs&&... args)
-		{
-			auto condition = Make<Condition>(false, std::forward<ConditionArgs>(args)...);
-			return C<ConditionalRunNode>(std::move(condition), "If");
-		}
+		auto& If(ConditionArgs&&... args);
 
 		// If creates a ConditionalRunNode from lambda function.
 		// Code example::
@@ -1255,11 +1181,7 @@ namespace bt
 
 		// Alias to If, for working alongs with Switch.
 		template <TCondition Condition, typename... ConditionArgs>
-		auto& Case(ConditionArgs&&... args)
-		{
-			auto condition = Make<Condition>(false, std::forward<ConditionArgs>(args)...);
-			return C<ConditionalRunNode>(std::move(condition), "Case");
-		}
+		auto& Case(ConditionArgs&&... args);
 
 		// Case creates a ConditionalRunNode from lambda function.
 		auto& Case(ConditionNode::Checker checker) { return Case<ConditionNode>(checker); }
@@ -1277,45 +1199,22 @@ namespace bt
 		//      .Sequence()
 		//      ._().Subtree(std::move(subtree))
 		//      .End();
-		auto& Subtree(RootNode&& subtree)
-		{
-			OnSubtreeAttach(subtree, root);
-			return M<RootNode>(std::move(subtree)); // move the subtree object
-		}
+		auto& Subtree(RootNode&& subtree);
 
 	protected:
 		// Bind a tree root onto this builder.
-		void BindRoot(RootNode& r)
-		{
-			stack.push(&r);
-			root = &r;
-			OnRootAttach(root, sizeof(D), sizeof(typename D::Blob));
-		}
+		void BindRoot(RootNode& r);
 
 		// Creates a leaf node.
-		auto& AttachLeafNode(Ptr<LeafNode> p)
-		{
-			InternalBuilderBase::AttachLeafNode(std::move(p));
-			return *static_cast<D*>(this);
-		}
+		auto& AttachLeafNode(Ptr<LeafNode> p);
 
 		// Creates an internal node with optional children.
-		auto& AttachInternalNode(Ptr<InternalNode> p)
-		{
-			InternalBuilderBase::AttachInternalNode(std::move(p));
-			return *static_cast<D*>(this);
-		}
+		auto& AttachInternalNode(Ptr<InternalNode> p);
 
 		// make a new node onto this tree, returns the unique_ptr.
 		// Any node creation should use this function.
 		template <TNode T, typename... Args>
-		Ptr<T> Make(bool skipActtach, Args... args)
-		{
-			auto p = std::make_unique<T>(std::forward<Args>(args)...);
-			if (!skipActtach)
-				OnNodeAttach<T>(*p, root);
-			return p;
-		};
+		Ptr<T> Make(bool skipActtach, Args... args);
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -1323,11 +1222,184 @@ namespace bt
 	///////////////////////////////////////////////////////////////
 
 	// Behavior Tree, please keep this class simple enough.
-	class Tree : public RootNode, public Builder<Tree>
+	class Tree :
+		public RootNode,
+		public Builder<Tree>
 	{
 	public:
-		explicit Tree(std::string_view name = "Root")
-			: RootNode(name), Builder() { BindRoot(*this); }
+		explicit Tree(std::string_view name = "Root");
+	};
+
+	//////////////////////////////////////////////////////////////
+	/// Implementions (Templated functions)
+	///////////////////////////////////////////////////////////////
+
+	template <TNodeBlob B>
+	B* ITreeBlob::Make(const NodeId id, const std::function<void(NodeBlob*)>& cb, const std::size_t cap)
+	{
+		auto [p, b] = Make(id, sizeof(B), cap);
+		if (!b)
+			return static_cast<B*>(p);
+		auto q = new (p) B(); // call constructor
+		if (cb != nullptr)
+			cb(q);
+		return q;
+	}
+
+	template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+	FixedTreeBlob<NumNodes, MaxSizeNodeBlob>::FixedTreeBlob()
+	{
+		memset(buf, 0, sizeof(buf));
+	}
+
+	template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+	void* FixedTreeBlob<NumNodes, MaxSizeNodeBlob>::Allocate(const std::size_t idx, const std::size_t size)
+	{
+		if (idx >= NumNodes)
+			throw std::runtime_error("bt: FixedTreeBlob NumNodes not enough");
+		if (size > MaxSizeNodeBlob)
+			throw std::runtime_error("bt: FixedTreeBlob MaxSizeNodeBlob not enough");
+		buf[idx][0] = true;
+		return Get(idx);
+	}
+
+	template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+	bool FixedTreeBlob<NumNodes, MaxSizeNodeBlob>::Exist(const std::size_t idx)
+	{
+		return static_cast<bool>(buf[idx][0]);
+	}
+
+	template <std::size_t NumNodes, std::size_t MaxSizeNodeBlob>
+	void* FixedTreeBlob<NumNodes, MaxSizeNodeBlob>::Get(const std::size_t idx)
+	{
+		return &buf[idx][1];
+	}
+
+	template <TNodeBlob B>
+	B* Node::GetNodeBlobHelper() const
+	{
+		const auto cb = [&](NodeBlob* blob) { OnBlobAllocated(blob); };
+		return root->GetTreeBlob()->Make<B>(id, cb, root->NumNodes()); // get or alloc
+	}
+
+	template <TNode T>
+	void InternalBuilderBase::OnNodeAttach(T& node, RootNode* root)
+	{
+		MaintainNodeBindInfo(node, root);
+		MaintainSizeInfoOnNodeAttach<T>(node, root);
+	}
+
+	template <TNode T>
+	void InternalBuilderBase::MaintainSizeInfoOnNodeAttach(T& node, RootNode* root)
+	{
+		MaintainSizeInfoOnNodeAttach(node, root, sizeof(T), sizeof(typename T::Blob));
+	}
+
+	template <typename D>
+	void Builder<D>::End()
+	{
+		while (stack.size())
+		{
+			// Clears the stack
+			Pop();
+		}
+	}
+
+	template <typename D>
+	template <TNode T, typename... Args>
+	auto& Builder<D>::C(Args... args)
+	{
+		if constexpr (std::is_base_of_v<LeafNode, T>) // LeafNode
+			return AttachLeafNode(Make<T>(false, std::forward<Args>(args)...));
+		else // InternalNode.
+			return AttachInternalNode(Make<T>(false, std::forward<Args>(args)...));
+	}
+
+	template <typename D>
+	template <TNode T>
+	auto& Builder<D>::M(T&& inst)
+	{
+		if constexpr (std::is_base_of_v<LeafNode, T>) // LeafNode
+			return AttachLeafNode(Make<T>(true, std::move(inst)));
+		else // InternalNode.
+			return AttachInternalNode(Make<T>(true, std::move(inst)));
+	}
+
+	template <typename D>
+	template <TAction Impl, typename... Args>
+	auto& Builder<D>::Action(Args&&... args)
+	{
+		return C<Impl>(std::forward<Args>(args)...);
+	}
+
+	template <typename D>
+	template <TCondition Impl, typename... Args>
+	auto& Builder<D>::Condition(Args&&... args)
+	{
+		return C<Impl>(std::forward<Args>(args)...);
+	}
+
+	template <typename D>
+	template <TCondition Condition, typename... ConditionArgs>
+	auto& Builder<D>::Not(ConditionArgs... args)
+	{
+		return C<InvertNode>("Not", Make<Condition>(false, std::forward<ConditionArgs>(args)...));
+	}
+
+	template <typename D>
+	template <TCondition Condition, typename... ConditionArgs>
+	auto& Builder<D>::If(ConditionArgs&&... args)
+	{
+		auto condition = Make<Condition>(false, std::forward<ConditionArgs>(args)...);
+		return C<ConditionalRunNode>(std::move(condition), "If");
+	}
+
+	template <typename D>
+	template <TCondition Condition, typename... ConditionArgs>
+	auto& Builder<D>::Case(ConditionArgs&&... args)
+	{
+		auto condition = Make<Condition>(false, std::forward<ConditionArgs>(args)...);
+		return C<ConditionalRunNode>(std::move(condition), "Case");
+	}
+
+	template <typename D>
+	auto& Builder<D>::Subtree(RootNode&& subtree)
+	{
+		OnSubtreeAttach(subtree, root);
+		// Move the subtree object
+		return M<RootNode>(std::move(subtree));
+	}
+
+	template <typename D>
+	void Builder<D>::BindRoot(RootNode& r)
+	{
+		stack.push(&r);
+		root = &r;
+		OnRootAttach(root, sizeof(D), sizeof(typename D::Blob));
+	}
+
+	template <typename D>
+	auto& Builder<D>::AttachLeafNode(Ptr<LeafNode> p)
+	{
+		InternalBuilderBase::AttachLeafNode(std::move(p));
+		return *static_cast<D*>(this);
+	}
+
+	template <typename D>
+	auto& Builder<D>::AttachInternalNode(Ptr<InternalNode> p)
+	{
+		InternalBuilderBase::AttachInternalNode(std::move(p));
+		return *static_cast<D*>(this);
+	}
+
+	template <typename D>
+	template <TNode T, typename... Args>
+	Ptr<T> Builder<D>::Make(bool skipActtach, Args... args)
+	{
+		auto p = std::make_unique<T>(std::forward<Args>(args)...);
+		if (!skipActtach)
+			OnNodeAttach<T>(*p, root);
+		return p;
 	};
 
 } // namespace bt
