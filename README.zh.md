@@ -455,6 +455,21 @@ while(...) {
     ._().Action<A>()
     ```
 
+    设置 `n=-1` 意味着无限循环.
+
+    ```cpp
+    // Repeat action A forever.
+    .Repeat(-1)
+    ._().Action<A>()
+    ```
+
+    设置 `n=0` 将会立即成功, 而不会执行被修饰额节点.
+
+    ```cpp
+    // immediately success without executing A.
+    .Repeat(0)
+    ._().Action<A>()
+    ```
   * `Timeout` 会对其修饰的子节点加一个执行时间限制，如果到时间期限子节点仍未返回成功，则它会返回失败，也不再 tick 子节点。   <span id="timeout"></span> <a href="#ref">[↑]</a>
 
     ```cpp
@@ -495,7 +510,7 @@ while(...) {
     ._().Actino<Task>()
     ```
 
-  * **自定义装饰器**  <a href="#ref">[↑]</a>
+  * **自定义装饰器** <span id="custom-decorator"></span>  <a href="#ref">[↑]</a>
 
     要定义一个自定义的装饰器，可以继承 `bt::DecoratorNode`:
 

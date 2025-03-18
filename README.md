@@ -467,6 +467,22 @@ Reference: <span id="ref"></span>
     ._().Action<A>()
     ```
 
+    Providing `n=-1` means to repeat forever.
+
+    ```cpp
+    // Repeat action A forever.
+    .Repeat(-1)
+    ._().Action<A>()
+    ```
+
+    Providing `n=0` means to immediately success without executing the decorated node.
+
+    ```cpp
+    // immediately success without executing A.
+    .Repeat(0)
+    ._().Action<A>()
+    ```
+
   * `Timeout` executes its child node with a time duration limitation, fails on timeout.  <span id="timeout"></span> <a href="#ref">[↑]</a>
 
     ```cpp
