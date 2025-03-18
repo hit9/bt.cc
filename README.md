@@ -455,6 +455,12 @@ Reference: <span id="ref"></span>
     //   FAILURE => SUCCESS
     ```
 
+    `Not` is an alias for `Invert`:
+
+    ```cpp
+    .Not()
+	._().Condition<A>()
+	.End();
 
   * `Repeat(n)` (alias `Loop`) repeats its child node' execution for exactly `n` times, it fails immediately if its child fails. <span id="repeat"></span> <a href="#ref">[↑]</a>
 

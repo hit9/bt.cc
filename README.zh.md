@@ -445,6 +445,13 @@ while(...) {
     //   FAILURE => SUCCESS
     ```
 
+    `Not` 是 `Invert` 的一个别名:
+
+    ```cpp
+    .Not()
+    ._().Condition<A>()
+    ```
+
   * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。  <span id="repeat"></span> <a href="#ref">[↑]</a>
 
     如果把节点从 开始 `RUNNING`、到 `SUCCESS` 或者 `FAILURE` 叫做一轮的话，`Repeat(n)` 的作用就是执行被修饰的子节点 `n` 轮。
