@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.4.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.5.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #ifndef HIT9_BT_H
@@ -341,6 +341,26 @@ namespace bt
 	// Concept TCondition for all classes derived from Condition.
 	template <typename T>
 	concept TCondition = std::is_base_of_v<ConditionNode, T>;
+
+	template <TCondition ConditionToInverse>
+	class InversedConditionNode : public ConditionNode
+	{
+	public:
+		template <typename... ConditionToInverseArgs>
+		explicit InversedConditionNode(ConditionToInverseArgs&&... args)
+			: condition(std::make_unique<ConditionToInverse>(std::forward<ConditionToInverseArgs>(args)...)) {}
+
+		bool Check(const Context& ctx) override
+		{
+			return !(condition->Check(ctx));
+		}
+
+	private:
+		Ptr<Condition> condition;
+	};
+
+	template <TCondition ConditionToInverse>
+	using Not = InversedConditionNode<ConditionToInverse>;
 
 	////////////////////////////////////
 	/// Node > LeafNode > ActionNode
@@ -1179,7 +1199,7 @@ namespace bt
 		// Code example::
 		//   root
 		//   .If<CheckSomething>()
-		//   ._().Action(DoSomething)()
+		//   ._().Action<DoSomething>()
 		//   .End();
 		template <TCondition Condition, typename... ConditionArgs>
 		auto& If(ConditionArgs&&... args);
@@ -1190,6 +1210,16 @@ namespace bt
 		//  .If([=](const Context& ctx) { return false; })
 		//  .End();
 		auto& If(ConditionNode::Checker checker) { return If<ConditionNode>(checker); }
+
+		// IfNot creates a InverseConditionNode.
+		// It executes the decorated node only if the condition goes false.
+		// Code example::
+		//   root
+		//   .IfNot<CheckShouldbeFalse>()
+		//   ._().Action<DoSomething>()
+		//   .End();
+		template <TCondition Condition, typename... ConditionArgs>
+		auto& IfNot(ConditionArgs&&... args);
 
 		// Switch is just an alias to Selector.
 		// Code example::
@@ -1380,6 +1410,14 @@ namespace bt
 	{
 		auto condition = Make<TCondition>(false, std::forward<ConditionArgs>(args)...);
 		return C<ConditionalRunNode>(std::move(condition), "If");
+	}
+
+	template <typename D>
+	template <TCondition ConditionToInverse, typename... ConditionArgs>
+	auto& Builder<D>::IfNot(ConditionArgs&&... args)
+	{
+		auto inversedCondition = Make<InversedConditionNode<ConditionToInverse>>(false, std::forward<ConditionArgs>(args)...);
+		return C<ConditionalRunNode>(std::move(inversedCondition), "IfNot");
 	}
 
 	template <typename D>

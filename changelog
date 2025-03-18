@@ -1,3 +1,13 @@
+0.4.5
+-----
+
+Plan: Add `Log([cxt]{...})`
+Plan: Add `While<Condition>`.
+
+* Add decorator `IfNot<Condition>` and template `bt::Not<Condition>`.
+* Add decorator `DoWhileNode`.
+* Fix some readme descriptions.
+
 0.4.4
 -----
 
