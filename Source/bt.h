@@ -733,6 +733,18 @@ namespace bt
 		int n;
 	};
 
+	class DoWhileNode : public DecoratorNode
+	{
+	public:
+		explicit DoWhileNode(Ptr<ConditionNode> condition = nullptr,
+			std::string_view name = "DoWhile", Ptr<Node> child = nullptr);
+
+		Status Update(const Context& ctx) override;
+
+	private:
+		Ptr<ConditionNode> condition = nullptr;
+	};
+
 	using Timepoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 	// Timeout runs its child for at most given duration, fails on timeout.
@@ -1081,7 +1093,7 @@ namespace bt
 		//   ._().Action<DoSomething>()
 		//   .End();
 		template <TCondition Condition, typename... ConditionArgs>
-		auto& Not(ConditionArgs... args);
+		auto& Not(ConditionArgs&&... args);
 
 		// Repeat creates a RepeatNode.
 		// It will repeat the decorated node for exactly n times.
@@ -1098,8 +1110,21 @@ namespace bt
 		// Code exapmle::
 		//   root
 		//   .Loop(3)
-		//   ._().Action<A>();
+		//   ._().Action<A>()
+		//   .End();
 		auto& Loop(int n) { return C<RepeatNode>(n, "Loop"); }
+
+		// DoWhile creates a DoWhileNode.
+		// It will repeat the decorated node, until the given condition returns false, then ends with success.
+		// It's just like this statment: `do { childNode } while (condition)`.
+		// Code exapmle::
+		//   root
+		//   .DoWhile<ConditionForFinallySuccess>()
+		//   .().Action<A>()
+		//   .End();
+		template <TCondition Condition, typename... ConditionArgs>
+		auto& DoWhile(ConditionArgs&&... args) { return C<DoWhileNode>(
+			Make<Condition>(false, std::forward<ConditionArgs>(args)...), "DoWhile"); }
 
 		// Timeout creates a TimeoutNode.
 		// It executes the decorated node for at most given duration.
@@ -1108,7 +1133,10 @@ namespace bt
 		//   .Timeout(3000ms)
 		//   ._().Action<A>()
 		//   .End();
-		auto& Timeout(std::chrono::milliseconds duration) { return C<TimeoutNode>(duration, "Timeout"); }
+		auto& Timeout(std::chrono::milliseconds duration)
+		{
+			return C<TimeoutNode>(duration, "Timeout");
+		}
 
 		// Delay creates a DelayNode.
 		// Wait for given duration before execution of decorated node.
@@ -1214,7 +1242,7 @@ namespace bt
 		// make a new node onto this tree, returns the unique_ptr.
 		// Any node creation should use this function.
 		template <TNode T, typename... Args>
-		Ptr<T> Make(bool skipActtach, Args... args);
+		Ptr<T> Make(bool skipAttach, Args... args);
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -1341,7 +1369,7 @@ namespace bt
 
 	template <typename D>
 	template <TCondition TCondition, typename... ConditionArgs>
-	auto& Builder<D>::Not(ConditionArgs... args)
+	auto& Builder<D>::Not(ConditionArgs&&... args)
 	{
 		return C<InvertNode>("Not", Make<TCondition>(false, std::forward<ConditionArgs>(args)...));
 	}
@@ -1394,10 +1422,10 @@ namespace bt
 
 	template <typename D>
 	template <TNode T, typename... Args>
-	Ptr<T> Builder<D>::Make(bool skipActtach, Args... args)
+	Ptr<T> Builder<D>::Make(bool skipAttach, Args... args)
 	{
 		auto p = std::make_unique<T>(std::forward<Args>(args)...);
-		if (!skipActtach)
+		if (!skipAttach)
 			OnNodeAttach<T>(*p, root);
 		return p;
 	}

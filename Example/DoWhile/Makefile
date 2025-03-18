@@ -9,7 +9,7 @@ build: cmake
 	cd build && make
 
 run:
-	./build/bt_example
+	./build/bt_do_while_example
 
 clean:
 	make -C build clean
