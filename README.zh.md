@@ -703,7 +703,7 @@ while(...) {
   5. 可以把 `OnSignal` 节点尽量向上提, 这样会使得行为树更像事件驱动的一点, 提高效率.
 
   下面是一个具体的例子, 采用的是我的另一个小的事件库 [blinker.h](https://github.com/hit9/blinker.h),
-  具体的代码可以参考目录 [example/onsignal](example/onsignal).
+  具体的代码可以参考目录  [Example/Signal_OnSignal](Example/Signal_OnSignal).
 
   ```cpp
   root

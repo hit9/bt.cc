@@ -723,7 +723,7 @@ Reference: <span id="ref"></span>
   5. You can move the OnSignal node as high as possible to make the entire behavior tree more event-driven.
 
   Here's an example in detail to combine my tiny signal library [blinker.h](https://github.com/hit9/blinker.h) with bt.cc,
-  please checkout the code example in folder [example/onsignal](example/onsignal).
+  please checkout the code example in folder [Example/Signal_OnSignal](Example/Signal_OnSignal).
 
   ```cpp
   root

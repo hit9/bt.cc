@@ -338,6 +338,10 @@ namespace bt
 
 	using Condition = ConditionNode; // alias
 
+	///////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> Not
+	//////////////////////////////////////////
+
 	// Concept TCondition for all classes derived from Condition.
 	template <typename T>
 	concept TCondition = std::is_base_of_v<ConditionNode, T>;
@@ -359,8 +363,106 @@ namespace bt
 		Ptr<Condition> condition;
 	};
 
+	// Not is an alias of  template `InversedConditionNode`, which creates a type that inverse
+	// a given ConditionNode type.
+	//
+	// It returns FAILURE if the wrapped condition returns SUCCESS, otherwise SUCCESS.
+	//
+	// Code Example:
+	//   root
+	//    .If<bt::Not<SomeCondition>>()
+	//    ._().Action<A>();
+	//    .End();
 	template <TCondition ConditionToInverse>
 	using Not = InversedConditionNode<ConditionToInverse>;
+
+	//////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> CompositeConditionNode
+	//////////////////////////////////////////////////////////////
+
+	template <TCondition... Conditions>
+	class CompositeConditionNode : public ConditionNode
+	{
+	public:
+		explicit CompositeConditionNode(std::string_view name = "CompositeConditionNode")
+			: ConditionNode(nullptr, name)
+		{
+			(conditions.push_back(std::make_unique<Conditions>()), ...);
+		}
+
+	protected:
+		PtrList<ConditionNode> conditions;
+	};
+
+	//////////////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> CompositeConditionNode >> And
+	//////////////////////////////////////////////////////////////////////
+
+	template <TCondition... Conditions>
+	class AndConditionNode : public CompositeConditionNode<Conditions...>
+	{
+	public:
+		explicit AndConditionNode(std::string_view name = "And")
+			: CompositeConditionNode<Conditions...>(name) {}
+
+		bool Check(const Context& ctx) override
+		{
+			for (const auto& condition : this->conditions)
+			{
+				if (!condition->Check(ctx))
+					return false;
+			}
+			return true;
+		}
+	};
+
+	// And is an alias of template `AndConditionNode`, which creates a type that combile the logical `AND`
+	// operator on all given ConditionNode types.
+	//
+	// It returns FAILURE if any wrapped condition returns FAILURE, otherwise SUCCESS.
+	//
+	// Code Example:
+	//   root
+	//    .If<bt::And<ConditionA, ConditionB>>()
+	//    ._().Action<DoSomething>();
+	//    .End();
+	template <TCondition... Conditions>
+	using And = AndConditionNode<Conditions...>;
+
+	//////////////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> CompositeConditionNode >> Or
+	//////////////////////////////////////////////////////////////////////
+
+	template <TCondition... Conditions>
+	class OrConditionNode : public CompositeConditionNode<Conditions...>
+	{
+	public:
+		explicit OrConditionNode(std::string_view name = "Or")
+			: CompositeConditionNode<Conditions...>(name) {}
+
+		bool Check(const Context& ctx) override
+		{
+			for (const auto& condition : this->conditions)
+			{
+				if (condition->Check(ctx))
+					return true;
+			}
+			return false;
+		}
+	};
+
+	// Or is an alias of template `AndConditionNode`, which creates a type that combile the logical `OR`
+	// operator on all given ConditionNode types.
+	//
+	// It returns SUCCESS if any wrapped condition returns SUCCESS, otherwise FAILURE.
+	//
+	// Code Example:
+	//   root
+	//    .If<bt::Or<ConditionA, ConditionB>>()
+	//    ._().Action<DoSomething>();
+	//    .End();
+	template <TCondition... Conditions>
+	using Or = OrConditionNode<Conditions...>;
 
 	////////////////////////////////////
 	/// Node > LeafNode > ActionNode
