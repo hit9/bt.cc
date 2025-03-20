@@ -484,6 +484,22 @@ namespace bt
 	template <typename T>
 	concept TAction = std::is_base_of_v<ActionNode, T>;
 
+	///////////////////////////////////////////////////
+	/// Node > LeafNode > ActionNode > EmptyActionNode
+	///////////////////////////////////////////////////
+
+	class EmptyActionNode : public ActionNode
+	{
+	public:
+		explicit EmptyActionNode(std::string_view name = "Empty")
+			: ActionNode(name) {}
+
+		// Always success.
+		Status Update(const Context& ctx) override { return Status::SUCCESS; };
+	};
+
+	using Empty = EmptyActionNode; // alias
+
 	////////////////////////////
 	/// Node > InternalNode
 	////////////////////////////
