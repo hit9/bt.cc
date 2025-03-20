@@ -753,18 +753,6 @@ namespace bt
 		int n;
 	};
 
-	class DoWhileNode : public DecoratorNode
-	{
-	public:
-		explicit DoWhileNode(Ptr<ConditionNode> condition = nullptr,
-			std::string_view name = "DoWhile", Ptr<Node> child = nullptr);
-
-		Status Update(const Context& ctx) override;
-
-	private:
-		Ptr<ConditionNode> condition = nullptr;
-	};
-
 	using Timepoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 	// Timeout runs its child for at most given duration, fails on timeout.
@@ -1133,18 +1121,6 @@ namespace bt
 		//   ._().Action<A>()
 		//   .End();
 		auto& Loop(int n) { return C<RepeatNode>(n, "Loop"); }
-
-		// DoWhile creates a DoWhileNode.
-		// It will repeat the decorated node, until the given condition returns false, then ends with success.
-		// It's just like this statment: `do { childNode } while (condition)`.
-		// Code exapmle::
-		//   root
-		//   .DoWhile<ConditionForFinallySuccess>()
-		//   .().Action<A>()
-		//   .End();
-		template <TCondition Condition, typename... ConditionArgs>
-		auto& DoWhile(ConditionArgs&&... args) { return C<DoWhileNode>(
-			Make<Condition>(false, std::forward<ConditionArgs>(args)...), "DoWhile"); }
 
 		// Timeout creates a TimeoutNode.
 		// It executes the decorated node for at most given duration.

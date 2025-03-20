@@ -663,31 +663,6 @@ namespace bt
 		GetNodeBlobHelper<Blob>()->cnt = 0;
 	}
 
-	DoWhileNode::DoWhileNode(Ptr<ConditionNode> condition, std::string_view name, Ptr<Node> child)
-		: DecoratorNode(name, std::move(child)), condition(std::move(condition)) {}
-
-	Status DoWhileNode::Update(const Context& ctx)
-	{
-		auto childStatus = child->Tick(ctx);
-
-		if (childStatus == Status::RUNNING)
-		{
-			return Status::RUNNING;
-		}
-
-		// Child is now at success or failure.
-
-		// If the condition is no more satisfied, returns success.
-		if (!condition->Check(ctx))
-		{
-			return Status::SUCCESS;
-		}
-
-		// Restarting child->Tick the next time.
-		// The child will run into OnEnter() to reset its potential states.
-		return Status::RUNNING;
-	}
-
 	TimeoutNode::TimeoutNode(std::chrono::milliseconds d, std::string_view name,
 		Ptr<Node> child)
 		: DecoratorNode(name, std::move(child)), duration(d) {}
