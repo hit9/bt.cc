@@ -438,6 +438,8 @@ Reference: <span id="ref"></span>
 
   * `If` executes its child node only if given condition turns `true`. <span id="if"></span> <a href="#ref">[↑]</a>
 
+    It returns `FAILURE` if the condition checks failed, otherwise returns the status of the child node.
+
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()

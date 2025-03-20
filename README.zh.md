@@ -428,6 +428,8 @@ while(...) {
 
   * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#ref">[↑]</a>
 
+    如果条件检查失败, 返回 `FAILURE`, 否则返回子节点的状态.
+
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()
