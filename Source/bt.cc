@@ -641,7 +641,7 @@ namespace bt
 			return Status::RUNNING;
 		if (status == Status::FAILURE)
 			return Status::FAILURE;
-		// Count success until n times, -1 will never stop.
+		// Count success until n times, -1 will never stop (excepts on the child's failure).
 		if (++(GetNodeBlobHelper<Blob>()->cnt) == n)
 			return Status::SUCCESS;
 		// Otherwise, it's still running.

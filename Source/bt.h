@@ -1206,22 +1206,52 @@ namespace bt
 		auto& Not(ConditionArgs&&... args);
 
 		// Repeat creates a RepeatNode.
-		// It will repeat the decorated node for exactly n times.
+		// It will repeat the decorated node for exactly n times (rounds).
 		// Providing n=-1 means to repeat forever.
 		// Providing n=0 means immediately success without executing the decorated node.
+		//
+		// It will return FAILURE at once if the decorated child node returns FAILURE.
+		// Otherwise, it will continue to repeat N rounds.
+		//
 		// Code exapmle::
 		//   root
 		//   .Repeat(3)
 		//   ._().Action<A>()
 		//   .End();
+		//
+		// If you want to achieve something like `RepeatAlwaysDiscardingChildStatus`, just wrap a `ForceSuccess` on the target:
+		//
+		//   root
+		//   .Repeat(-1)
+		//   ._().ForceSuccess()  // will always success, thus the loop wont stop (always in RUNNING status!).
+		//   ._()._().Action<A>()
+		//   .End();
+		//
 		auto& Repeat(int n) { return C<RepeatNode>(n, "Repeat"); }
 
 		// Alias to Repeat.
+		//
+		// It will repeat the decorated node for exactly n times (rounds).
+		// Providing n=-1 means to repeat forever.
+		// Providing n=0 means immediately success without executing the decorated node.
+		//
+		// It will return FAILURE at once if the decorated child node returns FAILURE.
+		// Otherwise, it will continue to repeat N rounds.
+		//
 		// Code exapmle::
 		//   root
 		//   .Loop(3)
 		//   ._().Action<A>()
 		//   .End();
+		//
+		// If you want to achieve something like `LoopAlwaysDiscardingChildStatus`, just wrap a `ForceSuccess` on the target:
+		//
+		//   root
+		//   .Loop(-1)
+		//   ._().ForceSuccess()  // will always success, thus the loop wont stop (always in RUNNING status!).
+		//   ._()._().Action<A>()
+		//   .End();
+		//
 		auto& Loop(int n) { return C<RepeatNode>(n, "Loop"); }
 
 		// Timeout creates a TimeoutNode.
