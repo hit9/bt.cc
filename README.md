@@ -103,6 +103,7 @@ Reference: <span id="ref"></span>
 - [TreeBlob](#tree-blob)
 - Leaf Nodes:
   - [Action](#action)
+    - [Empty Action](#empty-action)
     - [Stateful Action](#node-blob)
   - [Condition](#condition)
 - Composite Nodes:
@@ -227,6 +228,13 @@ Reference: <span id="ref"></span>
 
   ```cpp
   .Action<A>()
+  ```
+
+  bt.cc includes a simple empty action node called `bt::Empty`. <span id="empty-action"></span> <a href="#ref">[↑]</a>:
+  Its design purpose is to provide a convenient placeholder for an action, acting as a 'blank' or temporary action:
+
+  ```cpp
+  .Action<bt::Empty>()
   ```
 
   To define a stateful action node, that is the node depends on entity-related stateful data.

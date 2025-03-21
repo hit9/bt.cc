@@ -97,6 +97,7 @@ while(...) {
 - [TreeBlob](#tree-blob)
 - 叶子节点:
   - [动作节点 Action](#action)
+    - [空动作 Empty](#empty-action)
     - [带实体状态的节点](#node-blob)
   - [条件节点 Condition](#condition)
 - 组合节点:
@@ -220,6 +221,12 @@ while(...) {
 
   ```cpp
   .Action<A>()
+  ```
+
+  bt.cc 内置了一个简单的空动作节点 `bt::Empty`. 其设计目的是方便临时放置一个留白的动作: <span id="empty-action"></span> <a href="#ref">[↑]</a>:
+
+  ```cpp
+  .Action<bt::Empty>()
   ```
 
   如果要实现一个带实体状态的行为节点，可以先定义一个 `NodeBlob` 结构：      <span id="node-blob"></span> <a href="#ref">[↑]</a>:
