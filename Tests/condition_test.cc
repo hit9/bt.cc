@@ -313,3 +313,72 @@ TEST_CASE("Condition/7", "[simplest condition - not2]")
 
 	root.UnbindTreeBlob();
 }
+
+TEST_CASE("Condition/8", "[simple condition - bt::not/and/or]")
+{
+	bt::Tree	root;
+	auto		bb = std::make_shared<Blackboard>();
+	bt::Context ctx(bb);
+
+	// clang-format off
+    root
+    .Parallel()
+    ._().If<bt::Not<C>>()
+    ._()._().Action<A>()
+    ._().IfNot<C>()
+    ._()._().Action<B>()
+    ._().If<bt::And<C, D>>()
+    ._()._().Action<E>()
+    ._().If<bt::Or<C, D>>()
+    ._()._().Action<G>()
+    ._().If<bt::And<C, bt::Or<D,F>>>()
+    ._()._().Action<H>()
+    .End()
+    ;
+	// clang-format on
+
+	Entity e;
+	root.BindTreeBlob(e.blob);
+
+	REQUIRE(!bb->shouldC);
+	REQUIRE(!bb->shouldD);
+	REQUIRE(!bb->shouldF);
+
+	// Tick#1
+	++ctx.seq;
+	root.Tick(ctx);
+	REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+	REQUIRE(bb->counterA == 1);
+	REQUIRE(bb->counterB == 1);
+	REQUIRE(bb->counterE == 0);
+	REQUIRE(bb->counterG == 0);
+	REQUIRE(bb->counterH == 0);
+
+	// Tick#2: Make C true
+	bb->shouldC = true;
+
+	++ctx.seq;
+	root.Tick(ctx);
+
+	REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+	REQUIRE(bb->counterA == 1); // A not ticked, not changed
+	REQUIRE(bb->counterB == 1); // B not ticked, not changed
+	REQUIRE(bb->counterE == 0); // C && D still false, E  not ticked, not changed
+	REQUIRE(bb->counterG == 1); // C || D changes to true, G ticked
+	REQUIRE(bb->counterH == 0); // C && (D || F) still fail
+
+	// Tick#3: Make D true
+	bb->shouldD = true;
+
+	++ctx.seq;
+	root.Tick(ctx);
+
+	REQUIRE(root.LastStatus() == bt::Status::FAILURE);
+	REQUIRE(bb->counterA == 1); // A not ticked, not changed, but returns failure
+	REQUIRE(bb->counterB == 1); // B not ticked, not changed, but returns failure
+	REQUIRE(bb->counterE == 1); // C && D changes to true, E  ticked
+	REQUIRE(bb->counterG == 2); // C || D still true, G ticked
+	REQUIRE(bb->counterH == 1); // C && (D || F) changes to true, H ticked
+
+	root.UnbindTreeBlob();
+}
