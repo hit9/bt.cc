@@ -382,3 +382,44 @@ TEST_CASE("Condition/8", "[simple condition - bt::not/and/or]")
 
 	root.UnbindTreeBlob();
 }
+
+TEST_CASE("Condition/9", "[simple condition - True/False]")
+{
+	bt::Tree	root;
+	auto		bb = std::make_shared<Blackboard>();
+	bt::Context ctx(bb);
+
+	// clang-format off
+    root
+    .Selector()
+    ._().If<bt::False>()
+    ._()._().Action<A>()
+    ._().If<bt::True>()
+    ._()._().Action<B>()
+    .End()
+    ;
+	// clang-format on
+
+	Entity e;
+	root.BindTreeBlob(e.blob);
+
+	REQUIRE(bb->counterA == 0);
+	REQUIRE(bb->counterB == 0);
+
+	// Tick#1:
+	++ctx.seq;
+	root.Tick(ctx);
+	REQUIRE(root.LastStatus() == bt::Status::RUNNING);
+	REQUIRE(bb->counterA == 0);
+	REQUIRE(bb->counterB == 1);
+
+	// Tick#2: make B Success.
+	bb->shouldB = bt::Status::SUCCESS;
+	++ctx.seq;
+	root.Tick(ctx);
+	REQUIRE(root.LastStatus() == bt::Status::SUCCESS);
+	REQUIRE(bb->counterA == 0);
+	REQUIRE(bb->counterB == 2);
+
+	root.UnbindTreeBlob();
+}
