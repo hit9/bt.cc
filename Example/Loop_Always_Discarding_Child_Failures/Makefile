@@ -9,7 +9,7 @@ build: cmake
 	cd build && make
 
 run:
-	./build/bt_example
+	./build/bt_loop_always_discarding_child_failure
 
 clean:
 	make -C build clean

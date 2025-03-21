@@ -103,8 +103,13 @@ Reference: <span id="ref"></span>
 - [TreeBlob](#tree-blob)
 - Leaf Nodes:
   - [Action](#action)
+    - [Empty Action](#empty-action)
     - [Stateful Action](#node-blob)
   - [Condition](#condition)
+    - [Not](#condition-not)
+    - [And](#condition-and-or)
+    - [Or](#condition-and-or)
+    - [True and False](#condition-true-and-false)
 - Composite Nodes:
   - [Sequence](#sequence)
   - [Selector](#selector)
@@ -229,6 +234,14 @@ Reference: <span id="ref"></span>
   .Action<A>()
   ```
 
+  bt.cc includes a simple empty action node called `bt::Empty`. <span id="empty-action"></span> <a href="#ref">[↑]</a>
+
+  Its design purpose is to provide a convenient placeholder for an action, acting as a 'blank' or temporary action:
+
+  ```cpp
+  .Action<bt::Empty>()
+  ```
+
   To define a stateful action node, that is the node depends on entity-related stateful data.
   We can define a `NodeBlob` struct at first:        <span id="node-blob"></span> <a href="#ref">[↑]</a>:
 
@@ -294,6 +307,59 @@ Reference: <span id="ref"></span>
   ._().Condition([=](const Context& ctx) { return false; })
   ._().Action<A>()
   ;
+  ```
+
+  We can use `bt::Not` to invert an existing condition node: <span id="condition-not"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+  .If<bt::Not<SomeCondition>>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  This is equivalent to:
+
+  ```cpp
+  .IfNot<SomeCondition>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  In addition to these, there are also `bt::And` and `bt::Or`, code examples as follows: <span id="condition-and-or"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+   // C1 && C2
+  .If<bt::And<C1, C2>>()
+  ._().Action<A>();
+
+   // C1 ||  C2
+  .If<bt::Or<C1, C2>>()
+  ._().Action<B>();
+
+  // C1 || (!C2 && C3)
+  .If<bt::Or<C1, bt::And<bt::Not<C2>, C3>>>()
+  ._().Action<B>();
+  ```
+
+  In practice, `Not`, `And`, and `Or` can all be simulated using traditional behavior tree nodes
+  (for example, a combination of `Invert`, `Sequence`, and `Selector`).
+  However, these syntactic sugar elements are added to enhance expressiveness and improve ease of use.
+
+  <span id="condition-true-and-false"></span>
+  Additionally, there are two built-in, pre-implemented condition nodes: `bt::True` and `bt::False`.
+  Their purpose is solely to make development and debugging more convenient.
+  For instance, sometimes we might want to easily short-circuit a condition to facilitate code testing.  <a href="#ref">[↑]</a>
+
+  ```cpp
+  .Sequence()
+  ._().Action<ExistingActionA>()
+  ._().Condition<bt::False>()  // Interrupt the actions below temporarily by inserting a bt::False
+  ._().Action<ExistingActionB>()
+  ```
+
+  Of course, they can also be used in conjunction with nodes like `If`, `IfNot`, `Case` etc:
+
+  ```cpp
+  .If<bt::And<bt::False, C>>()
+  ._().Action<A>() // Shadow this action temporarily by changing condition C to False && C
   ```
 
 * **Sequence**  <span id="sequence"></span> <a href="#ref">[↑]</a>
@@ -438,6 +504,8 @@ Reference: <span id="ref"></span>
 
   * `If` executes its child node only if given condition turns `true`. <span id="if"></span> <a href="#ref">[↑]</a>
 
+    It returns `FAILURE` if the condition checks failed, otherwise returns the status of the child node.
+
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()
@@ -455,6 +523,13 @@ Reference: <span id="ref"></span>
     //   FAILURE => SUCCESS
     ```
 
+    `Not` is an alias for `Invert`:
+
+    ```cpp
+    .Not()
+	._().Condition<A>()
+	.End();
+    ```
 
   * `Repeat(n)` (alias `Loop`) repeats its child node' execution for exactly `n` times, it fails immediately if its child fails. <span id="repeat"></span> <a href="#ref">[↑]</a>
 
@@ -464,6 +539,22 @@ Reference: <span id="ref"></span>
     ```cpp
     // Repeat action A three times.
     .Repeat(3)
+    ._().Action<A>()
+    ```
+
+    Providing `n=-1` means to repeat forever.
+
+    ```cpp
+    // Repeat action A forever.
+    .Repeat(-1)
+    ._().Action<A>()
+    ```
+
+    Providing `n=0` means to immediately success without executing the decorated node.
+
+    ```cpp
+    // immediately success without executing A.
+    .Repeat(0)
     ._().Action<A>()
     ```
 
@@ -698,7 +789,7 @@ Reference: <span id="ref"></span>
   5. You can move the OnSignal node as high as possible to make the entire behavior tree more event-driven.
 
   Here's an example in detail to combine my tiny signal library [blinker.h](https://github.com/hit9/blinker.h) with bt.cc,
-  please checkout the code example in folder [example/onsignal](example/onsignal).
+  please checkout the code example in folder [Example/Signal_OnSignal](Example/Signal_OnSignal).
 
   ```cpp
   root

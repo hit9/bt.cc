@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.4.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.5.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #ifndef HIT9_BT_H
@@ -338,9 +338,155 @@ namespace bt
 
 	using Condition = ConditionNode; // alias
 
+	///////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> Not
+	//////////////////////////////////////////
+
 	// Concept TCondition for all classes derived from Condition.
 	template <typename T>
 	concept TCondition = std::is_base_of_v<ConditionNode, T>;
+
+	template <TCondition ConditionToInverse>
+	class InversedConditionNode : public ConditionNode
+	{
+	public:
+		template <typename... ConditionToInverseArgs>
+		explicit InversedConditionNode(ConditionToInverseArgs&&... args)
+			: condition(std::make_unique<ConditionToInverse>(std::forward<ConditionToInverseArgs>(args)...)) {}
+
+		bool Check(const Context& ctx) override
+		{
+			return !(condition->Check(ctx));
+		}
+
+	private:
+		Ptr<Condition> condition;
+	};
+
+	// Not is an alias of  template `InversedConditionNode`, which creates a type that inverse
+	// a given ConditionNode type.
+	//
+	// It returns FAILURE if the wrapped condition returns SUCCESS, otherwise SUCCESS.
+	//
+	// Code Example:
+	//   root
+	//    .If<bt::Not<SomeCondition>>()
+	//    ._().Action<A>();
+	//    .End();
+	template <TCondition ConditionToInverse>
+	using Not = InversedConditionNode<ConditionToInverse>;
+
+	//////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> True, False
+	//////////////////////////////////////////////////////////////
+
+	// True is a built-in condition that always returns true.
+	// Its purpose is to facilitate development and debugging.
+	class True : public ConditionNode
+	{
+	public:
+		explicit True()
+			: ConditionNode(nullptr, "True") {}
+		bool Check(const Context& ctx) override { return true; }
+	};
+
+	// False is a built-in condition that always returns false.
+	// Its purpose is to facilitate development and debugging.
+	class False : public ConditionNode
+	{
+	public:
+		explicit False()
+			: ConditionNode(nullptr, "False") {}
+		bool Check(const Context& ctx) override { return false; }
+	};
+
+	//////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> CompositeConditionNode
+	//////////////////////////////////////////////////////////////
+
+	template <TCondition... Conditions>
+	class CompositeConditionNode : public ConditionNode
+	{
+	public:
+		explicit CompositeConditionNode(std::string_view name = "CompositeConditionNode")
+			: ConditionNode(nullptr, name)
+		{
+			(conditions.push_back(std::make_unique<Conditions>()), ...);
+		}
+
+	protected:
+		PtrList<ConditionNode> conditions;
+	};
+
+	//////////////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> CompositeConditionNode >> And
+	//////////////////////////////////////////////////////////////////////
+
+	template <TCondition... Conditions>
+	class AndConditionNode : public CompositeConditionNode<Conditions...>
+	{
+	public:
+		explicit AndConditionNode(std::string_view name = "And")
+			: CompositeConditionNode<Conditions...>(name) {}
+
+		bool Check(const Context& ctx) override
+		{
+			for (const auto& condition : this->conditions)
+			{
+				if (!condition->Check(ctx))
+					return false;
+			}
+			return true;
+		}
+	};
+
+	// And is an alias of template `AndConditionNode`, which creates a type that combile the logical `AND`
+	// operator on all given ConditionNode types.
+	//
+	// It returns FAILURE if any wrapped condition returns FAILURE, otherwise SUCCESS.
+	//
+	// Code Example:
+	//   root
+	//    .If<bt::And<ConditionA, ConditionB>>()
+	//    ._().Action<DoSomething>();
+	//    .End();
+	template <TCondition... Conditions>
+	using And = AndConditionNode<Conditions...>;
+
+	//////////////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> CompositeConditionNode >> Or
+	//////////////////////////////////////////////////////////////////////
+
+	template <TCondition... Conditions>
+	class OrConditionNode : public CompositeConditionNode<Conditions...>
+	{
+	public:
+		explicit OrConditionNode(std::string_view name = "Or")
+			: CompositeConditionNode<Conditions...>(name) {}
+
+		bool Check(const Context& ctx) override
+		{
+			for (const auto& condition : this->conditions)
+			{
+				if (condition->Check(ctx))
+					return true;
+			}
+			return false;
+		}
+	};
+
+	// Or is an alias of template `AndConditionNode`, which creates a type that combile the logical `OR`
+	// operator on all given ConditionNode types.
+	//
+	// It returns SUCCESS if any wrapped condition returns SUCCESS, otherwise FAILURE.
+	//
+	// Code Example:
+	//   root
+	//    .If<bt::Or<ConditionA, ConditionB>>()
+	//    ._().Action<DoSomething>();
+	//    .End();
+	template <TCondition... Conditions>
+	using Or = OrConditionNode<Conditions...>;
 
 	////////////////////////////////////
 	/// Node > LeafNode > ActionNode
@@ -361,6 +507,22 @@ namespace bt
 	// Concept TAction for all classes derived from Action.
 	template <typename T>
 	concept TAction = std::is_base_of_v<ActionNode, T>;
+
+	///////////////////////////////////////////////////
+	/// Node > LeafNode > ActionNode > EmptyActionNode
+	///////////////////////////////////////////////////
+
+	class EmptyActionNode : public ActionNode
+	{
+	public:
+		explicit EmptyActionNode(std::string_view name = "Empty")
+			: ActionNode(name) {}
+
+		// Always success.
+		Status Update(const Context& ctx) override { return Status::SUCCESS; };
+	};
+
+	using Empty = EmptyActionNode; // alias
 
 	////////////////////////////
 	/// Node > InternalNode
@@ -1081,24 +1243,55 @@ namespace bt
 		//   ._().Action<DoSomething>()
 		//   .End();
 		template <TCondition Condition, typename... ConditionArgs>
-		auto& Not(ConditionArgs... args);
+		auto& Not(ConditionArgs&&... args);
 
 		// Repeat creates a RepeatNode.
-		// It will repeat the decorated node for exactly n times.
+		// It will repeat the decorated node for exactly n times (rounds).
 		// Providing n=-1 means to repeat forever.
 		// Providing n=0 means immediately success without executing the decorated node.
+		//
+		// It will return FAILURE at once if the decorated child node returns FAILURE.
+		// Otherwise, it will continue to repeat N rounds.
+		//
 		// Code exapmle::
 		//   root
 		//   .Repeat(3)
 		//   ._().Action<A>()
 		//   .End();
+		//
+		// If you want to achieve something like `RepeatAlwaysDiscardingChildStatus`, just wrap a `ForceSuccess` on the target:
+		//
+		//   root
+		//   .Repeat(-1)
+		//   ._().ForceSuccess()  // will always success, thus the loop wont stop (always in RUNNING status!).
+		//   ._()._().Action<A>()
+		//   .End();
+		//
 		auto& Repeat(int n) { return C<RepeatNode>(n, "Repeat"); }
 
 		// Alias to Repeat.
+		//
+		// It will repeat the decorated node for exactly n times (rounds).
+		// Providing n=-1 means to repeat forever.
+		// Providing n=0 means immediately success without executing the decorated node.
+		//
+		// It will return FAILURE at once if the decorated child node returns FAILURE.
+		// Otherwise, it will continue to repeat N rounds.
+		//
 		// Code exapmle::
 		//   root
 		//   .Loop(3)
-		//   ._().Action<A>();
+		//   ._().Action<A>()
+		//   .End();
+		//
+		// If you want to achieve something like `LoopAlwaysDiscardingChildStatus`, just wrap a `ForceSuccess` on the target:
+		//
+		//   root
+		//   .Loop(-1)
+		//   ._().ForceSuccess()  // will always success, thus the loop wont stop (always in RUNNING status!).
+		//   ._()._().Action<A>()
+		//   .End();
+		//
 		auto& Loop(int n) { return C<RepeatNode>(n, "Loop"); }
 
 		// Timeout creates a TimeoutNode.
@@ -1108,7 +1301,10 @@ namespace bt
 		//   .Timeout(3000ms)
 		//   ._().Action<A>()
 		//   .End();
-		auto& Timeout(std::chrono::milliseconds duration) { return C<TimeoutNode>(duration, "Timeout"); }
+		auto& Timeout(std::chrono::milliseconds duration)
+		{
+			return C<TimeoutNode>(duration, "Timeout");
+		}
 
 		// Delay creates a DelayNode.
 		// Wait for given duration before execution of decorated node.
@@ -1151,7 +1347,7 @@ namespace bt
 		// Code example::
 		//   root
 		//   .If<CheckSomething>()
-		//   ._().Action(DoSomething)()
+		//   ._().Action<DoSomething>()
 		//   .End();
 		template <TCondition Condition, typename... ConditionArgs>
 		auto& If(ConditionArgs&&... args);
@@ -1162,6 +1358,16 @@ namespace bt
 		//  .If([=](const Context& ctx) { return false; })
 		//  .End();
 		auto& If(ConditionNode::Checker checker) { return If<ConditionNode>(checker); }
+
+		// IfNot creates a InverseConditionNode.
+		// It executes the decorated node only if the condition goes false.
+		// Code example::
+		//   root
+		//   .IfNot<CheckShouldbeFalse>()
+		//   ._().Action<DoSomething>()
+		//   .End();
+		template <TCondition Condition, typename... ConditionArgs>
+		auto& IfNot(ConditionArgs&&... args);
 
 		// Switch is just an alias to Selector.
 		// Code example::
@@ -1214,7 +1420,7 @@ namespace bt
 		// make a new node onto this tree, returns the unique_ptr.
 		// Any node creation should use this function.
 		template <TNode T, typename... Args>
-		Ptr<T> Make(bool skipActtach, Args... args);
+		Ptr<T> Make(bool skipAttach, Args... args);
 	};
 
 	//////////////////////////////////////////////////////////////
@@ -1341,7 +1547,7 @@ namespace bt
 
 	template <typename D>
 	template <TCondition TCondition, typename... ConditionArgs>
-	auto& Builder<D>::Not(ConditionArgs... args)
+	auto& Builder<D>::Not(ConditionArgs&&... args)
 	{
 		return C<InvertNode>("Not", Make<TCondition>(false, std::forward<ConditionArgs>(args)...));
 	}
@@ -1352,6 +1558,14 @@ namespace bt
 	{
 		auto condition = Make<TCondition>(false, std::forward<ConditionArgs>(args)...);
 		return C<ConditionalRunNode>(std::move(condition), "If");
+	}
+
+	template <typename D>
+	template <TCondition ConditionToInverse, typename... ConditionArgs>
+	auto& Builder<D>::IfNot(ConditionArgs&&... args)
+	{
+		auto inversedCondition = Make<InversedConditionNode<ConditionToInverse>>(false, std::forward<ConditionArgs>(args)...);
+		return C<ConditionalRunNode>(std::move(inversedCondition), "IfNot");
 	}
 
 	template <typename D>
@@ -1394,10 +1608,10 @@ namespace bt
 
 	template <typename D>
 	template <TNode T, typename... Args>
-	Ptr<T> Builder<D>::Make(bool skipActtach, Args... args)
+	Ptr<T> Builder<D>::Make(bool skipAttach, Args... args)
 	{
 		auto p = std::make_unique<T>(std::forward<Args>(args)...);
-		if (!skipActtach)
+		if (!skipAttach)
 			OnNodeAttach<T>(*p, root);
 		return p;
 	}

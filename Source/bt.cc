@@ -1,5 +1,5 @@
 // Copyright (c) 2024 Chao Wang <hit9@icloud.com>.
-// License: BSD, Version: 0.4.4.  https://github.com/hit9/bt.cc
+// License: BSD, Version: 0.4.5.  https://github.com/hit9/bt.cc
 // A lightweight behavior tree library that separates data and behavior.
 
 #include "bt.h"
@@ -641,7 +641,7 @@ namespace bt
 			return Status::RUNNING;
 		if (status == Status::FAILURE)
 			return Status::FAILURE;
-		// Count success until n times, -1 will never stop.
+		// Count success until n times, -1 will never stop (excepts on the child's failure).
 		if (++(GetNodeBlobHelper<Blob>()->cnt) == n)
 			return Status::SUCCESS;
 		// Otherwise, it's still running.

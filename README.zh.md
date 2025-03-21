@@ -97,8 +97,13 @@ while(...) {
 - [TreeBlob](#tree-blob)
 - 叶子节点:
   - [动作节点 Action](#action)
+    - [空动作 Empty](#empty-action)
     - [带实体状态的节点](#node-blob)
   - [条件节点 Condition](#condition)
+    - [条件取反 Not](#condition-not)
+    - [条件组合 And](#condition-and-or)
+    - [条件组合 Or](#condition-and-or)
+    - [True,False](#condition-true-and-false)
 - 组合节点:
   - [顺序节点 Sequence](#sequence)
   - [选择节点 Selector](#selector)
@@ -222,6 +227,12 @@ while(...) {
   .Action<A>()
   ```
 
+  bt.cc 内置了一个简单的空动作节点 `bt::Empty`. 其设计目的是方便临时放置一个留白的动作: <span id="empty-action"></span> <a href="#ref">[↑]</a>:
+
+  ```cpp
+  .Action<bt::Empty>()
+  ```
+
   如果要实现一个带实体状态的行为节点，可以先定义一个 `NodeBlob` 结构：      <span id="node-blob"></span> <a href="#ref">[↑]</a>:
 
   ```cpp
@@ -285,6 +296,58 @@ while(...) {
   ._().Condition([=](const Context& ctx) { return false; })
   ._().Action<A>()
   ;
+  ```
+
+  我们可以用 `bt::Not` 来反转一个已经存在的条件节点: <span id="condition-not"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+  .If<bt::Not<SomeCondition>>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  这相当于如下:
+
+  ```cpp
+  .IfNot<SomeCondition>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  除此之外, 还有 `bt::And` 和 `bt::Or`, 使用例子如下: <span id="condition-and-or"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+   // C1 && C2
+  .If<bt::And<C1, C2>>()
+  ._().Action<A>();
+
+   // C1 ||  C2
+  .If<bt::Or<C1, C2>>()
+  ._().Action<B>();
+
+  // C1 || (!C2 && C3)
+  .If<bt::Or<C1, bt::And<bt::Not<C2>, C3>>>()
+  ._().Action<B>();
+  ```
+
+  事实上，无论是 `Not`, `And`, `Or`, 都可以用传统的行为树节点来模拟（比如 `Invert`, `Sequence` 和 `Selector` 的组合），
+  但是，添加这几个语法糖的目的，只是为了更好的表达力和方便性.
+
+  <span id="condition-true-and-false"></span>
+
+  此外, 还内置实现了两个条件节点 `bt::True` 和 `bt::False`.
+  它们存在的目的, 是为了在开发和调试中更方便, 比如说, 有的时候我们想要简单的让一个条件短路来方便测试代码: <a href="#ref">[↑]</a>
+
+  ```cpp
+  .Sequence()
+  ._().Action<ExistingActionA>()
+  ._().Condition<bt::False>()  // 临时插入一个 bt::False 条件, 后面的动作就不会再执行了
+  ._().Action<ExistingActionB>()
+  ```
+
+  当然, 它们也可以使用在 `If`, `IfNot`, `Case` 之类的任何可以使用条件节点的地方:
+
+  ```cpp
+  .If<bt::And<bt::False, C>>()
+  ._().Action<A>() // 临时把条件 C 变成 False && C, 这样相当于注释掉了 A 的执行
   ```
 
 * **Sequence** <span id="sequence"></span> <a href="#ref">[↑]</a>
@@ -428,6 +491,8 @@ while(...) {
 
   * `If` 只有在它的条件满足时执行其装饰的子节点：  <span id="if"></span> <a href="#ref">[↑]</a>
 
+    如果条件检查失败, 返回 `FAILURE`, 否则返回子节点的状态.
+
     ```cpp
     .If<SomeCondition>()
     ._().Action<Task>()
@@ -445,6 +510,13 @@ while(...) {
     //   FAILURE => SUCCESS
     ```
 
+    `Not` 是 `Invert` 的一个别名:
+
+    ```cpp
+    .Not()
+    ._().Condition<A>()
+    ```
+
   * `Repeat(n)` (别名 `Loop`) 会重复执行被修饰的子节点正好 `n` 次, 如果子节点失败，它会立即失败。  <span id="repeat"></span> <a href="#ref">[↑]</a>
 
     如果把节点从 开始 `RUNNING`、到 `SUCCESS` 或者 `FAILURE` 叫做一轮的话，`Repeat(n)` 的作用就是执行被修饰的子节点 `n` 轮。
@@ -455,6 +527,21 @@ while(...) {
     ._().Action<A>()
     ```
 
+    设置 `n=-1` 意味着无限循环.
+
+    ```cpp
+    // Repeat action A forever.
+    .Repeat(-1)
+    ._().Action<A>()
+    ```
+
+    设置 `n=0` 将会立即成功, 而不会执行被修饰额节点.
+
+    ```cpp
+    // immediately success without executing A.
+    .Repeat(0)
+    ._().Action<A>()
+    ```
   * `Timeout` 会对其修饰的子节点加一个执行时间限制，如果到时间期限子节点仍未返回成功，则它会返回失败，也不再 tick 子节点。   <span id="timeout"></span> <a href="#ref">[↑]</a>
 
     ```cpp
@@ -495,7 +582,7 @@ while(...) {
     ._().Actino<Task>()
     ```
 
-  * **自定义装饰器**  <a href="#ref">[↑]</a>
+  * **自定义装饰器** <span id="custom-decorator"></span>  <a href="#ref">[↑]</a>
 
     要定义一个自定义的装饰器，可以继承 `bt::DecoratorNode`:
 
@@ -679,7 +766,7 @@ while(...) {
   5. 可以把 `OnSignal` 节点尽量向上提, 这样会使得行为树更像事件驱动的一点, 提高效率.
 
   下面是一个具体的例子, 采用的是我的另一个小的事件库 [blinker.h](https://github.com/hit9/blinker.h),
-  具体的代码可以参考目录 [example/onsignal](example/onsignal).
+  具体的代码可以参考目录  [Example/Signal_OnSignal](Example/Signal_OnSignal).
 
   ```cpp
   root
