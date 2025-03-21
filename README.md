@@ -106,6 +106,9 @@ Reference: <span id="ref"></span>
     - [Empty Action](#empty-action)
     - [Stateful Action](#node-blob)
   - [Condition](#condition)
+    - [Not](#condition-not)
+    - [And](#condition-and-or)
+    - [Or](#condition-and-or)
 - Composite Nodes:
   - [Sequence](#sequence)
   - [Selector](#selector)
@@ -230,7 +233,8 @@ Reference: <span id="ref"></span>
   .Action<A>()
   ```
 
-  bt.cc includes a simple empty action node called `bt::Empty`. <span id="empty-action"></span> <a href="#ref">[↑]</a>:
+  bt.cc includes a simple empty action node called `bt::Empty`. <span id="empty-action"></span> <a href="#ref">[↑]</a>
+
   Its design purpose is to provide a convenient placeholder for an action, acting as a 'blank' or temporary action:
 
   ```cpp
@@ -303,6 +307,40 @@ Reference: <span id="ref"></span>
   ._().Action<A>()
   ;
   ```
+
+  We can use bt::Not to invert an existing condition node: <span id="condition-not"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+  .If<bt::Not<SomeCondition>>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  This is equivalent to:
+
+  ```cpp
+  .IfNot<SomeCondition>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  In addition to these, there are also `bt::And` and `bt::Or`, used as follows: <span id="condition-and-or"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+   // C1 && C2
+  .If<bt::And<C1, C2>>()
+  ._().Action<A>();
+
+   // C1 ||  C2
+  .If<bt::Or<C1, C2>>()
+  ._().Action<B>();
+
+  // C1 || (!C2 && C3)
+  .If<bt::Or<C1, bt::And<bt::Not<C2>, C3>>>()
+  ._().Action<B>();
+  ```
+
+  In practice, `Not`, `And`, and `Or` can all be simulated using traditional behavior tree nodes
+  (for example, a combination of `Invert`, `Sequence`, and `Selector`).
+  However, these syntactic sugar elements are added to enhance expressiveness and improve ease of use.
 
 * **Sequence**  <span id="sequence"></span> <a href="#ref">[↑]</a>
 

@@ -100,6 +100,9 @@ while(...) {
     - [空动作 Empty](#empty-action)
     - [带实体状态的节点](#node-blob)
   - [条件节点 Condition](#condition)
+    - [条件取反 Not](#condition-not)
+    - [条件组合 And](#condition-and-or)
+    - [条件组合 Or](#condition-and-or)
 - 组合节点:
   - [顺序节点 Sequence](#sequence)
   - [选择节点 Selector](#selector)
@@ -293,6 +296,39 @@ while(...) {
   ._().Action<A>()
   ;
   ```
+
+  我们可以用 `bt::Not` 来反转一个已经存在的条件节点: <span id="condition-not"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+  .If<bt::Not<SomeCondition>>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  这相当于如下:
+
+  ```cpp
+  .IfNot<SomeCondition>()  // When !SomeCondition
+  ._().Action<A>();
+  ```
+
+  除此之外, 还有 `bt::And` 和 `bt::Or`, 使用例子如下: <span id="condition-and-or"></span> <a href="#ref">[↑]</a>
+
+  ```cpp
+   // C1 && C2
+  .If<bt::And<C1, C2>>()
+  ._().Action<A>();
+
+   // C1 ||  C2
+  .If<bt::Or<C1, C2>>()
+  ._().Action<B>();
+
+  // C1 || (!C2 && C3)
+  .If<bt::Or<C1, bt::And<bt::Not<C2>, C3>>>()
+  ._().Action<B>();
+  ```
+
+  事实上，无论是 `Not`, `And`, `Or`, 都可以用传统的行为树节点来模拟（比如 `Invert`, `Sequence` 和 `Selector` 的组合），
+  但是，添加这几个语法糖的目的，只是为了更好的表达力和方便性.
 
 * **Sequence** <span id="sequence"></span> <a href="#ref">[↑]</a>
 
