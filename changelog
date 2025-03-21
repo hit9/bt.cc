@@ -1,12 +1,10 @@
 0.4.5
 -----
 
-Plan: Add `Log([cxt]{...})`
-Plan: Add `While<Condition>`.
-
 * Add decorator `IfNot<Condition>` and template `bt::Not<Condition>`.
-* Add decorator `DoWhileNode`.
-* Fix some readme descriptions.
+* Add condition combination supports: `bt::And` and `bt::Not`.
+* Add a builtin Empty Action implementation: `bt::Empty`.
+* Add builtin Condition implementations: `bt::True` and `bt::False`
 
 0.4.4
 -----
