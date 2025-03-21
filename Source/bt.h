@@ -377,6 +377,30 @@ namespace bt
 	using Not = InversedConditionNode<ConditionToInverse>;
 
 	//////////////////////////////////////////////////////////////
+	/// Node > LeafNode > ConditionNode >> True, False
+	//////////////////////////////////////////////////////////////
+
+	// True is a built-in condition that always returns true.
+	// Its purpose is to facilitate development and debugging.
+	class True : public ConditionNode
+	{
+	public:
+		explicit True()
+			: ConditionNode(nullptr, "True") {}
+		bool Check(const Context& ctx) override { return true; }
+	};
+
+	// False is a built-in condition that always returns false.
+	// Its purpose is to facilitate development and debugging.
+	class False : public ConditionNode
+	{
+	public:
+		explicit False()
+			: ConditionNode(nullptr, "False") {}
+		bool Check(const Context& ctx) override { return false; }
+	};
+
+	//////////////////////////////////////////////////////////////
 	/// Node > LeafNode > ConditionNode >> CompositeConditionNode
 	//////////////////////////////////////////////////////////////
 

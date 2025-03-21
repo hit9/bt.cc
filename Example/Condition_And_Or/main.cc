@@ -5,17 +5,8 @@
 
 using namespace std::chrono_literals;
 
-class True : public bt::ConditionNode
-{
-	std::string_view Name() const override { return "True"; }
-	bool			 Check(const bt::Context& ctx) override { return true; }
-};
-
-class False : public bt::ConditionNode
-{
-	std::string_view Name() const override { return "False"; }
-	bool			 Check(const bt::Context& ctx) override { return false; }
-};
+using bt::False;
+using bt::True;
 
 class Print : public bt::Action
 {
