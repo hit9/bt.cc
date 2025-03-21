@@ -103,6 +103,7 @@ while(...) {
     - [条件取反 Not](#condition-not)
     - [条件组合 And](#condition-and-or)
     - [条件组合 Or](#condition-and-or)
+    - [True,False](#condition-true-and-false)
 - 组合节点:
   - [顺序节点 Sequence](#sequence)
   - [选择节点 Selector](#selector)
@@ -329,6 +330,25 @@ while(...) {
 
   事实上，无论是 `Not`, `And`, `Or`, 都可以用传统的行为树节点来模拟（比如 `Invert`, `Sequence` 和 `Selector` 的组合），
   但是，添加这几个语法糖的目的，只是为了更好的表达力和方便性.
+
+  <span id="condition-true-and-false"></span>
+
+  此外, 还内置实现了两个条件节点 `bt::True` 和 `bt::False`.
+  它们存在的目的, 是为了在开发和调试中更方便, 比如说, 有的时候我们想要简单的让一个条件短路来方便测试代码: <a href="#ref">[↑]</a>
+
+  ```cpp
+  .Sequence()
+  ._().Action<ExistingActionA>()
+  ._().Condition<bt::False>()  // 临时插入一个 bt::False 条件, 后面的动作就不会再执行了
+  ._().Action<ExistingActionB>()
+  ```
+
+  当然, 它们也可以使用在 `If`, `IfNot`, `Case` 之类的任何可以使用条件节点的地方:
+
+  ```cpp
+  .If<bt::And<bt::False, C>>()
+  ._().Action<A>() // 临时把条件 C 变成 False && C, 这样相当于注释掉了 A 的执行
+  ```
 
 * **Sequence** <span id="sequence"></span> <a href="#ref">[↑]</a>
 

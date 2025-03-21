@@ -109,6 +109,7 @@ Reference: <span id="ref"></span>
     - [Not](#condition-not)
     - [And](#condition-and-or)
     - [Or](#condition-and-or)
+    - [True and False](#condition-true-and-false)
 - Composite Nodes:
   - [Sequence](#sequence)
   - [Selector](#selector)
@@ -308,7 +309,7 @@ Reference: <span id="ref"></span>
   ;
   ```
 
-  We can use bt::Not to invert an existing condition node: <span id="condition-not"></span> <a href="#ref">[↑]</a>
+  We can use `bt::Not` to invert an existing condition node: <span id="condition-not"></span> <a href="#ref">[↑]</a>
 
   ```cpp
   .If<bt::Not<SomeCondition>>()  // When !SomeCondition
@@ -322,7 +323,7 @@ Reference: <span id="ref"></span>
   ._().Action<A>();
   ```
 
-  In addition to these, there are also `bt::And` and `bt::Or`, used as follows: <span id="condition-and-or"></span> <a href="#ref">[↑]</a>
+  In addition to these, there are also `bt::And` and `bt::Or`, code examples as follows: <span id="condition-and-or"></span> <a href="#ref">[↑]</a>
 
   ```cpp
    // C1 && C2
@@ -341,6 +342,25 @@ Reference: <span id="ref"></span>
   In practice, `Not`, `And`, and `Or` can all be simulated using traditional behavior tree nodes
   (for example, a combination of `Invert`, `Sequence`, and `Selector`).
   However, these syntactic sugar elements are added to enhance expressiveness and improve ease of use.
+
+  <span id="condition-true-and-false"></span>
+  Additionally, there are two built-in, pre-implemented condition nodes: `bt::True` and `bt::False`.
+  Their purpose is solely to make development and debugging more convenient.
+  For instance, sometimes we might want to easily short-circuit a condition to facilitate code testing.  <a href="#ref">[↑]</a>
+
+  ```cpp
+  .Sequence()
+  ._().Action<ExistingActionA>()
+  ._().Condition<bt::False>()  // Interrupt the actions below temporarily by inserting a bt::False
+  ._().Action<ExistingActionB>()
+  ```
+
+  Of course, they can also be used in conjunction with nodes like `If`, `IfNot`, `Case` etc:
+
+  ```cpp
+  .If<bt::And<bt::False, C>>()
+  ._().Action<A>() // Shadow this action temporarily by changing condition C to False && C
+  ```
 
 * **Sequence**  <span id="sequence"></span> <a href="#ref">[↑]</a>
 
